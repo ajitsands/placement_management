@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Candidate Placement & Claims Management System - Enterprise web application built with React, PHP MVC, and MySQL for the Kingdom of Bahrain and GCC.">
+  <meta name="author" content="SaNDS Lab W.L.L.">
+  <title>Candidate Placement & Claims Management System | SaNDS Lab</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Core Design System Stylesheet -->
+  <link rel="stylesheet" href="css/app.css?v=3.4">
+
+  <!-- React 18 & ReactDOM 18 Production UMD -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- SweetAlert2 (Local distribution with CDN fallback) -->
+  <script src="js/sweetalert2.all.min.js"></script>
+  <script>
+    if (typeof Swal === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"><\/script>');
+    }
+  </script>
+  <script>
+    window.swal = window.Swal;
+  </script>
+
+  <!-- Babel Standalone for JSX Compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <!-- React App Root Container -->
+  <div id="root"></div>
+
+  <!-- Micro-API Client -->
+  <script src="js/services/api.js?v=3.2"></script>
+
+  <!-- Central State Management Store -->
+  <script src="js/state/store.js?v=3.1"></script>
+
+  <!-- React Components & Views -->
+  <script type="text/babel" src="js/components/DataTable.js?v=3.1"></script>
+  <script type="text/babel" src="js/components/Navbar.js?v=3.2"></script>
+  <script type="text/babel" src="js/components/Modals.js?v=3.9"></script>
+  <script type="text/babel" src="js/views/LoginView.js?v=3.2"></script>
+  <script type="text/babel" src="js/views/DashboardView.js?v=4.4"></script>
+  <script type="text/babel" src="js/views/CandidatesView.js?v=3.1"></script>
+  <script type="text/babel" src="js/views/MilestonesView.js?v=4.3"></script>
+  <script type="text/babel" src="js/views/ClaimsView.js?v=3.2"></script>
+  <script type="text/babel" src="js/views/DisputesView.js?v=3.2"></script>
+  <script type="text/babel" src="js/views/PaymentsView.js?v=3.1"></script>
+  <script type="text/babel" src="js/views/ReportsView.js?v=3.1"></script>
+  <script type="text/babel" src="js/views/UsersView.js?v=3.2"></script>
+  <script type="text/babel" src="js/views/SettingsView.js?v=3.1"></script>
+
+  <!-- Main Application Orchestrator -->
+  <script type="text/babel" src="js/app.js?v=3.1"></script>
+</body>
+</html>

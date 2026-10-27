@@ -1,0 +1,11 @@
+﻿=== SHEET: Dropdown ===
+R1 : A1: Case Manager | B1: MoL | C1: Gender | D1: Education | E1: Claims | F1: Employement Type
+R2 : A2: Husain | B2: Yes | C2: Male | D2: High School | E2: Claimed | F2: Full time Direct Employment | G2: 550 | H2: 330 | I2: 330
+R3 : A3: Dina | B3: No | C3: Female | D3: Diploma | E3: Not Claimed | F3: Insourced to Service Provider | G3: 165 | H3: 165 | I3: 165
+R4 : A4: Malak | D4: Bachelors + | E4: Partial Claimed | F4: Part time Direct Employment | G4: 275
+R5 : A5: Zainab Mattar | E5: Disputed | F5: Full time Multi Party Employment
+R6 : A6: Meaad | E6: Terminated | F6: Pro active Job Seeker
+R7 : A7: Mahdi
+R8 : A8: Khalifa
+R9 : A9: Zainab Almaroom
+R10 : A10: Ameera

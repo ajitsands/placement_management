@@ -1,0 +1,244 @@
+﻿SOFTWARE DEVELOPMENT PROPOSAL
+Candidate Placement & Claims Management System
+Prepared by: SaNDS Lab Middle East W.L.L.Project Type: Web-Based Application DevelopmentCurrency: Bahraini Dinar (BHD)
+1. Project Overview
+SaNDS Lab proposes to design and develop a centralized Candidate Placement & Claims Management System to manage candidate registrations, employment milestones, claim generation, dispute handling, payment collection, and financial reconciliation.
+The system will provide separate access for administrators and case managers, automated notifications for claim milestones, and management reports to monitor candidate placements, claims, collections, and outstanding balances.
+The project will also include migration of existing candidate, claim, and payment records from agreed Excel/CSV files.
+2. Objectives
+Centralize candidate registration and placement records.
+Assign candidates to their respective case managers.
+Generate unique candidate reference numbers.
+Automate claim milestone tracking and notifications.
+Manage undisputed and disputed claims through a controlled workflow.
+Track payment collections, partial payments, and outstanding balances.
+Provide management dashboards and downloadable reports.
+Migrate existing candidate and financial records into the new system.
+3. Functional Scope of Work
+3.1 User Management and Access Control
+The system will support the following roles:
+Administrator
+Create and manage case managers and user accounts.
+Provide multiple individual logins under each case manager, where required.
+View and manage all candidate records, claims, disputes, payments, and reports.
+Configure system settings and monitor user activity.
+Case Manager
+Register and maintain assigned candidate records.
+View candidate and claim information according to assigned permissions.
+Receive notifications for claims that are due for generation.
+Create claims and enter claim amounts manually.
+Monitor claim statuses, disputes, collections, and outstanding balances.
+Each user will have individual login credentials. Access permissions will be controlled according to the assigned role.
+3.2 Candidate Registration and Placement
+The system will allow authorized case managers to register candidates with relevant personal, placement, employment, and contract details.
+Features include:
+Candidate registration and record maintenance.
+Assignment of candidates to case managers.
+Automatic generation of a unique candidate reference number.
+Recording of placement date, employment start date, and contract details.
+Candidate search and filtering by reference number, case manager, date, and status.
+Access to candidate claim history and payment records.
+Prevention or identification of duplicate candidate records.
+3.3 Claim Milestone Management
+The system will monitor three claim milestones for each eligible candidate.
+Milestone
+Eligibility trigger
+Initial Placement Claim
+At the time of candidate placement
+Six-Month Employment Claim
+Upon completion of six months from the employment start date
+Twelve-Month Employment Claim
+Upon completion of twelve months from the employment start date
+The placement claim will be available when the candidate's placement is recorded. Subsequent claims will become due according to the recorded employment start date.
+Claim management features:
+Automatic identification of upcoming and due claim milestones.
+Dashboard and email notifications to the responsible case manager.
+A list of claims due but not yet generated.
+Manual entry of the claim amount by an authorized user.
+Recording of claim date, milestone, candidate reference, amount, and status.
+Prevention of duplicate claims for the same candidate and milestone.
+Historical tracking of claim generation and status changes.
+The system will automate milestone tracking and notifications; claim amounts will not be calculated automatically.
+3.4 Claim Status and Dispute Management
+Each claim will be managed through one of the following statuses:
+A. Undisputed
+Claims accepted for collection processing.
+Eligible to proceed to payment collection and reconciliation.
+Available for outstanding balance monitoring.
+B. Disputed
+Claims can be marked as disputed manually by authorized users.
+Users can record the dispute reason, category, date, and remarks.
+Disputed claims will remain identifiable in reports and dashboards.
+Authorized users can return a resolved claim to undisputed status.
+Once reinstated, the claim can proceed through the normal collection workflow.
+C. Terminated
+Authorized users can mark a disputed claim as terminated.
+The reason for termination and supporting remarks will be recorded.
+The claim will be excluded from active collection processing, subject to agreed business rules.
+The complete claim history, including amounts, dispute details, decisions, and previous statuses, will be retained for audit and reporting.
+Terminated claims will remain accessible to authorized users and will not be permanently deleted.
+3.5 Payment Collection and Reconciliation
+The system will provide a dedicated module to record and monitor payments against undisputed claims.
+Features include:
+Recording of payments received against individual claims.
+Support for partial payments and multiple receipts.
+Recording of payment date, amount, payment method, receipt/reference number, and remarks.
+Automatic calculation of total collected and outstanding amounts.
+Identification of unpaid, partially paid, and fully paid claims.
+Reconciliation of claim values against payment receipts.
+Payment history by candidate, claim, and case manager.
+Reporting of outstanding balances and collection performance.
+The system will record payments and support reconciliation. It will not execute bank transfers or process payments through an external payment gateway.
+3.6 Dashboard and Management Reports
+The system will provide dashboards and reports for administrators and authorized case managers.
+Reports will include:
+Candidate Registration Report — Total candidates and candidate details grouped by case manager.
+Claim Milestone Report — Claims due, generated, overdue, and pending by milestone.
+Unclaimed Claims Report — Candidates with due milestones for which claims have not yet been generated.
+Claim Summary Report — Claim counts and values by candidate, case manager, milestone, and status.
+Disputed Claims Report — Disputed claims, reasons, remarks, and resolution status.
+Terminated Claims Report — Terminated claims with historical details and reasons.
+Payment Collection Report — Total receipts and collections by date, candidate, and claim.
+Outstanding Balance Report — Remaining amounts by candidate, claim, and case manager.
+Reconciliation Report — Claim amounts compared with payments received and outstanding balances.
+Case Manager Performance Report — Candidate registrations, due claims, generated claims, and collections.
+Reports will support relevant date ranges, status filters, case manager filters, and export to Excel or PDF.
+3.7 Dashboard and Email Notifications
+The system will generate notifications for the responsible case manager when a claim milestone becomes due.
+Notifications will cover:
+Initial placement claims requiring generation.
+Six-month employment claims becoming due.
+Twelve-month employment claims becoming due.
+Pending and overdue unclaimed milestones.
+Disputed claims requiring follow-up, where applicable.
+Notifications will be displayed within the system dashboard and sent by email to configured user email addresses.
+Email notifications will depend on the availability and configuration of a compatible email service. The system will retain claim records and milestone status even if an email delivery attempt fails.
+3.8 Existing Data Migration
+SaNDS Lab will migrate the client's agreed existing data from Excel/CSV files.
+The migration scope will include:
+Review of the supplied files and data structure.
+Mapping of existing fields to the new database.
+Import of candidate and placement records.
+Import of available historical claims and claim statuses.
+Import of payment records and outstanding balances.
+Preservation of existing candidate reference numbers where suitable and agreed.
+Validation of migrated record counts and financial totals.
+Sample verification with the client before final acceptance.
+The client will provide the source files in an agreed format. Data cleansing, duplicate resolution, missing financial information, and inconsistencies will be identified for review. Extensive manual correction or reconstruction of incomplete records will be treated as additional work if outside the agreed migration allowance.
+4. End-to-End Business Workflow
+The administrator creates case manager accounts and assigns the required access permissions.
+The case manager registers a candidate and enters placement and employment details.
+The system generates a unique candidate reference number.
+The initial placement claim becomes available for generation.
+The case manager enters the claim amount and records the claim.
+The system tracks six-month and twelve-month milestones from the employment start date and notifies the assigned case manager when claims become due.
+The case manager generates each subsequent claim and enters the applicable amount.
+The claim is classified as undisputed or disputed.
+Undisputed claims proceed to payment collection.
+Disputed claims can be reviewed and returned to undisputed status or marked as terminated.
+Terminated claims retain their complete history but are removed from active collection processing.
+Payments are recorded, reconciled, and applied to the corresponding claims.
+The dashboard and reports provide management with current claim, collection, and outstanding balance information.
+5. Implementation Timeline
+The estimated implementation period is 8–10 weeks from project commencement, subject to timely client feedback and availability of the source data.
+Phase
+Activities
+Estimated Duration
+1
+Requirement analysis and workflow finalization
+1 week
+2
+UI and database design
+1 week
+3
+Candidate registration, user management, and milestone tracking
+2 weeks
+4
+Claims, dispute management, payment collection, and reconciliation
+2 weeks
+5
+Dashboard, reports, and email notifications
+1 week
+6
+Excel/CSV migration, validation, and user acceptance testing
+1–2 weeks
+7
+Production deployment, training, and handover
+Included in final phase
+The phases may overlap where practical. The final delivery schedule will be confirmed at project kickoff.
+6. Commercial Proposal
+No.
+Description
+Amount (BHD)
+1
+Requirement Analysis and System Design
+200
+2
+Candidate Registration and User Management
+400
+3
+Claim Milestone Tracking and Notifications
+450
+4
+Dispute Management and Termination Workflow
+300
+5
+Payment Collection and Reconciliation
+400
+6
+Dashboard and Management Reports
+350
+7
+Excel/CSV Data Migration and Validation
+300
+8
+Testing, Deployment, Training, and Handover
+350
+Total Project Cost
+BHD 2,750
+The above is a one-time development and implementation cost based on the scope described in this proposal.
+7. Payment Terms
+Milestone
+Percentage
+Amount (BHD)
+Advance payment upon project confirmation
+40%
+1,100
+Completion of core modules and workflow demonstration
+30%
+825
+Final testing, deployment, and handover
+30%
+825
+Total
+100%
+2,750
+8. Project Deliverables
+Deployed web-based Candidate Placement & Claims Management System.
+Administrator and case manager access with role-based permissions.
+Candidate registration and reference number generation.
+Automated placement, six-month, and twelve-month claim milestone tracking.
+Dashboard and email notifications.
+Claim status, dispute, and termination management.
+Payment collection and reconciliation functionality.
+Management dashboards and downloadable reports.
+Migration of agreed existing Excel/CSV data.
+Testing, deployment, user training, and basic user documentation.
+9. Assumptions and Exclusions
+The estimate covers one agreed set of existing Excel/CSV source files.
+The client will provide complete and accessible candidate, claim, and payment data.
+Claim amounts will be entered manually by authorized users.
+Six-month and twelve-month milestones will be calculated from the recorded employment start date, using agreed date-calculation rules.
+Initial placement claims will be available at the time of placement.
+Email notifications require a configured email service and valid recipient addresses.
+Hosting, domain registration or renewal, and third-party service fees are excluded unless separately agreed.
+SMS, WhatsApp, accounting software, payment gateway, and bank integrations are excluded.
+Terminated claims will retain their history and will not be permanently deleted through normal application workflows.
+Data correction beyond the agreed migration allowance and major changes to source data will be quoted separately.
+Any additional functionality beyond the approved scope will require a separate estimate and approval.
+A defined warranty period for correcting software defects against the approved scope will be confirmed in the final agreement. Ongoing maintenance and support are excluded unless separately contracted.
+10. Conclusion
+The proposed system will provide a structured and transparent process for managing candidates, tracking employment-based claim milestones, resolving disputes, recording collections, and monitoring outstanding balances.
+By centralizing the workflow and introducing automated dashboard and email notifications, the organization will be better equipped to reduce missed claims, maintain accurate financial records, and monitor case manager performance.
+SaNDS Lab Middle East W.L.L. looks forward to implementing a reliable solution tailored to the client's operational requirements.
+Proposed One-Time Project Investment: BHD 2,750Estimated Delivery: 8–10 Weeks

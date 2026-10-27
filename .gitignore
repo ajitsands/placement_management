@@ -1,0 +1,6 @@
+# Local Environment Configuration
+.env
+
+# Scratch and Logs
+/api/data/*.tmp
+*.log

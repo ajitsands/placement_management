@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Proposal - Candidate Placement & Claims Management System | SaNDS Lab Middle East</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-dark: #0f172a;
+            --accent-green: #95c11f;
+            --accent-lime: #beff01;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #cbd5e1;
+            --bg-light: #f8fafc;
+            --radius-md: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #94a3b8;
+            color: var(--text-main);
+            line-height: 1.48;
+            font-size: 12.5px;
+        }
+
+        /* Screen Top Sticky Toolbar */
+        .screen-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #090d16 0%, #111827 100%);
+            color: #ffffff;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            border-bottom: 2px solid var(--accent-lime);
+        }
+
+        .screen-toolbar .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .screen-toolbar img {
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .screen-toolbar .doc-title-meta strong {
+            font-size: 13.5px;
+            font-family: 'Outfit', sans-serif;
+            color: #f8fafc;
+            display: block;
+        }
+
+        .screen-toolbar .doc-title-meta span {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .nav-tabs-screen {
+            display: flex;
+            gap: 6px;
+        }
+
+        .nav-tab-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-tab-btn.active, .nav-tab-btn:hover {
+            background: rgba(190, 255, 1, 0.15);
+            color: #beff01;
+            border-color: #beff01;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-toolbar {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            border: none;
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #beff01, #95c11f);
+            color: #0f172a;
+            box-shadow: 0 0 15px rgba(190, 255, 1, 0.35);
+        }
+
+        .btn-print:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 20px rgba(190, 255, 1, 0.6);
+        }
+
+        .btn-secondary-tool {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary-tool:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Screen Sheet Container */
+        .document-wrapper {
+            max-width: 210mm;
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active-panel {
+            display: block;
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 14mm 16mm 14mm 16mm;
+            margin: 0 auto;
+            background: #ffffff;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.18);
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Running Header & Footer */
+        .page-running-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #cbd5e1;
+            font-size: 9.5px;
+            color: #64748b;
+        }
+
+        .page-running-header .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .page-running-header img {
+            height: 18px;
+        }
+
+        .page-running-header .doc-tag {
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #0f172a;
+        }
+
+        .page-running-footer {
+            margin-top: auto;
+            padding-top: 6px;
+            border-top: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 9px;
+            color: #64748b;
+        }
+
+        .page-running-footer .cert-mark {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .page-running-footer .cert-mark i {
+            color: var(--accent-green);
+        }
+
+        .page-content-area {
+            flex: 1;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4, h5 {
+            font-family: 'Outfit', sans-serif;
+            color: #0f172a;
+            font-weight: 700;
+            line-height: 1.22;
+        }
+
+        h2.section-heading {
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            position: relative;
+        }
+
+        h2.section-heading::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -2px;
+            width: 42px;
+            height: 2px;
+            background: var(--accent-green);
+        }
+
+        h2.section-heading i {
+            color: var(--accent-green);
+            font-size: 15px;
+        }
+
+        h3.subsection-heading {
+            font-size: 13px;
+            margin-top: 10px;
+            margin-bottom: 6px;
+            color: #1e3a8a;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        p {
+            margin-bottom: 8px;
+            color: #334155;
+            text-align: justify;
+            font-size: 12px;
+        }
+
+        ul, ol {
+            margin-left: 18px;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        li {
+            margin-bottom: 3px;
+            font-size: 11.5px;
+        }
+
+        /* Cover Page Styling */
+        .cover-page {
+            background: linear-gradient(145deg, #090d16 0%, #111827 50%, #06101e 100%);
+            color: #ffffff;
+            position: relative;
+            overflow: hidden;
+            padding: 22mm 18mm;
+        }
+
+        .cover-page::before {
+            content: '';
+            position: absolute;
+            top: -10%;
+            right: -10%;
+            width: 380px;
+            height: 380px;
+            background: radial-gradient(circle, rgba(149, 193, 31, 0.18) 0%, rgba(0,0,0,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .cover-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-logo-wrapper {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(8px);
+            padding: 10px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .cover-logo-wrapper img {
+            height: 44px;
+            object-fit: contain;
+        }
+
+        .cover-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-end;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 9.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-iso {
+            background: rgba(149, 193, 31, 0.15);
+            color: #beff01;
+            border: 1px solid rgba(190, 255, 1, 0.4);
+        }
+
+        .badge-cr {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .cover-hero-body {
+            margin-top: 48px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cover-tagline-chip {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #beff01;
+            margin-bottom: 12px;
+            background: rgba(190, 255, 1, 0.1);
+            padding: 3px 12px;
+            border-radius: 4px;
+            border-left: 3px solid #beff01;
+        }
+
+        .cover-page h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+            line-height: 1.15;
+            margin-bottom: 10px;
+        }
+
+        .cover-page h1 span {
+            background: linear-gradient(135deg, #ffffff 40%, #beff01 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cover-page .cover-sub {
+            font-size: 14.5px;
+            color: #94a3b8;
+            font-weight: 400;
+            max-width: 580px;
+            margin-bottom: 30px;
+            line-height: 1.45;
+        }
+
+        .cover-metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 35px;
+            backdrop-filter: blur(10px);
+        }
+
+        .meta-box {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-box label {
+            font-size: 9px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+        }
+
+        .meta-box strong {
+            font-size: 13px;
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .meta-box span {
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+
+        .cover-footer {
+            margin-top: auto;
+            position: relative;
+            z-index: 2;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 9.5px;
+            color: #94a3b8;
+        }
+
+        .cover-footer-left { line-height: 1.5; }
+        .cover-footer-right { text-align: right; line-height: 1.5; }
+
+        /* Stat Grid */
+        .card-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 10px 0 12px 0;
+        }
+
+        .stat-card {
+            background: var(--bg-light);
+            border: 1px solid #e2e8f0;
+            border-radius: var(--radius-md);
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .stat-card .val {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .stat-card .lbl {
+            font-size: 9px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .info-callout {
+            background: #f0fdf4;
+            border-left: 3px solid var(--accent-green);
+            padding: 8px 12px;
+            border-radius: 0 6px 6px 0;
+            margin: 8px 0;
+            font-size: 11.5px;
+            color: #14532d;
+        }
+
+        /* Tables */
+        .proposal-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin: 8px 0 12px 0;
+            background: #ffffff;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+        }
+
+        .proposal-table th {
+            background: #0f172a;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 6px 8px;
+            text-align: left;
+            font-family: 'Outfit', sans-serif;
+            font-size: 10.5px;
+            letter-spacing: 0.3px;
+        }
+
+        .proposal-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        .proposal-table tr:last-child td { border-bottom: none; }
+        .proposal-table tr:nth-child(even) td { background: #f8fafc; }
+
+        .proposal-table .text-center { text-align: center; }
+        .proposal-table .text-right { text-align: right; }
+        .proposal-table .font-mono { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+        .proposal-table .font-bold { font-weight: 700; color: #0f172a; }
+
+        .tag-status {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-claimable { background: #dcfce7; color: #15803d; }
+        .tag-claimed { background: #e0f2fe; color: #0369a1; }
+        .tag-disputed { background: #fee2e2; color: #b91c1c; }
+        .tag-terminated { background: #f1f5f9; color: #64748b; }
+
+        /* Diagram Box */
+        .diagram-container {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: var(--radius-md);
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .diagram-container svg {
+            width: 100%;
+            height: auto;
+            max-height: 250px;
+        }
+
+        .diagram-caption {
+            font-size: 9.5px;
+            color: #64748b;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* 2-Column Grid */
+        .two-col-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .feature-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 9px 11px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        .feature-card h4 {
+            font-size: 11.5px;
+            color: #1e3a8a;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .feature-card p {
+            font-size: 11px;
+            line-height: 1.4;
+            margin-bottom: 0;
+        }
+
+        /* Interactive Calculator & Print Version */
+        .calc-wrapper {
+            background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin: 10px 0;
+        }
+
+        .calc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 6px;
+        }
+
+        .calc-header h4 {
+            font-size: 12px;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .calc-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .calc-field label {
+            display: block;
+            font-size: 9.5px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 2px;
+        }
+
+        .calc-field select {
+            width: 100%;
+            padding: 5px 6px;
+            border-radius: 5px;
+            border: 1px solid #cbd5e1;
+            font-size: 10.5px;
+            background: #ffffff;
+            font-family: inherit;
+        }
+
+        .calc-result-banner {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .calc-result-banner span {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+
+        .calc-result-banner strong {
+            font-size: 16px;
+            color: #beff01;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Print only formula block */
+        .print-calc-card {
+            display: none;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin: 10px 0;
+        }
+
+        .print-calc-card h4 {
+            font-size: 11.5px;
+            color: #0f172a;
+            margin-bottom: 6px;
+        }
+
+        /* Sign-Off Block */
+        .signoff-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .signoff-box {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            background: #f8fafc;
+        }
+
+        .signoff-box h5 {
+            font-size: 11px;
+            margin-bottom: 6px;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sign-line {
+            margin-top: 26px;
+            border-top: 1px dashed #94a3b8;
+            padding-top: 3px;
+            font-size: 9px;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Interactive Explorer View */
+        .explorer-container {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .explorer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .explorer-filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .search-box {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 12px;
+            width: 280px;
+        }
+
+        /* Print Media Query */
+        @media print {
+            body {
+                background: none !important;
+                color: #000000;
+                font-size: 10.5pt;
+            }
+
+            .screen-toolbar, .calc-wrapper, .explorer-container, .interactive-only {
+                display: none !important;
+            }
+
+            .print-calc-card {
+                display: block !important;
+            }
+
+            .tab-panel {
+                display: block !important;
+            }
+
+            #panel-explorer, #panel-workflow {
+                display: none !important;
+            }
+
+            .document-wrapper {
+                max-width: 100% !important;
+                margin: 0 !important;
+                gap: 0 !important;
+            }
+
+            .a4-page {
+                width: 100% !important;
+                min-height: 297mm !important;
+                height: 297mm !important;
+                padding: 12mm 15mm 12mm 15mm !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                overflow: hidden !important;
+            }
+
+            .cover-page {
+                background: #090d16 !important;
+                color: #ffffff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                padding: 18mm 16mm !important;
+            }
+
+            .proposal-table th {
+                background: #0f172a !important;
+                color: #ffffff !important;
+            }
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Screen Toolbar -->
+    <header class="screen-toolbar">
+        <div class="brand-group">
+            <img src="sands_logo_2.png" alt="SaNDS Lab Logo">
+            <div class="doc-title-meta">
+                <strong>SOFTWARE PROPOSAL & WORKFLOW SPECIFICATION (A4 FORMAT)</strong>
+                <span>Candidate Placement & Claims Management System (JCP-CMS) | SaNDS Lab Middle East W.L.L.</span>
+            </div>
+        </div>
+
+        <nav class="nav-tabs-screen">
+            <button class="nav-tab-btn active" onclick="switchTab('proposal')">
+                <i class="fas fa-file-alt"></i> Proposal Document (A4)
+            </button>
+            <button class="nav-tab-btn" onclick="switchTab('explorer')">
+                <i class="fas fa-table"></i> Live Excel Data Explorer
+            </button>
+            <button class="nav-tab-btn" onclick="switchTab('workflow')">
+                <i class="fas fa-project-diagram"></i> Workflow Visualizer
+            </button>
+        </nav>
+
+        <div class="toolbar-actions">
+            <button class="btn-toolbar btn-print" onclick="window.print()">
+                <i class="fas fa-file-pdf"></i> Download / Print PDF (A4)
+            </button>
+        </div>
+    </header>
+
+    <div class="document-wrapper">
+
+        <!-- ================= TAB 1: FORMAL PROPOSAL DOCUMENT (8 A4 SHEETS) ================= -->
+        <div id="panel-proposal" class="tab-panel active-panel">
+
+            <!-- PAGE 1: COVER SHEET -->
+            <section class="a4-page cover-page">
+                <div class="cover-header">
+                    <div class="cover-logo-wrapper">
+                        <img src="logo_white.png" alt="SaNDS Lab Logo">
+                    </div>
+                    <div class="cover-badges">
+                        <span class="badge-pill badge-iso"><i class="fas fa-award"></i> ISO 9001:2015 Certified</span>
+                        <span class="badge-pill badge-cr"><i class="fas fa-building"></i> CR: 181123-1 (Bahrain)</span>
+                    </div>
+                </div>
+
+                <div class="cover-hero-body">
+                    <div class="cover-tagline-chip">ENTERPRISE WEB APPLICATION &bull; CLIENT SERVER DEPLOYMENT</div>
+                    <h1>Candidate Placement &<br><span>Claims Management System</span></h1>
+                    <p class="cover-sub">
+                        A centralized, audit-compliant web application for managing candidate employment lifecycles, automated 180-day and 365-day claim milestone dispatch, multi-status dispute resolution, and payment reconciliation.
+                    </p>
+
+                    <div class="cover-metadata-grid">
+                        <div class="meta-box">
+                            <label>Prepared By</label>
+                            <strong>SaNDS Lab Middle East W.L.L.</strong>
+                            <span>Salmabad, Kingdom of Bahrain</span>
+                        </div>
+                        <div class="meta-box">
+                            <label>Document Reference</label>
+                            <strong>SL-ME/PROP/2026/CMS-018</strong>
+                            <span>Version 1.0 (Commercial & Technical)</span>
+                        </div>
+                        <div class="meta-box">
+                            <label>Commercial Investment</label>
+                            <strong style="color: #beff01;">BHD 400 (Bahraini Dinar)</strong>
+                            <span>Delivery Timeline: 10 Working Days</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cover-footer">
+                    <div class="cover-footer-left">
+                        <strong>SaNDS Lab Middle East W.L.L.</strong><br>
+                        AKG Building, Office 24, Building 661, Road 1208, Block 712, Salmabad, Bahrain<br>
+                        Tel: +973 77931123 | +973 35078079 | Email: middleeast@sandslab.com | Web: www.sandslab.com
+                    </div>
+                    <div class="cover-footer-right">
+                        <strong>Global Tech Hub</strong><br>
+                        Chandanam Block, Infopark Thrissur, Kerala, India<br>
+                        Established 2008 &bull; 17+ Years of Innovation
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- PAGE 2: EXECUTIVE SUMMARY & ABOUT SANDS LAB -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Software Development Proposal</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-info-circle"></i> 1. Executive Summary & Project Purpose</h2>
+                    <p>
+                        <strong>SaNDS Lab Middle East W.L.L.</strong> is pleased to submit this streamlined Software Development and Workflow Automation Proposal to engineer and deploy a centralized, web-based <strong>Candidate Placement & Claims Management System</strong> built with <strong>PHP, MySQL, and React.js</strong>, deployed directly on the <strong>client's designated server</strong>.
+                    </p>
+                    <p>
+                        Currently, the placement and employment verification workflow is managed through complex, manual spreadsheets (such as <em>Placement and Claims Sheet 2026</em>), tracking over 480 candidate records across multiple case managers. While these spreadsheets contain vital business logic, they create critical operational risks: manual date tracking for claims, absence of concurrent user permissions, risk of corrupted calculation formulas, lack of audit trails for disputed or terminated claims, and decoupled payment reconciliation.
+                    </p>
+                    <p>
+                        The proposed system transitions operations into an agile, role-governed web application in an expedited <strong>10 working days</strong> timeline. It automates candidate milestone notifications at <strong>Day 0 (Initial Placement)</strong>, <strong>Day 180 (6-Month Claim)</strong>, and <strong>Day 365 (12-Month Claim)</strong>, supports manual claim amount logging, handles structured dispute workflows, and provides real-time executive dashboards.
+                    </p>
+
+                    <div class="card-stat-grid">
+                        <div class="stat-card">
+                            <span class="val">480+</span>
+                            <span class="lbl">Migrated Placements</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="val">10 Days</span>
+                            <span class="lbl">Rapid Turnaround</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="val">PHP + MySQL</span>
+                            <span class="lbl">React.js Frontend</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="val">BHD 400</span>
+                            <span class="lbl">Total Investment</span>
+                        </div>
+                    </div>
+
+                    <h2 class="section-heading" style="margin-top: 14px;"><i class="fas fa-building"></i> 2. About SaNDS Lab (www.sandslab.com)</h2>
+                    <p>
+                        Founded in <strong>2008</strong>, SaNDS Lab is a premier technology and software engineering consultancy with over <strong>17 years of excellence</strong> delivering mission-critical enterprise applications, Artificial Intelligence platforms, hardware security systems, and smart automation across the Middle East and Asia. SaNDS Lab operates under regional commercial registration in Bahrain alongside corporate development centers at Infopark Thrissur, Kerala.
+                    </p>
+
+                    <div class="two-col-grid">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-microchip"></i> Core Competencies & Divisions</h4>
+                            <ul style="margin-left: 14px; margin-bottom: 0; font-size: 10.5px;">
+                                <li><strong>AI & Software Engineering:</strong> Enterprise cloud applications, high-concurrency relational data systems, automated business workflows, and API architectures.</li>
+                                <li><strong>Hardware & Security:</strong> Biometric verification, AI-driven surveillance, and secure infrastructure.</li>
+                                <li><strong>Education & Corporate Training:</strong> SaNDS Lab Academy providing advanced corporate software and AI enablement.</li>
+                                <li><strong>Smart Automation:</strong> Specialized workflow and environmental automation solutions.</li>
+                            </ul>
+                        </div>
+                        <div class="feature-card">
+                            <h4><i class="fas fa-check-double"></i> Enterprise Products & Pedigree</h4>
+                            <ul style="margin-left: 14px; margin-bottom: 0; font-size: 10.5px;">
+                                <li><strong>ShareJob (HR & Placement SaaS):</strong> Automated recruitment, candidate tracking, and corporate billing.</li>
+                                <li><strong>PaymentLink:</strong> Branded payment collection, invoice reconciliation, and financial ledger engines.</li>
+                                <li><strong>CCTV AI & Attendance Pro:</strong> Vision intelligence and GPS-enabled workforce management.</li>
+                                <li><strong>Quality Standards:</strong> Adherence to strict international quality standards in software architecture and delivery.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="info-callout" style="margin-top: 6px;">
+                        <i class="fas fa-shield-alt"></i> <strong>Quality Assurance Guarantee:</strong> SaNDS Lab guarantees full compliance with Bahrain Personal Data Protection Law (PDPL), role isolation, encrypted data transmission, and audit logs.
+                    </div>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 2 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 3: EXCEL ANALYSIS & CURRENT WORKFLOW GAPS -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Operational Analysis</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-exclamation-triangle"></i> 3. Operational Challenges & Milestone Automation Need</h2>
+                    <p>
+                        An architectural review of the client's current operational spreadsheet workflows (<em>Placement and Claims Sheet 2026</em>) identifies critical operational risks inherent to managing over 480 candidate placements and hundreds of claims in manual files. The proposed web system directly addresses these vulnerabilities by establishing automated milestone monitoring, strict role-based governance, and immutable financial audit trails:
+                    </p>
+
+                    <div class="two-col-grid" style="margin-top: 6px;">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-clock text-danger"></i> 3.1 Missed Claim Milestones & Financial Leakage</h4>
+                            <p>
+                                <strong>Vulnerability:</strong> Employment claims span a 12-month lifecycle (Initial Placement, 6 Months, and 12 Months). In Excel, identifying due claims requires staff to manually scan dates. Milestones reaching +180 or +365 days are frequently delayed or missed, causing blocked cashflow and claim leakage.<br>
+                                <strong>Solution:</strong> Automated daily cron engine monitors employment start dates and dispatches proactive dashboard badge alerts and email reminders to responsible case managers before milestones lapse.
+                            </p>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-user-lock text-danger"></i> 3.2 Lack of Multi-User Concurrency & Access Control</h4>
+                            <p>
+                                <strong>Vulnerability:</strong> Multiple case managers (Husain, Dina, Meaad, Malak, Zainab Mattar, etc.) currently access a single shared spreadsheet. This creates severe file-locking conflicts, risk of unauthorized edits to salary or claims, and accidental cell corruption.<br>
+                                <strong>Solution:</strong> Enterprise Role-Based Access Control (RBAC). Each case manager has an authenticated individual login with access restricted to assigned candidates, while Administrators maintain global oversight.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="two-col-grid" style="margin-top: 4px;">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-gavel text-danger"></i> 3.3 Unstructured Dispute Handling & Audit Non-Compliance</h4>
+                            <p>
+                                <strong>Vulnerability:</strong> Disputed claims (resignation, probation termination, employer disagreement) are recorded as unstructured text notes. If a dispute fails, records are often deleted from active sheets, destroying historical audit trails required for regulatory inspection.<br>
+                                <strong>Solution:</strong> Governed dispute state machine. Captures structured dispute categories and remarks, enables safe reinstatement to active collection, and ensures non-destructive permanent archival for terminated claims.
+                            </p>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-receipt text-danger"></i> 3.4 Decoupled Collections & Financial Reconciliation Gaps</h4>
+                            <p>
+                                <strong>Vulnerability:</strong> Payment receipts are not systematically linked to individual claims. Tracking partial payments, cheques, and remaining candidate balances across multiple sheets leads to financial blind spots and manual reconciliation errors.<br>
+                                <strong>Solution:</strong> Dedicated claims payment ledger supporting multi-receipt partial collections, automatic remaining balance calculation, receipt logging, and 1-click reconciliation reports.
+                            </p>
+                        </div>
+                    </div>
+
+                    <h3 class="subsection-heading" style="margin-top: 8px;"><i class="fas fa-exchange-alt"></i> 3.5 Strategic Impact: Current Excel vs. Proposed Automated System</h3>
+                    <table class="proposal-table" style="margin-top: 4px; margin-bottom: 4px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Operational Dimension</th>
+                                <th style="width: 37%;">Current Excel Spreadsheet Process</th>
+                                <th style="width: 38%;">Proposed Web-Based Management System</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="font-bold">Milestone Tracking</td>
+                                <td>Manual scanning of joining dates; prone to missed 6M/12M deadlines.</td>
+                                <td class="font-bold" style="color: #15803d;">Automated daily cron evaluation (+180d, +365d) with push & email alerts.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold">Multi-User Access</td>
+                                <td>Single shared file; concurrent editing conflicts and data overwrite risks.</td>
+                                <td class="font-bold" style="color: #15803d;">Concurrent multi-user web access on client server with strict case manager role isolation.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold">Dispute Management</td>
+                                <td>Free-text comments; unstandardized resolution; risk of record deletion.</td>
+                                <td class="font-bold" style="color: #15803d;">Structured dispute lifecycle with safe reinstatement and permanent audit logs.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold">Financial Collections</td>
+                                <td>Decoupled receipt tracking; manual calculation of outstanding balances.</td>
+                                <td class="font-bold" style="color: #15803d;">Centralized ledger supporting multi-receipt partial payments & auto-reconciliation.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 3 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 4: END-TO-END WORKFLOW & STATE MACHINE DIAGRAMS -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">System Architecture & Workflows</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-project-diagram"></i> 4. End-to-End Business Workflow & State Architecture</h2>
+                    <p>
+                        The proposed solution digitizes the full operational lifecycle into four interconnected workflow pipelines: Candidate Onboarding, Milestone Automation, Dispute Resolution, and Financial Ledger Reconciliation.
+                    </p>
+
+                    <h3 class="subsection-heading"><i class="fas fa-sitemap"></i> 4.1 Master Operational Lifecycle Workflow</h3>
+                    
+                    <div class="diagram-container">
+                        <!-- SVG High Resolution Workflow Architecture Diagram -->
+                        <svg viewBox="0 0 920 200" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#1e3a8a"/>
+                                    <stop offset="100%" stop-color="#0f172a"/>
+                                </linearGradient>
+                                <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#95c11f"/>
+                                    <stop offset="100%" stop-color="#65a30d"/>
+                                </linearGradient>
+                                <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#f59e0b"/>
+                                    <stop offset="100%" stop-color="#b45309"/>
+                                </linearGradient>
+                                <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+                                    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.12"/>
+                                </filter>
+                            </defs>
+
+                            <!-- Step 1: Registration -->
+                            <g filter="url(#shadow)">
+                                <rect x="10" y="15" width="160" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <rect x="10" y="15" width="160" height="30" rx="8" fill="url(#grad-blue)"/>
+                                <text x="90" y="35" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="'Outfit', sans-serif" text-anchor="middle">1. CANDIDATE ONBOARDING</text>
+                                <text x="20" y="65" fill="#334155" font-size="9" font-weight="600">&bull; Case Manager Input</text>
+                                <text x="20" y="82" fill="#334155" font-size="9">&bull; CPR & Employer CR</text>
+                                <text x="20" y="99" fill="#334155" font-size="9">&bull; Auto Ref: JCP/26/XXXX</text>
+                                <text x="20" y="116" fill="#334155" font-size="9">&bull; Duplicate Prevention</text>
+                                <rect x="25" y="132" width="130" height="18" rx="4" fill="#eff6ff"/>
+                                <text x="90" y="145" fill="#1e3a8a" font-size="8" font-weight="bold" text-anchor="middle">Milestone Engine Init</text>
+                            </g>
+
+                            <!-- Arrow 1 -> 2 -->
+                            <polygon points="195,90 187,85 187,95" fill="#94a3b8"/>
+                            <path d="M 170 90 L 195 90" stroke="#94a3b8" stroke-width="2" fill="none"/>
+
+                            <!-- Step 2: Milestone Monitoring -->
+                            <g filter="url(#shadow)">
+                                <rect x="195" y="15" width="165" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <rect x="195" y="15" width="165" height="30" rx="8" fill="url(#grad-blue)"/>
+                                <text x="277" y="35" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="'Outfit', sans-serif" text-anchor="middle">2. MILESTONE ENGINE</text>
+                                <text x="205" y="65" fill="#15803d" font-size="9" font-weight="bold">&bull; Day 0: Placement Claim</text>
+                                <text x="205" y="82" fill="#334155" font-size="9">&bull; Day 180: 6-Month Claim</text>
+                                <text x="205" y="99" fill="#334155" font-size="9">&bull; Day 365: 12-Month Claim</text>
+                                <text x="205" y="116" fill="#334155" font-size="9">&bull; Cron Daily Date Scanner</text>
+                                <rect x="205" y="132" width="145" height="18" rx="4" fill="#f0fdf4"/>
+                                <text x="277" y="145" fill="#15803d" font-size="8" font-weight="bold" text-anchor="middle">Push & Email Dispatch</text>
+                            </g>
+
+                            <!-- Arrow 2 -> 3 -->
+                            <polygon points="380,90 372,85 372,95" fill="#94a3b8"/>
+                            <path d="M 360 90 L 380 90" stroke="#94a3b8" stroke-width="2" fill="none"/>
+
+                            <!-- Step 3: Claim Generation & Dispute Logic -->
+                            <g filter="url(#shadow)">
+                                <rect x="380" y="15" width="175" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <rect x="380" y="15" width="175" height="30" rx="8" fill="url(#grad-amber)"/>
+                                <text x="467" y="35" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="'Outfit', sans-serif" text-anchor="middle">3. CLAIM & DISPUTE WORKFLOW</text>
+                                <text x="390" y="65" fill="#334155" font-size="9">&bull; Manual Claim Amount Entry</text>
+                                <text x="390" y="82" fill="#334155" font-size="9">&bull; Status: Claimable &rarr; Claimed</text>
+                                <text x="390" y="99" fill="#b45309" font-size="9" font-weight="bold">&bull; Dispute Logging & Categories</text>
+                                <text x="390" y="116" fill="#334155" font-size="9">&bull; Reinstatement vs Termination</text>
+                                <rect x="395" y="132" width="145" height="18" rx="4" fill="#fffbeb"/>
+                                <text x="467" y="145" fill="#b45309" font-size="8" font-weight="bold" text-anchor="middle">Full Audit Log Retention</text>
+                            </g>
+
+                            <!-- Arrow 3 -> 4 -->
+                            <polygon points="575,90 567,85 567,95" fill="#94a3b8"/>
+                            <path d="M 555 90 L 575 90" stroke="#94a3b8" stroke-width="2" fill="none"/>
+
+                            <!-- Step 4: Payments & Reconciliation -->
+                            <g filter="url(#shadow)">
+                                <rect x="575" y="15" width="165" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <rect x="575" y="15" width="165" height="30" rx="8" fill="url(#grad-green)"/>
+                                <text x="657" y="35" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="'Outfit', sans-serif" text-anchor="middle">4. PAYMENT RECONCILIATION</text>
+                                <text x="585" y="65" fill="#334155" font-size="9">&bull; Undisputed Claims Ledger</text>
+                                <text x="585" y="82" fill="#334155" font-size="9">&bull; Multi-Receipt Partial Pays</text>
+                                <text x="585" y="99" fill="#334155" font-size="9">&bull; Receipt / Cheque Ref Track</text>
+                                <text x="585" y="116" fill="#334155" font-size="9">&bull; Auto Outstanding Balances</text>
+                                <rect x="585" y="132" width="145" height="18" rx="4" fill="#f0fdf4"/>
+                                <text x="657" y="145" fill="#15803d" font-size="8" font-weight="bold" text-anchor="middle">Unpaid / Partial / Settled</text>
+                            </g>
+
+                            <!-- Arrow 4 -> 5 -->
+                            <polygon points="760,90 752,85 752,95" fill="#94a3b8"/>
+                            <path d="M 740 90 L 760 90" stroke="#94a3b8" stroke-width="2" fill="none"/>
+
+                            <!-- Step 5: Reports & Dashboard -->
+                            <g filter="url(#shadow)">
+                                <rect x="760" y="15" width="150" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <rect x="760" y="15" width="150" height="30" rx="8" fill="url(#grad-blue)"/>
+                                <text x="835" y="35" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="'Outfit', sans-serif" text-anchor="middle">5. EXECUTIVE DASHBOARDS</text>
+                                <text x="770" y="65" fill="#334155" font-size="9">&bull; 10 Specialized Reports</text>
+                                <text x="770" y="82" fill="#334155" font-size="9">&bull; Case Manager KPI Matrix</text>
+                                <text x="770" y="99" fill="#334155" font-size="9">&bull; Aging Overdue Alerts</text>
+                                <text x="770" y="116" fill="#334155" font-size="9">&bull; 1-Click Excel / PDF Export</text>
+                                <rect x="770" y="132" width="130" height="18" rx="4" fill="#eff6ff"/>
+                                <text x="835" y="145" fill="#1e3a8a" font-size="8" font-weight="bold" text-anchor="middle">Financial Intelligence</text>
+                            </g>
+                        </svg>
+                        <div class="diagram-caption">Figure 4.1: Candidate Placement, Milestone Trigger, and Multi-Receipt Financial Reconciliation Engine Architecture</div>
+                    </div>
+
+                    <h3 class="subsection-heading"><i class="fas fa-random"></i> 4.2 Claim Status & Dispute State Machine</h3>
+                    <p>
+                        Every claim moves through a deterministic finite-state machine ensuring zero ambiguity between financial collection and legal or employer dispute states:
+                    </p>
+
+                    <div class="two-col-grid" style="margin-top: 4px;">
+                        <div class="feature-card">
+                            <h4><span class="tag-status tag-claimable">A. Undisputed Workflow</span></h4>
+                            <p>Claims verified and accepted for active collection. Instantly dispatched to the payment collection module to record partial receipts, track bank reference numbers, and reconcile outstanding balances.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="tag-status tag-disputed">B. Disputed Handling</span></h4>
+                            <p>Authorized case managers record dispute reasons (e.g., candidate resignation, termination during probation, contract discrepancy). Once resolved, claims can be safely reinstated to undisputed status without data loss.</p>
+                        </div>
+                    </div>
+
+                    <div class="feature-card" style="margin-top: 6px;">
+                        <h4><span class="tag-status tag-terminated">C. Non-Destructive Termination Workflow</span></h4>
+                        <p style="font-size: 10.5px;">
+                            If a claim cannot be recovered, it is marked as <strong>Terminated</strong> with documented reason and manager approval. In strict compliance with regulatory accounting standards, terminated claims are removed from active accounts receivable but remain 100% permanently archived for future audit and review.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 4 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 5: DETAILED FUNCTIONAL MODULE SPECIFICATIONS -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Functional Specifications</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-cubes"></i> 5. Scope of Work: Detailed Functional Modules</h2>
+                    <p>
+                        The proposed software system encompasses seven core functional modules, each engineered to address specific operational and regulatory needs:
+                    </p>
+
+                    <div class="two-col-grid">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-user-shield"></i> Module 1: User Management & Access Control</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Administrator Role:</strong> Full system governance, creation of case manager accounts, master setting configuration, and audit logs.</li>
+                                <li><strong>Case Manager Role:</strong> Individual logins (Husain, Dina, Meaad, Malak, Zainab Mattar, etc.) with scoped access to manage their assigned candidate portfolios.</li>
+                                <li><strong>Audit Trail:</strong> System tracks timestamp and user identity for every modification or claim status update.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-id-card"></i> Module 2: Candidate Registration & Tracking</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Demographics & Verification:</strong> CPR validation, full legal name, gender, education level, and contact info.</li>
+                                <li><strong>Employment Parameters:</strong> Employer CR number, company name, position, salary, and employment type.</li>
+                                <li><strong>Automatic Reference Generation:</strong> Unique identifier formatting (e.g., <code>JCP/26/268524</code>) with duplicate prevention.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-bell"></i> Module 3: Milestone Automation & Alerts</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Trigger 1 (Placement):</strong> Immediate eligibility upon confirmation of joining date.</li>
+                                <li><strong>Trigger 2 (6 Months):</strong> Automated trigger at <code>Joining Date + 180 Days</code>.</li>
+                                <li><strong>Trigger 3 (12 Months):</strong> Automated trigger at <code>Joining Date + 365 Days</code>.</li>
+                                <li><strong>Proactive Alerts:</strong> Dashboard badge counters and automated email alerts sent to the assigned case manager.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-edit"></i> Module 4: Manual Claim Amount Entry & Milestone Recording</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Manual Amount Input:</strong> Authorized case managers directly input the agreed claim amount in BHD for each candidate milestone upon generation. The system does not calculate amounts automatically.</li>
+                                <li><strong>Milestone Binding & Metadata:</strong> System captures claim date, milestone category (Placement, 6M, 12M), candidate reference number, entered amount, and case manager identity.</li>
+                                <li><strong>Duplicate Claim Prevention:</strong> Prohibits duplicate claim entries for the same candidate and milestone while maintaining complete historical status logs.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-gavel"></i> Module 5: Claims Dispute & Termination</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Categorized Dispute Filing:</strong> Classifies disputes (probation termination, employer dispute, wage issue).</li>
+                                <li><strong>Resolution Workflow:</strong> Reinstates validated claims back to active collection or transitions unrecoverable claims to Terminated status.</li>
+                                <li><strong>Immutable History:</strong> Zero physical deletion of historical claims.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-money-check-alt"></i> Module 6: Payment Collection & Ledger</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Multi-Receipt Collections:</strong> Allows recording multiple partial payments against a single claim.</li>
+                                <li><strong>Financial Reconciliation:</strong> Automatically computes Collected Amount and Outstanding Balance.</li>
+                                <li><strong>Audit Reference:</strong> Logs cheque number, bank transfer reference, receipt date, and cashier notes.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="feature-card" style="margin-top: 6px;">
+                        <h4><i class="fas fa-chart-line"></i> Module 7: Executive Dashboards & 10 Core Management Reports</h4>
+                        <p style="font-size: 10px; margin-bottom: 5px;">Comprehensive reporting suite supporting date ranges, case manager portfolio filters, and 1-click export to Excel / PDF:</p>
+                        <div style="font-size: 9.5px; color: #475569; display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 18px;">
+                            <span>&bull; Candidate Placement Report</span>
+                            <span>&bull; Terminated Claims Report</span>
+                            <span>&bull; Claim Milestones Report (Day 0, 180, 365)</span>
+                            <span>&bull; Payment Collection Report</span>
+                            <span>&bull; Unclaimed Milestones Report</span>
+                            <span>&bull; Outstanding Balance Report</span>
+                            <span>&bull; Claims Summary Report</span>
+                            <span>&bull; Financial Reconciliation Report</span>
+                            <span>&bull; Disputed Claims Report</span>
+                            <span>&bull; Case Manager KPI Performance Report</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 5 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 6: INTERACTIVE INCENTIVE CALCULATOR DEMO & ARCHITECTURE -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Demonstration & Technical Architecture</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-edit"></i> 6. System Demonstration: Milestone Tracking & Claim Entry Interface</h2>
+                    <p>
+                        In accordance with operational requirements, claim amounts are not calculated automatically by the system. The prototype interface below illustrates how an authorized user selects an eligible candidate milestone and manually enters the agreed claim amount, candidate reference, and remarks for processing:
+                    </p>
+
+                    <!-- Interactive Claim Entry Component (Screen View) -->
+                    <div class="calc-wrapper" id="calc-box">
+                        <div class="calc-header">
+                            <h4><i class="fas fa-file-invoice-dollar" style="color: var(--accent-green);"></i> Milestone Claim Generation & Amount Entry Simulation</h4>
+                            <span style="font-size: 9.5px; background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600;">MANUAL AMOUNT INPUT MODEL</span>
+                        </div>
+                        <div class="calc-grid">
+                            <div class="calc-field">
+                                <label>Candidate Reference</label>
+                                <select id="claim-candidate" onchange="updateClaimDemo()">
+                                    <option value="JCP/26/268524 (LULWA EZZ EBRAHIM)">JCP/26/268524 - LULWA EZZ EBRAHIM</option>
+                                    <option value="JCP/25/172042 (WALEED ABDULWAHID)">JCP/25/172042 - WALEED ABDULWAHID</option>
+                                    <option value="JCP/24/057296 (ASMA MOHAMMAD)">JCP/24/057296 - ASMA MOHAMMAD</option>
+                                    <option value="JCP/25/218398 (ZIYAD TAREQ)">JCP/25/218398 - ZIYAD TAREQ</option>
+                                </select>
+                            </div>
+                            <div class="calc-field">
+                                <label>Milestone Type</label>
+                                <select id="claim-milestone" onchange="updateClaimDemo()">
+                                    <option value="Initial Placement Claim" selected>Initial Placement Claim (At Placement)</option>
+                                    <option value="6-Month Employment Claim">6-Month Employment Claim (+180 Days)</option>
+                                    <option value="12-Month Employment Claim">12-Month Employment Claim (+365 Days)</option>
+                                </select>
+                            </div>
+                            <div class="calc-field">
+                                <label>Claim Amount to be Claimed (BHD)</label>
+                                <input type="number" id="claim-amount" value="550.000" step="0.500" min="0" oninput="updateClaimDemo()" style="width: 100%; padding: 5px 6px; border-radius: 5px; border: 1px solid #cbd5e1; font-size: 10.5px; background: #ffffff;">
+                            </div>
+                            <div class="calc-field">
+                                <label>Assigned Case Manager</label>
+                                <select id="claim-manager" onchange="updateClaimDemo()">
+                                    <option value="Meaad" selected>Meaad</option>
+                                    <option value="Husain">Husain</option>
+                                    <option value="Dina">Dina</option>
+                                    <option value="Malak">Malak</option>
+                                    <option value="Zainab Mattar">Zainab Mattar</option>
+                                    <option value="Mahdi">Mahdi</option>
+                                </select>
+                            </div>
+                            <div class="calc-field">
+                                <label>Claim Processing Status</label>
+                                <select id="claim-status" onchange="updateClaimDemo()">
+                                    <option value="Undisputed" selected>Undisputed (Ready for Payment)</option>
+                                    <option value="Disputed">Disputed (Requires Review)</option>
+                                    <option value="Terminated">Terminated (Audit Retained)</option>
+                                </select>
+                            </div>
+                            <div class="calc-field">
+                                <label>Claim Notes / Remarks</label>
+                                <input type="text" id="claim-notes" value="Approved placement as per contract" oninput="updateClaimDemo()" style="width: 100%; padding: 5px 6px; border-radius: 5px; border: 1px solid #cbd5e1; font-size: 10.5px; background: #ffffff;">
+                            </div>
+                        </div>
+
+                        <div class="calc-result-banner">
+                            <div>
+                                <span id="claim-summary-sub">Registered Claim Record:</span>
+                                <div id="claim-summary-desc" style="font-size: 9.5px; color: #cbd5e1;">Candidate: JCP/26/268524 | Milestone: Initial Placement | Status: Undisputed</div>
+                            </div>
+                            <div>
+                                <strong id="claim-display-amount">BHD 550.000</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Print Fallback Card for Page 6 -->
+                    <div class="print-calc-card">
+                        <h4><i class="fas fa-file-invoice-dollar" style="color: var(--primary);"></i> Manual Claim Amount Entry & Milestone Recording Architecture</h4>
+                        <p style="font-size: 10px; margin-bottom: 6px;">
+                            In accordance with project scope, claim amounts are not computed automatically. Authorized case managers directly enter agreed claim amounts upon reaching milestone eligibility:
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 9.5px;">
+                            <div style="background: #ffffff; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <strong>1. Milestone Alert:</strong> System detects Day 0, Day 180, or Day 365 trigger.
+                            </div>
+                            <div style="background: #ffffff; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <strong>2. Manual Amount:</strong> Case manager inputs agreed BHD amount.
+                            </div>
+                            <div style="background: #ffffff; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <strong>3. Duplicate Check:</strong> Engine verifies no existing claim for same milestone.
+                            </div>
+                            <div style="background: #ffffff; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <strong>4. Ledger Queuing:</strong> Record dispatched to active payment collection.
+                            </div>
+                        </div>
+                        <div style="margin-top: 6px; font-size: 10px; font-weight: bold; color: #1e3a8a;">
+                            &rarr; Supports full historical tracking of claim date, milestone, candidate reference, entered amount, remarks, and user identity.
+                        </div>
+                    </div>
+
+                    <h2 class="section-heading" style="margin-top: 14px;"><i class="fas fa-server"></i> 7. Technical Architecture, Security & Client Server Deployment</h2>
+                    <div class="two-col-grid">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-layer-group"></i> Technical Stack & Web Application</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Frontend Layer:</strong> Ultra-responsive Single Page Web Application (SPA) built with <strong>React.js</strong>, providing real-time status filtering and streamlined milestone claim dialogs.</li>
+                                <li><strong>Backend REST API:</strong> High-performance <strong>PHP</strong> REST API services handling candidate validation, manual claim entry endpoints, authentication, and daily cron dispatchers.</li>
+                                <li><strong>Database Layer:</strong> ACID-compliant relational <strong>MySQL</strong> database ensuring data integrity, indexed searches, and relational linkages between candidates, claims, and receipts.</li>
+                                <li><strong>Server Hosting & Deployment:</strong> Web application deployed directly onto the <strong>Client Server</strong> (cPanel, Linux/Windows VPS, or on-premise). Server access details are to be provided by the client, and SaNDS Lab will execute the full deployment and configuration with zero third-party subscription fees.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-shield-virus"></i> Security & Bahrain PDPL Compliance</h4>
+                            <ul style="font-size: 10.5px; margin-left: 12px; margin-bottom: 0;">
+                                <li><strong>Data Protection:</strong> Full alignment with Bahrain Personal Data Protection Law (Law No. 30 of 2018) for candidate CPR records and corporate data.</li>
+                                <li><strong>Encrypted Transport:</strong> 256-bit TLS/SSL encryption configured on client server for all web traffic.</li>
+                                <li><strong>Role Isolation:</strong> Case managers access only assigned candidates; Administrators retain multi-portfolio visibility.</li>
+                                <li><strong>100% Client-Owned Infrastructure:</strong> All candidate placements and claims data reside exclusively on the client's provided server with complete privacy. Server infrastructure and backups are managed directly by the client.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 6 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 7: IMPLEMENTATION TIMELINE & COMMERCIAL PROPOSAL -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Commercial Proposal</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-calendar-alt"></i> 8. Implementation Timeline (10 Working Days)</h2>
+                    <p>
+                        The complete web application will be engineered, migrated, and deployed within a total timeline of <strong>10 working days</strong> from official project kickoff and provision of client server access credentials:
+                    </p>
+
+                    <div class="two-col-grid" style="margin-top: 8px; margin-bottom: 12px;">
+                        <div class="feature-card" style="border-left: 3px solid #1e3a8a;">
+                            <h4><i class="fas fa-database" style="color: var(--primary);"></i> Stage 1: Architecture & Data Modeling</h4>
+                            <p style="font-size: 10.5px; margin-bottom: 0;">
+                                Functional specifications review, MySQL relational schema modeling, PHP REST API routing, and React.js frontend environment setup.
+                            </p>
+                        </div>
+
+                        <div class="feature-card" style="border-left: 3px solid #15803d;">
+                            <h4><i class="fas fa-tasks" style="color: #15803d;"></i> Stage 2: Core Placement & Claims Workflow</h4>
+                            <p style="font-size: 10.5px; margin-bottom: 0;">
+                                Candidate placement registration, role-based access control, automated milestone trigger alerts (+180d, +365d), manual claim entry interface, and dispute workflows.
+                            </p>
+                        </div>
+
+                        <div class="feature-card" style="border-left: 3px solid #b45309;">
+                            <h4><i class="fas fa-receipt" style="color: #b45309;"></i> Stage 3: Ledger, Reports & Data Migration</h4>
+                            <p style="font-size: 10.5px; margin-bottom: 0;">
+                                Payment collection ledger with partial receipts, 10 specialized operational reports with export, and legacy data migration from existing Excel placement sheets (480+ records).
+                            </p>
+                        </div>
+
+                        <div class="feature-card" style="border-left: 3px solid #95c11f;">
+                            <h4><i class="fas fa-server" style="color: var(--accent-green);"></i> Stage 4: Client Server Deployment & Go-Live</h4>
+                            <p style="font-size: 10.5px; margin-bottom: 0;">
+                                Direct deployment and configuration onto the client's provided server, end-to-end user acceptance testing (UAT), staff operational walkthrough, and official production Go-Live.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="info-callout" style="margin-bottom: 14px; background: #f0fdf4; border-color: #86efac;">
+                        <i class="fas fa-clock" style="color: #15803d;"></i> <strong>Guaranteed Turnaround:</strong> Total project execution timeline is strictly <strong>10 working days</strong> from kickoff to production handover on the client's server.
+                    </div>
+
+                    <h2 class="section-heading" style="margin-top: 14px;"><i class="fas fa-coins"></i> 9. Total Development Cost</h2>
+                    <p>
+                        SaNDS Lab offers a fixed, comprehensive commercial package covering the complete end-to-end development, data migration, and deployment of the web application:
+                    </p>
+
+                    <div style="background: linear-gradient(135deg, #090d16 0%, #1e293b 100%); border-radius: 8px; padding: 14px 18px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border: 1px solid #334155;">
+                        <div>
+                            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 600; display: block;">Total Fixed Development Cost</span>
+                            <strong style="font-size: 14px; color: #f8fafc; font-family: 'Outfit', sans-serif;">Candidate Placement & Claims Management Web Application</strong>
+                            <p style="font-size: 10px; color: #cbd5e1; margin-top: 3px; margin-bottom: 0;">Includes PHP Backend, MySQL Database, React.js Frontend, 7 Core Functional Modules & Client Server Deployment.</p>
+                        </div>
+                        <div style="text-align: right; min-width: 140px;">
+                            <span style="font-size: 11px; color: #94a3b8; display: block;">Fixed Investment</span>
+                            <strong style="font-size: 20px; color: #beff01; font-family: 'JetBrains Mono', monospace;">BHD 400.000</strong>
+                        </div>
+                    </div>
+
+                    <h3 class="subsection-heading"><i class="fas fa-hand-holding-usd"></i> 9.1 Milestone Payment Schedule</h3>
+                    <table class="proposal-table" style="margin-top: 6px; margin-bottom: 4px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 75%;">Payment Milestone Description</th>
+                                <th style="width: 25%;" class="text-center">Payment Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Advance Payment upon Project Kickoff & Contract Signing</td>
+                                <td class="text-center font-bold font-mono" style="font-size: 12px; color: #1e3a8a;">50%</td>
+                            </tr>
+                            <tr>
+                                <td>Milestone Payment After Deploying to Client Server</td>
+                                <td class="text-center font-bold font-mono" style="font-size: 12px; color: #1e3a8a;">40%</td>
+                            </tr>
+                            <tr>
+                                <td>Final Payment Upon User Acceptance Testing & Go-Live</td>
+                                <td class="text-center font-bold font-mono" style="font-size: 12px; color: #1e3a8a;">10%</td>
+                            </tr>
+                            <tr style="background: #f8fafc; font-weight: bold;">
+                                <td class="font-bold">Total Project Investment</td>
+                                <td class="text-center font-bold font-mono" style="font-size: 12px; color: #15803d;">100%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 7 of 8</span>
+                </div>
+            </section>
+
+
+            <!-- PAGE 8: DELIVERABLES, ASSUMPTIONS & ACCEPTANCE SIGNOFF -->
+            <section class="a4-page">
+                <div class="page-running-header">
+                    <div class="header-brand">
+                        <img src="sands_logo_2.png" alt="SaNDS Lab">
+                        <span class="doc-tag">Deliverables & Sign-Off</span>
+                    </div>
+                    <span>Candidate Placement & Claims Management System</span>
+                </div>
+
+                <div class="page-content-area">
+                    <h2 class="section-heading"><i class="fas fa-clipboard-check"></i> 10. Project Deliverables & Warranty</h2>
+                    <ul style="font-size: 11px;">
+                        <li><strong>Fully Deployed Application on Client Server:</strong> Production-ready Candidate Placement & Claims Management System engineered in <strong>PHP, MySQL, and React.js</strong>, deployed and configured directly on the client's designated server with secure SSL web access.</li>
+                        <li><strong>Role-Based User Accounts:</strong> Individual credential management for Administrators and Case Managers.</li>
+                        <li><strong>Automated Milestone Dispatcher:</strong> Engine calculating Day 0, Day 180, and Day 365 claim triggers with notification badges.</li>
+                        <li><strong>Manual Claim Amount Entry Interface:</strong> Streamlined data entry workflow for case managers to log claim amounts in BHD upon milestone eligibility.</li>
+                        <li><strong>Financial Reconciliation Ledger:</strong> Modules tracking partial receipts, payment methods, and remaining balances.</li>
+                        <li><strong>10 Exportable Management Reports:</strong> Standardized operational and executive reports with Excel/PDF export capabilities.</li>
+                        <li><strong>Migrated Legacy Data:</strong> Ingestion and validation of historical placement records from agreed Excel sheets.</li>
+                        <li><strong>System Documentation & Training:</strong> User operation manuals, administrative guides, and hands-on staff training sessions.</li>
+                        <li><strong>3 Months Post-Deployment Warranty:</strong> Complimentary bug fixing and defect rectification directly on the client server against approved scope.</li>
+                    </ul>
+
+                    <h2 class="section-heading" style="margin-top: 12px;"><i class="fas fa-file-contract"></i> 11. Assumptions & Exclusions</h2>
+                    <div class="two-col-grid" style="font-size: 10px;">
+                        <div class="feature-card">
+                            <h4><i class="fas fa-check"></i> Key Project Assumptions</h4>
+                            <ul style="margin-left: 12px; margin-bottom: 0;">
+                                <li>Claim amounts will be entered manually by authorized users based on agreed contract parameters.</li>
+                                <li>The client will provide server and database access credentials (cPanel, VPS, or hosting details) for SaNDS Lab to deploy and configure the web application. Server infrastructure maintenance and backups remain under client management.</li>
+                                <li>The client will provide one agreed, authoritative set of Excel/CSV source files for legacy migration.</li>
+                                <li>Client stakeholders will participate in scheduled milestone demonstrations and provide timely feedback.</li>
+                            </ul>
+                        </div>
+
+                        <div class="feature-card">
+                            <h4><i class="fas fa-times text-danger"></i> Scope Exclusions</h4>
+                            <ul style="margin-left: 12px; margin-bottom: 0;">
+                                <li>Third-party server hosting/VPS rental or domain fees (application is hosted on client server).</li>
+                                <li>Direct automated bank wire transfer APIs (collections tracked via internal ledger receipts).</li>
+                                <li>Custom feature additions outside this document will be handled via standard Change Request (CR).</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h2 class="section-heading" style="margin-top: 14px;"><i class="fas fa-signature"></i> 12. Proposal Acceptance & Authorization</h2>
+                    <p style="font-size: 10.5px;">
+                        By signing below, the authorized representatives confirm their agreement to the functional scope, project timeline, deliverables, and commercial terms set forth in this proposal:
+                    </p>
+
+                    <div class="signoff-grid">
+                        <div class="signoff-box">
+                            <h5>Submitted By: SaNDS Lab Middle East W.L.L.</h5>
+                            <p style="font-size: 10px; margin-bottom: 2px;"><strong>Authorized Signatory:</strong> Managing Director / Head of Technology</p>
+                            <p style="font-size: 9.5px; color: #64748b;">SaNDS Lab Middle East W.L.L.</p>
+                            <div class="sign-line">
+                                <span>Signature & Corporate Stamp</span>
+                                <span>Date: ___ / ___ / 2026</span>
+                            </div>
+                        </div>
+
+                        <div class="signoff-box">
+                            <h5>Accepted By: _________________________________</h5>
+                            <p style="font-size: 10px; margin-bottom: 2px;"><strong>Authorized Signatory:</strong> ___________________________________</p>
+                            <p style="font-size: 9.5px; color: #64748b;">Organization / Title: ____________________________________</p>
+                            <div class="sign-line">
+                                <span>Signature & Corporate Stamp</span>
+                                <span>Date: ___ / ___ / 2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-running-footer">
+                    <span class="doc-confidential">Commercial Proposal &bull; Confidential</span>
+                    <span>Page 8 of 8</span>
+                </div>
+            </section>
+        </div>
+
+
+        <!-- ================= TAB 2: LIVE EXCEL DATA EXPLORER ================= -->
+        <div id="panel-explorer" class="tab-panel interactive-only">
+            <div class="explorer-container">
+                <div class="explorer-header">
+                    <div>
+                        <h2><i class="fas fa-table" style="color: var(--accent-green);"></i> Placement & Claims Data Inspector</h2>
+                        <p style="color: #64748b; font-size: 12px; margin-top: 4px;">
+                            Live view of candidate records extracted from <code>Placement and Claims Sheet 2026 (2).xlsx</code> illustrating how the proposed web system centralizes legacy files.
+                        </p>
+                    </div>
+                    <div>
+                        <span style="background: #eff6ff; color: #1e3a8a; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 12px;">
+                            484 Placements &bull; 379 Claims
+                        </span>
+                    </div>
+                </div>
+
+                <div class="explorer-filters">
+                    <input type="text" id="record-search" class="search-box" placeholder="🔍 Search candidate name, CPR, or ref..." onkeyup="filterRecords()">
+                    <select id="manager-filter" class="search-box" style="width: 200px;" onchange="filterRecords()">
+                        <option value="ALL">All Case Managers</option>
+                        <option value="Husain">Husain (38)</option>
+                        <option value="Meaad">Meaad (25)</option>
+                        <option value="Dina">Dina (16)</option>
+                        <option value="Malak">Malak (9)</option>
+                        <option value="Zainab Mattar">Zainab Mattar</option>
+                        <option value="Mahdi">Mahdi</option>
+                    </select>
+                </div>
+
+                <table class="proposal-table" id="placements-table">
+                    <thead>
+                        <tr>
+                            <th>Ref Number</th>
+                            <th>Candidate Full Name</th>
+                            <th>CPR No.</th>
+                            <th>Case Manager</th>
+                            <th>MoL</th>
+                            <th>Gender</th>
+                            <th>Education</th>
+                            <th>Salary</th>
+                            <th>Employer Company</th>
+                            <th>Claim Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <!-- ================= TAB 3: WORKFLOW VISUALIZER ================= -->
+        <div id="panel-workflow" class="tab-panel interactive-only">
+            <div class="explorer-container">
+                <h2><i class="fas fa-project-diagram" style="color: var(--accent-green);"></i> System Operational Workflow Map</h2>
+                <p style="color: #64748b; font-size: 12px; margin: 6px 0 16px 0;">
+                    Comprehensive timeline and trigger matrix illustrating candidate milestone tracking from joining date to 12-month completion.
+                </p>
+
+                <div class="card-stat-grid" style="grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+                    <div class="stat-card" style="padding: 16px; border-left: 4px solid #3b82f6;">
+                        <span class="val" style="color: #1e3a8a;">T = Day 0</span>
+                        <strong style="font-size: 13px; color: #0f172a; margin: 4px 0;">Initial Placement Claim</strong>
+                        <p style="font-size: 11.5px; color: #64748b; margin-bottom: 0;">
+                            Triggered immediately upon candidate placement confirmation. Case manager manually enters the agreed claim amount in BHD with supporting reference notes.
+                        </p>
+                    </div>
+
+                    <div class="stat-card" style="padding: 16px; border-left: 4px solid #84cc16;">
+                        <span class="val" style="color: #15803d;">T + 180 Days</span>
+                        <strong style="font-size: 13px; color: #0f172a; margin: 4px 0;">6-Month Employment Claim</strong>
+                        <p style="font-size: 11.5px; color: #64748b; margin-bottom: 0;">
+                            Automated daily cron evaluates <code>Joining Date + 180 &lt;= TODAY()</code>. Generates notification badge and email alert for case manager.
+                        </p>
+                    </div>
+
+                    <div class="stat-card" style="padding: 16px; border-left: 4px solid #f59e0b;">
+                        <span class="val" style="color: #b45309;">T + 365 Days</span>
+                        <strong style="font-size: 13px; color: #0f172a; margin: 4px 0;">12-Month Employment Claim</strong>
+                        <p style="font-size: 11.5px; color: #64748b; margin-bottom: 0;">
+                            Automated daily cron evaluates <code>Joining Date + 365 &lt;= TODAY()</code>. Final employment milestone claim generated and queued for settlement.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="feature-card" style="padding: 18px; margin-bottom: 20px;">
+                    <h3 style="color: #0f172a; font-size: 14px; margin-bottom: 8px;"><i class="fas fa-sync-alt" style="color: var(--accent-green);"></i> Multi-Status Dispute & Financial Settlement Lifecycle</h3>
+                    <p style="font-size: 12px; color: #475569; line-height: 1.6;">
+                        1. <strong>Claimable:</strong> The candidate reaches eligibility criteria; system flags claim on case manager dashboard.<br>
+                        2. <strong>Claimed:</strong> Case manager reviews details, adjusts any authorized deductions, and generates the claim invoice.<br>
+                        3. <strong>Disputed:</strong> If an employer terminates or disputes candidate attendance, claim is marked as Disputed with full audit remarks.<br>
+                        4. <strong>Reinstated:</strong> Once resolved with the employer or Ministry, claim returns safely to Undisputed status without loss of prior records.<br>
+                        5. <strong>Terminated:</strong> If unrecoverable, claim is marked Terminated (permanently preserved for financial audit, removed from active receivables).<br>
+                        6. <strong>Partial & Settled Payments:</strong> Tracks multi-receipt partial payments, cheques, and transfers until remaining balance reaches BHD 0.000.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Sample candidate records extracted from Placement and Claims Sheet 2026 (2).xlsx
+        const sampleRecords = [
+            { refNo: "JCP/25/172042", name: "WALEED ABDULWAHID J ABDULAZIZ", cpr: "040710890", caseManager: "Husain", mol: "Yes", gender: "Male", education: "High School", salary: "350", company: "CENTRE POINT COLOUR", claimEst: "605.000" },
+            { refNo: "JCP/24/057296", name: "ASMA MOHAMMAD ASHFAQMO DIN", cpr: "010706941", caseManager: "Meaad", mol: "Yes", gender: "Female", education: "Bachelors +", salary: "500", company: "Konexus", claimEst: "797.500" },
+            { refNo: "JCP/25/218398", name: "ZIYAD TAREQ MAJEDA ALTHAWADI", cpr: "980309620", caseManager: "Malak", mol: "Yes", gender: "Male", education: "Bachelors +", salary: "508", company: "Bahrain Duty Free", claimEst: "660.000" },
+            { refNo: "JCP/25/183340", name: "AYSHA OMAR SALEH AL ALYAZEEDI", cpr: "031103103", caseManager: "Zainab Mattar", mol: "Yes", gender: "Female", education: "Diploma", salary: "482", company: "Bahrain Duty Free", claimEst: "742.500" },
+            { refNo: "JCP/25/210558", name: "ALI ABDULAMEER ALI ALI MOHAMED", cpr: "990805476", caseManager: "Meaad", mol: "Yes", gender: "Male", education: "High School", salary: "450", company: "ALMOAYYED CLEANING", claimEst: "605.000" },
+            { refNo: "JCP/25/267702", name: "ABBAS AHMED A ALHANNAN", cpr: "000508920", caseManager: "Meaad", mol: "Yes", gender: "Male", education: "High School", salary: "400", company: "BAHRAIN AIRPORT SERVICES", claimEst: "605.000" },
+            { refNo: "JCP/25/267727", name: "MAYTHAM MOHAMED JAAFAR ALI", cpr: "970204730", caseManager: "Meaad", mol: "No", gender: "Male", education: "High School", salary: "450", company: "GULF AIR ACADEMY", claimEst: "550.000" },
+            { refNo: "JCP/25/204298", name: "ABDULLA MOHAMED HOORAN ALENEZI", cpr: "020309481", caseManager: "Zainab Mattar", mol: "Yes", gender: "Male", education: "Bachelors +", salary: "550", company: "ALMOAYYED CONTRACTING", claimEst: "660.000" },
+            { refNo: "JCP/26/268524", name: "LULWA EZZ EBRAHIM ALBANKI", cpr: "990408710", caseManager: "Meaad", mol: "Yes", gender: "Female", education: "Bachelors +", salary: "500", company: "BAHRAIN PHARMA", claimEst: "797.500" },
+            { refNo: "JCP/26/268505", name: "YUSUF ALI YUSUF HABIB DAGHER", cpr: "010903820", caseManager: "Mahdi", mol: "No", gender: "Male", education: "Diploma", salary: "450", company: "KHALID SERVICES", claimEst: "550.000" },
+            { refNo: "JCP/26/268879", name: "MERZA JAMEEL MIRZA ALARADI", cpr: "960105820", caseManager: "Meaad", mol: "Yes", gender: "Male", education: "Bachelors +", salary: "650", company: "ALMOAYYED AIR CONDITIONING", claimEst: "742.500" },
+            { refNo: "JCP/26/268526", name: "AHMED WAHEED AKHTAR ALI", cpr: "020807651", caseManager: "Mahdi", mol: "Yes", gender: "Male", education: "High School", salary: "450", company: "ALMOAYYED GROUP", claimEst: "605.000" },
+            { refNo: "JCP/25/219711", name: "FATIMA HASAN ABDULLA BUHMAID", cpr: "030504190", caseManager: "Malak", mol: "Yes", gender: "Female", education: "High School", salary: "480", company: "STUDENT PLATFORM", claimEst: "742.500" },
+            { refNo: "JCP/25/219615", name: "HUSAIN ABDULMONEM HU MOTHANNA", cpr: "010207910", caseManager: "Husain", mol: "Yes", gender: "Male", education: "High School", salary: "450", company: "ALMOAYYED CLEANING", claimEst: "605.000" },
+            { refNo: "JCP/25/232927", name: "SAYED MOHAMED SAEED ALAWI", cpr: "920401961", caseManager: "Husain", mol: "Yes", gender: "Male", education: "Bachelors +", salary: "500", company: "ALMOAYYED CONTRACTING", claimEst: "660.000" },
+            { refNo: "JCP/25/214227", name: "FATEMA WALEED HASAN SHOWIATER", cpr: "020905904", caseManager: "Husain", mol: "Yes", gender: "Female", education: "Bachelors +", salary: "500", company: "ALMOAYYED AIR CONDITIONING", claimEst: "797.500" },
+            { refNo: "JCP/25/212208", name: "WALAA ISA A. HASAN", cpr: "990900045", caseManager: "Husain", mol: "Yes", gender: "Female", education: "Bachelors +", salary: "700", company: "STUDENT PLATFORM", claimEst: "880.000" },
+            { refNo: "JCP/25/215389", name: "DINA MOHAMED YUSUF ALDOSERI", cpr: "010408520", caseManager: "Dina", mol: "Yes", gender: "Female", education: "Bachelors +", salary: "620", company: "KOREAN MEDICAL CENTER", claimEst: "880.000" }
+        ];
+
+        function renderTable(records) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            records.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="font-mono font-bold">${r.refNo}</td>
+                    <td>${r.name}</td>
+                    <td class="font-mono">${r.cpr}</td>
+                    <td><span class="tag-status tag-claimed">${r.caseManager}</span></td>
+                    <td class="text-center">${r.mol}</td>
+                    <td>${r.gender}</td>
+                    <td>${r.education}</td>
+                    <td class="font-mono">${r.salary} BHD</td>
+                    <td>${r.company}</td>
+                    <td class="font-mono font-bold text-right" style="color: #1e3a8a;">BHD ${r.claimEst}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterRecords() {
+            const query = (document.getElementById('record-search').value || '').toLowerCase();
+            const manager = document.getElementById('manager-filter').value;
+
+            const filtered = sampleRecords.filter(r => {
+                const matchesQuery = r.name.toLowerCase().includes(query) || r.refNo.toLowerCase().includes(query) || r.cpr.includes(query);
+                const matchesManager = manager === 'ALL' || r.caseManager === manager;
+                return matchesQuery && matchesManager;
+            });
+            renderTable(filtered);
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active-panel'));
+            document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+
+            if (tabId === 'proposal') {
+                document.getElementById('panel-proposal').classList.add('active-panel');
+                document.querySelectorAll('.nav-tab-btn')[0].classList.add('active');
+            } else if (tabId === 'explorer') {
+                document.getElementById('panel-explorer').classList.add('active-panel');
+                document.querySelectorAll('.nav-tab-btn')[1].classList.add('active');
+            } else if (tabId === 'workflow') {
+                document.getElementById('panel-workflow').classList.add('active-panel');
+                document.querySelectorAll('.nav-tab-btn')[2].classList.add('active');
+            }
+        }
+
+        function updateClaimDemo() {
+            const cand = document.getElementById('claim-candidate').value;
+            const ms = document.getElementById('claim-milestone').value;
+            const amt = parseFloat(document.getElementById('claim-amount').value) || 0;
+            const mgr = document.getElementById('claim-manager').value;
+            const status = document.getElementById('claim-status').value;
+
+            document.getElementById('claim-display-amount').innerText = 'BHD ' + amt.toFixed(3);
+            document.getElementById('claim-summary-desc').innerText = `Candidate: ${cand} | Milestone: ${ms} | Manager: ${mgr} | Status: ${status}`;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderTable(sampleRecords);
+            updateClaimDemo();
+        });
+    </script>
+</body>
+</html>
