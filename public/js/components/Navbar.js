@@ -194,8 +194,8 @@ function Navbar({ state }) {
                   {(state.users && state.users.length > 0
                     ? state.users.filter(u => u.role === 'superadmin' || u.role === 'admin')
                     : [
-                        { id: 1, full_name: 'Dr. Salman', role: 'superadmin', is_active: 1 },
-                        { id: 2, full_name: 'Directorate Admin', role: 'admin', is_active: 1 }
+                        { id: 1, full_name: 'Super Administrator', role: 'superadmin', is_active: 1 },
+                        { id: 2, full_name: 'Administrator', role: 'admin', is_active: 1 }
                       ]
                   ).map(u => (
                     <option key={u.id} value={u.id} disabled={(u.is_active ?? 1) === 0}>
@@ -207,12 +207,10 @@ function Navbar({ state }) {
                   {(state.users && state.users.length > 0
                     ? state.users.filter(u => u.role === 'case_manager')
                     : [
-                        { id: 3, full_name: 'Husain', role: 'case_manager', is_active: 1 },
-                        { id: 4, full_name: 'Meaad', role: 'case_manager', is_active: 1 },
-                        { id: 5, full_name: 'Dina', role: 'case_manager', is_active: 1 },
-                        { id: 6, full_name: 'Malak', role: 'case_manager', is_active: 1 },
-                        { id: 7, full_name: 'Zainab Mattar', role: 'case_manager', is_active: 1 },
-                        { id: 8, full_name: 'Mahdi', role: 'case_manager', is_active: 1 }
+                        { id: 3, full_name: 'Husain Al-Mulla', role: 'case_manager', is_active: 1 },
+                        { id: 4, full_name: 'Meaad Al-Alawi', role: 'case_manager', is_active: 1 },
+                        { id: 5, full_name: 'Dina Aldoseri', role: 'case_manager', is_active: 1 },
+                        { id: 6, full_name: 'Malak Al-Sayed', role: 'case_manager', is_active: 1 }
                       ]
                   ).map(u => (
                     <option key={u.id} value={u.id} disabled={(u.is_active ?? 1) === 0}>
