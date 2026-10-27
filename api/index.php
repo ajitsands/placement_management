@@ -85,11 +85,15 @@ use App\Controllers\ReportController;
 
 $router = new Router();
 
-// ==================== AUTH MICRO ROUTES ====================
+// ==================== AUTH & PROFILE MICRO ROUTES ====================
 $router->post('/auth/login', [AuthController::class, 'login']);
 $router->get('/auth/me', [AuthController::class, 'me']);
 $router->post('/auth/switch', [AuthController::class, 'switchRole']);
 $router->post('/auth/logout', [AuthController::class, 'logout']);
+$router->get('/profile', [AuthController::class, 'profile']);
+$router->put('/profile', [AuthController::class, 'updateProfile']);
+$router->post('/profile', [AuthController::class, 'updateProfile']);
+$router->post('/profile/password', [AuthController::class, 'resetPassword']);
 
 // ==================== USER MANAGEMENT MICRO ROUTES (Only Admin/Superadmin) ====================
 $router->get('/users', [UserController::class, 'index']);

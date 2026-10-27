@@ -39,6 +39,8 @@ function App() {
         return <window.UsersView state={state} />;
       case 'settings':
         return <window.SettingsView state={state} />;
+      case 'profile':
+        return <window.ProfileView state={state} />;
       default:
         return <window.DashboardView state={state} />;
     }

@@ -60,12 +60,15 @@ class AppStoreClass {
     const savedAuth = localStorage.getItem('sands_claims_auth') === 'true';
 
     // Resolve initial active tab from URL hash, fallback to localStorage, fallback to 'dashboard'
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings'];
+    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
     const tabAliases = {
       'placements': 'candidates',
       'placement': 'candidates',
       'candidate': 'candidates',
-      'candidates-and-placements': 'candidates'
+      'candidates-and-placements': 'candidates',
+      'profile': 'profile',
+      'my-profile': 'profile',
+      'account': 'profile'
     };
 
     let initialTab = 'dashboard';
@@ -216,12 +219,15 @@ class AppStoreClass {
   }
 
   setActiveTab(tab, updateHash = true) {
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings'];
+    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
     const tabAliases = {
       'placements': 'candidates',
       'placement': 'candidates',
       'candidate': 'candidates',
-      'candidates-and-placements': 'candidates'
+      'candidates-and-placements': 'candidates',
+      'profile': 'profile',
+      'my-profile': 'profile',
+      'account': 'profile'
     };
     const resolvedTab = tabAliases[tab] || tab;
     if (!validTabs.includes(resolvedTab)) return;
@@ -240,12 +246,15 @@ class AppStoreClass {
     this.state.currentUser = user;
     this.state.isAuthenticated = true;
 
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings'];
+    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
     const tabAliases = {
       'placements': 'candidates',
       'placement': 'candidates',
       'candidate': 'candidates',
-      'candidates-and-placements': 'candidates'
+      'candidates-and-placements': 'candidates',
+      'profile': 'profile',
+      'my-profile': 'profile',
+      'account': 'profile'
     };
     const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
     const resolvedHash = tabAliases[rawHash] || rawHash;
@@ -307,12 +316,15 @@ class AppStoreClass {
 
       // 4. Load all transactions scoped to current user if authenticated
       if (this.state.isAuthenticated) {
-        const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings'];
+        const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
         const tabAliases = {
           'placements': 'candidates',
           'placement': 'candidates',
           'candidate': 'candidates',
-          'candidates-and-placements': 'candidates'
+          'candidates-and-placements': 'candidates',
+          'profile': 'profile',
+          'my-profile': 'profile',
+          'account': 'profile'
         };
         const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
         const resolvedHash = tabAliases[rawHash] || rawHash;
@@ -400,6 +412,36 @@ class AppStoreClass {
       this.notify();
     } catch (err) {
       this.showNotification('Failed to update settings: ' + err.message, 'error');
+    } finally {
+      this.setState({ loading: false });
+    }
+  }
+
+  async updateProfile(profileData) {
+    this.setState({ loading: true });
+    try {
+      const updated = await window.api.profile.update(profileData);
+      this.state.currentUser = { ...this.state.currentUser, ...updated };
+      this.showNotification('Profile details updated successfully!', 'success');
+      this.notify();
+      return updated;
+    } catch (err) {
+      this.showNotification('Failed to update profile: ' + err.message, 'error');
+      throw err;
+    } finally {
+      this.setState({ loading: false });
+    }
+  }
+
+  async resetPassword(passwordData) {
+    this.setState({ loading: true });
+    try {
+      const res = await window.api.profile.resetPassword(passwordData);
+      this.showNotification('Password successfully reset and updated!', 'success');
+      return res;
+    } catch (err) {
+      this.showNotification('Password reset failed: ' + err.message, 'error');
+      throw err;
     } finally {
       this.setState({ loading: false });
     }

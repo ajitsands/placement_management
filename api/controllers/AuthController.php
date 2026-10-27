@@ -118,4 +118,96 @@ class AuthController {
         @session_destroy();
         Response::json(null, 200, 'Logged out successfully');
     }
+
+    public function profile(array $data): void {
+        $currentUser = Auth::getCurrentUser();
+        $fresh = User::find($currentUser['id']);
+        if (!$fresh) {
+            $fresh = $currentUser;
+        }
+        unset($fresh['password_hash']);
+        Response::json([
+            'user' => $fresh,
+            'scoped_case_manager' => Auth::getScopedCaseManagerName(),
+            'is_admin_or_superadmin' => in_array($fresh['role'] ?? '', ['superadmin', 'admin']),
+            'is_case_manager' => ($fresh['role'] ?? '') === 'case_manager'
+        ]);
+    }
+
+    public function updateProfile(array $data): void {
+        $currentUser = Auth::getCurrentUser();
+        $userId = (int)$currentUser['id'];
+
+        $updateData = [];
+        if (isset($data['full_name']) && !empty(trim($data['full_name']))) {
+            $updateData['full_name'] = trim($data['full_name']);
+        }
+        if (isset($data['email'])) {
+            $email = trim($data['email']);
+            if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                Response::error('Please enter a valid email address.', 400);
+            }
+            $updateData['email'] = $email;
+        }
+        if (isset($data['phone'])) {
+            $updateData['phone'] = trim($data['phone']);
+        }
+
+        // Only admins can change their username
+        if (isset($data['username']) && in_array($currentUser['role'] ?? '', ['superadmin', 'admin'])) {
+            $newUsername = trim($data['username']);
+            if (!empty($newUsername) && strtolower($newUsername) !== strtolower($currentUser['username'] ?? '')) {
+                $conflict = User::findByUsername($newUsername);
+                if ($conflict && (int)$conflict['id'] !== $userId) {
+                    Response::error("Username '{$newUsername}' is already taken.", 409);
+                }
+                $updateData['username'] = $newUsername;
+            }
+        }
+
+        if (empty($updateData)) {
+            Response::error('No valid fields provided to update.', 400);
+        }
+
+        $updated = User::update($userId, $updateData);
+        if (!$updated) {
+            Response::error('Failed to update profile details.', 500);
+        }
+
+        unset($updated['password_hash']);
+        Response::json($updated, 200, 'Profile details updated successfully');
+    }
+
+    public function resetPassword(array $data): void {
+        $currentUser = Auth::getCurrentUser();
+        $userId = (int)$currentUser['id'];
+
+        $currentPassword = $data['current_password'] ?? '';
+        $newPassword = $data['new_password'] ?? '';
+        $confirmPassword = $data['confirm_password'] ?? '';
+
+        if (empty($newPassword)) {
+            Response::error('New password cannot be empty.', 400);
+        }
+
+        if (strlen($newPassword) < 6) {
+            Response::error('New password must be at least 6 characters in length.', 400);
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            Response::error('New password and confirmation password do not match.', 400);
+        }
+
+        // Verify current password
+        if (!User::verifyPassword($userId, $currentPassword)) {
+            Response::error('Current password is incorrect.', 401);
+        }
+
+        $success = User::resetPassword($userId, $newPassword);
+        if (!$success) {
+            Response::error('Failed to update password. Please try again.', 500);
+        }
+
+        Response::json(null, 200, 'Your password has been successfully reset and updated.');
+    }
 }

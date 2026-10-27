@@ -61,6 +61,12 @@ class ApiService {
     logout: () => this.request('/auth/logout', { method: 'POST' })
   };
 
+  profile = {
+    get: () => this.request('/profile'),
+    update: (profileData) => this.request('/profile', { method: 'POST', body: profileData }),
+    resetPassword: (passwordData) => this.request('/profile/password', { method: 'POST', body: passwordData })
+  };
+
   users = {
     getAll: () => this.request('/users'),
     getOne: (id) => this.request(`/users/${id}`),

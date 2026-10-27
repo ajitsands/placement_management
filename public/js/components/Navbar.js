@@ -85,6 +85,13 @@ function NavIcon({ type }) {
           <circle cx="12" cy="10" r="3" />
         </svg>
       );
+    case 'profile':
+      return (
+        <svg {...props}>
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -99,12 +106,13 @@ function Navbar({ state }) {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'candidates', label: 'Candidates and Placements' },
     { id: 'milestones', label: 'Retention Milestones' },
-    // Hidden for git push: Claims Ledger, Dispute Management, Payment Receipts, Enterprise Reports
+    // Hidden for git release: Claims Ledger, Dispute Management, Payment Receipts, Enterprise Reports
     // { id: 'claims', label: 'Claims Ledger' },
     // { id: 'disputes', label: 'Dispute Management' },
     // { id: 'payments', label: 'Payment Receipts' },
     // { id: 'reports', label: 'Enterprise Reports' },
-    ...(isAdminOrSuper ? [{ id: 'users', label: 'Users & RBAC' }] : [])
+    ...(isAdminOrSuper ? [{ id: 'users', label: 'Users & RBAC' }] : []),
+    { id: 'profile', label: 'My Profile' }
   ];
 
   const handleNavClick = (tabId) => {
@@ -242,7 +250,16 @@ function Navbar({ state }) {
             </button>
 
             {/* User Profile Capsule */}
-            <div className="top-user-capsule hide-mobile">
+            <div
+              className={`top-user-capsule hide-mobile ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => handleNavClick('profile')}
+              style={{
+                cursor: 'pointer',
+                borderColor: activeTab === 'profile' ? 'var(--primary)' : 'var(--border-light)',
+                boxShadow: activeTab === 'profile' ? '0 0 0 2px rgba(37, 99, 235, 0.25)' : 'none'
+              }}
+              title="Click to view My Profile & Reset Password"
+            >
               <div className="top-user-avatar">
                 {currentUser.full_name?.charAt(0) || 'U'}
               </div>
