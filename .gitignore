@@ -1,6 +1,11 @@
 # Local Environment Configuration
 .env
+.env.*
+.env.local
+.env.*.local
+!.env.example
 
 # Scratch and Logs
 /api/data/*.tmp
 *.log
+
