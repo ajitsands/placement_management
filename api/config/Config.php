@@ -9,11 +9,11 @@ namespace App\Config;
 class Config {
     private static bool $envLoaded = false;
 
-    // Database Credentials (Default Fallbacks for Localhost)
+    // Database Credentials (Default Fallbacks for Localhost & Server)
     public const DB_HOST = '127.0.0.1';
     public const DB_PORT = '3306';
-    public const DB_NAME = 'claims_db';
-    public const DB_USER = 'root';
+    public const DB_NAME = 'teamtoob_hr_db';
+    public const DB_USER = 'teamtoob_hr_user';
     public const DB_PASS = 'S@nds1@b';
 
     /**

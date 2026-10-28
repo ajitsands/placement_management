@@ -5,8 +5,9 @@
 -- Architecture: Strictly Relational ACID Schema with Foreign Keys & Indexes
 -- =========================================================================
 
-CREATE DATABASE IF NOT EXISTS `claims_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `claims_db`;
+-- Database initialization: Default target teamtoob_hr_db (or selected database in phpMyAdmin)
+-- CREATE DATABASE IF NOT EXISTS `teamtoob_hr_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE `teamtoob_hr_db`;
 
 -- 1. System Settings Table (Bahrain Default & GCC Options)
 CREATE TABLE IF NOT EXISTS `settings` (

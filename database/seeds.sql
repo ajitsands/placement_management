@@ -5,7 +5,8 @@
 -- Exactly 5 Records per Table: Candidates, Milestones, Claims, Disputes, Payments
 -- =========================================================================
 
-USE `claims_db`;
+-- Database target: teamtoob_hr_db (or current selected DB)
+-- USE `teamtoob_hr_db`;
 
 -- Disable Foreign Key checks for clean reset
 SET FOREIGN_KEY_CHECKS = 0;
