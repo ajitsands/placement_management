@@ -119,13 +119,6 @@ function NewCandidateModal({ state }) {
     return () => { active = false; };
   }, []);
 
-  // Multiple Document Upload Area State
-  const [documents, setDocuments] = useState([]);
-  const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
-  const [uploadDocName, setUploadDocName] = useState('CPR / Smart Card Copy');
-
-  const [saving, setSaving] = useState(false);
-
   // Candidate Registration Checklist Master & Real-Time Percentage
   const checklistMasters = state?.checklistMasters || [];
   const documentCategories = state?.documentCategories || [];
@@ -133,23 +126,26 @@ function NewCandidateModal({ state }) {
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔' },
-      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄' },
-      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓' },
-      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝' },
-      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄', description: 'Current professional curriculum vitae detailing education and employment background.' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓', description: 'Graduation diploma or accredited academic qualification certificate.' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Supplementary certificates, licenses, or professional credentials.' }
     ];
   }, [documentCategories]);
 
-  const selectedDocCategory = useMemo(() => {
-    if (!uploadDocType) return activeDocCategories[0] || null;
-    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-    return activeDocCategories.find(c => {
-      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
-    }) || activeDocCategories[0] || null;
-  }, [activeDocCategories, uploadDocType]);
+  // Multiple Document Upload Area State
+  const [documents, setDocuments] = useState([]);
+  const [uploadDocType, setUploadDocType] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
+  const [uploadDocName, setUploadDocName] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
+  const [saving, setSaving] = useState(false);
+
+  const selectedDocCategory = activeDocCategories.find(c => 
+    c.name === uploadDocType || 
+    c.code === uploadDocType ||
+    String(c.name).trim().toLowerCase() === String(uploadDocType).trim().toLowerCase()
+  ) || activeDocCategories[0] || null;
 
   const [checkedItems, setCheckedItems] = useState(() => new Set());
 
@@ -1590,27 +1586,24 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔' },
-      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄' },
-      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓' },
-      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝' },
-      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄', description: 'Current professional curriculum vitae detailing education and employment background.' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓', description: 'Graduation diploma or accredited academic qualification certificate.' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Supplementary certificates, licenses, or professional credentials.' }
     ];
   }, [documentCategories]);
 
-  const selectedDocCategory = useMemo(() => {
-    if (!uploadDocType) return activeDocCategories[0] || null;
-    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-    return activeDocCategories.find(c => {
-      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
-    }) || activeDocCategories[0] || null;
-  }, [activeDocCategories, uploadDocType]);
-
-  const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
-  const [uploadDocName, setUploadDocName] = useState('CPR / Smart Card Copy');
+  const [uploadDocType, setUploadDocType] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
+  const [uploadDocName, setUploadDocName] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploading, setUploading] = useState(false);
+
+  const selectedDocCategory = activeDocCategories.find(c => 
+    c.name === uploadDocType || 
+    c.code === uploadDocType ||
+    String(c.name).trim().toLowerCase() === String(uploadDocType).trim().toLowerCase()
+  ) || activeDocCategories[0] || null;
 
   useEffect(() => {
     if (liveCandidate && liveCandidate.documents) {
@@ -5220,23 +5213,14 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'Renewed CPR / Smart Card', icon: '🪪' },
-      { id: 2, code: 'RESUME', name: 'Updated CV / Resume', icon: '📄' },
-      { id: 3, code: 'DEGREE', name: 'Degree / Graduation Certificate', icon: '🎓' },
-      { id: 4, code: 'CONTRACT', name: 'Resignation Letter / Exit Settlement', icon: '📝' },
-      { id: 5, code: 'CONSENT', name: 'Renewal Consent Form', icon: '📑' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+      { id: 1, code: 'CPR', name: 'Renewed CPR / Smart Card Copy', icon: '🪪', description: 'Valid renewed CPR front/back copy or smart card verification certificate.' },
+      { id: 2, code: 'RESUME', name: 'Updated CV / Resume', icon: '📄', description: 'Latest updated curriculum vitae reflecting candidate employment history and current skills.' },
+      { id: 3, code: 'DEGREE', name: 'Degree / Graduation Certificate', icon: '🎓', description: 'Attested degree certificate or new post-graduate credentials.' },
+      { id: 4, code: 'CONTRACT', name: 'Resignation Letter / Exit Settlement', icon: '📝', description: 'Official employer release, exit settlement, or resignation clearance letter.' },
+      { id: 5, code: 'CONSENT', name: 'Renewal Consent Form', icon: '📑', description: 'Signed renewal agreement and Ministry placement consent form.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Additional certifications, training credentials, or endorsement letters.' }
     ];
   }, [documentCategories]);
-
-  const selectedDocCategory = useMemo(() => {
-    if (!uploadDocType) return activeDocCategories[0] || null;
-    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-    return activeDocCategories.find(c => {
-      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
-      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
-    }) || activeDocCategories[0] || null;
-  }, [activeDocCategories, uploadDocType]);
 
   if (!initialCandidate) return null;
   const { currentUser, caseManagers = [], settings = {} } = state;
@@ -5271,11 +5255,17 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
       : `12-month registration cycle renewal. Candidate profile active in national talent pool.`
   );
   const [newDocuments, setNewDocuments] = useState([]);
-  const initialRenewalDoc = wasPlaced ? 'Resignation Letter / Exit Settlement' : 'Renewed CPR / Smart Card';
+  const initialRenewalDoc = wasPlaced ? 'Resignation Letter / Exit Settlement' : (activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploadDocType, setUploadDocType] = useState(initialRenewalDoc);
   const [uploadDocName, setUploadDocName] = useState(initialRenewalDoc);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const selectedDocCategory = activeDocCategories.find(c => 
+    c.name === uploadDocType || 
+    c.code === uploadDocType ||
+    String(c.name).trim().toLowerCase() === String(uploadDocType).trim().toLowerCase()
+  ) || activeDocCategories[0] || null;
 
   // Handle uploading renewal supporting documents (e.g. renewed CPR, updated CV)
   const handleFileSelect = (e) => {
