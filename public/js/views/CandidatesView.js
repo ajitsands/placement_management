@@ -738,15 +738,6 @@ function CandidatesView({ state }) {
             >
               👁️ Dossier
             </button>
-            
-            <button
-              className="btn btn-outline btn-sm"
-              title={row.company_name ? "Update Placement Linkage" : "Link Candidate to Job Vacancy"}
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-              onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { candidate: row })}
-            >
-              🔗 Placement
-            </button>
           </div>
         );
       }
