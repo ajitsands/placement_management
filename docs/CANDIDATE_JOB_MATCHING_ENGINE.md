@@ -101,3 +101,4 @@ Before calculating compatibility scores, candidates must satisfy all hard constr
 - [ ] Add `🎯 Match Candidates` button to `Allocation Actions` in `public/js/views/JobsView.js`.
 - [ ] Connect `⚡ Quick Assign` button to launch `LinkPlacementModal` with pre-filled candidate & job IDs.
 - [ ] Add unit tests or verification script to validate scoring edge cases (e.g. case insensitivity, partial titles, salary limits).
+

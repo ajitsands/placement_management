@@ -86,12 +86,44 @@ function JobsView({ state }) {
     return [{ value: '', label: `All Positions (${list.length})`, subLabel: 'Filter by job position' }, ...list];
   }, [jobs]);
 
-  // Status Filter Options
+  // Compute live counts for status tabs
+  const statusCounts = useMemo(() => {
+    let openCount = 0;
+    let filledCount = 0;
+    let closedCount = 0;
+    const allCount = (jobs || []).length;
+
+    (jobs || []).forEach(j => {
+      const total = parseInt(j.vacancies_count, 10) || 1;
+      const placed = parseInt(j.placed_count, 10) || 0;
+      const remaining = (j.vacancies_remaining !== undefined && j.vacancies_remaining !== null)
+        ? parseInt(j.vacancies_remaining, 10)
+        : Math.max(0, total - placed);
+      const compStatus = (j.computed_status || (remaining === 0 ? 'filled' : (j.status || 'active'))).toLowerCase();
+
+      if (compStatus === 'closed' || (j.status || '').toLowerCase() === 'closed') {
+        closedCount++;
+      } else if (remaining <= 0 || compStatus === 'filled') {
+        filledCount++;
+      } else {
+        openCount++;
+      }
+    });
+
+    return {
+      active: openCount,
+      filled: filledCount,
+      closed: closedCount,
+      all: allCount
+    };
+  }, [jobs]);
+
+  // Status Filter Options: Open Vacancies -> Filled -> Closed -> All
   const statusOptions = [
-    { id: 'active', label: 'Open Vacancies' },
-    { id: 'all', label: 'All Jobs' },
-    { id: 'filled', label: 'Filled' },
-    { id: 'closed', label: 'Closed' }
+    { id: 'active', label: 'Open Vacancies', count: statusCounts.active },
+    { id: 'filled', label: 'Filled', count: statusCounts.filled },
+    { id: 'closed', label: 'Closed', count: statusCounts.closed },
+    { id: 'all', label: 'All', count: statusCounts.all }
   ];
 
   // Filtered Jobs
@@ -109,11 +141,16 @@ function JobsView({ state }) {
         const compStatus = (j.computed_status || (remaining === 0 ? 'filled' : (j.status || 'active'))).toLowerCase();
 
         if (statusFilter === 'active') {
-          if (compStatus !== 'active' && compStatus !== 'open') return false;
-          if (remaining <= 0) return false;
+          if (compStatus === 'closed' || (j.status || '').toLowerCase() === 'closed') return false;
+          if (remaining <= 0 || compStatus === 'filled') return false;
         }
-        if (statusFilter === 'filled' && compStatus !== 'filled' && remaining > 0) return false;
-        if (statusFilter === 'closed' && compStatus !== 'closed') return false;
+        if (statusFilter === 'filled') {
+          if (compStatus === 'closed' || (j.status || '').toLowerCase() === 'closed') return false;
+          if (remaining > 0 && compStatus !== 'filled') return false;
+        }
+        if (statusFilter === 'closed') {
+          if (compStatus !== 'closed' && (j.status || '').toLowerCase() !== 'closed') return false;
+        }
       }
       return true;
     });
@@ -549,7 +586,7 @@ function JobsView({ state }) {
                 style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
                 onClick={() => handleStatusChange(tab.id)}
               >
-                {tab.label}
+                {tab.label} {tab.count !== undefined ? <span style={{ opacity: 0.85, fontSize: '0.72rem', fontWeight: 700 }}>({tab.count})</span> : ''}
               </button>
             ))}
           </div>
