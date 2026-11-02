@@ -219,16 +219,6 @@ function JobsView({ state }) {
             <div style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span>👥</span> Placed Candidates ({placed.length} / {job.vacancies_count})
             </div>
-            {job.vacancies_remaining > 0 && (
-              <button
-                type="button"
-                className="btn btn-sm btn-primary"
-                style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
-                onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { job })}
-              >
-                ➕ Assign Candidate
-              </button>
-            )}
           </div>
 
           {placed.length > 0 ? (
@@ -265,7 +255,7 @@ function JobsView({ state }) {
             </div>
           ) : (
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
-              No candidates assigned to this opening yet. Click "Assign Candidate" to link someone from the talent pool.
+              No candidates placed in this opening yet.
             </div>
           )}
         </div>
@@ -317,16 +307,6 @@ function JobsView({ state }) {
             >
               ✏️ Edit Job Opening
             </button>
-            {job.vacancies_remaining > 0 && (
-              <button
-                type="button"
-                className="btn btn-sm btn-primary"
-                style={{ flex: 1, fontSize: '0.75rem' }}
-                onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { job })}
-              >
-                🔗 Link Placement
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -445,35 +425,18 @@ function JobsView({ state }) {
     },
     {
       key: 'actions',
-      label: 'Allocation Actions',
+      label: 'Actions',
       sortable: false,
       render: (_, row) => (
-        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          {row.vacancies_remaining > 0 ? (
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              style={{ fontSize: '0.74rem', padding: '0.25rem 0.55rem' }}
-              onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { job: row })}
-              title="Assign candidate from talent pool to this job opening"
-            >
-              ➕ Assign
-            </button>
-          ) : (
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0 0.25rem' }}>
-              Full
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-sm btn-outline"
-            style={{ fontSize: '0.74rem', padding: '0.25rem 0.5rem' }}
-            onClick={() => window.AppStore.openModal('EDIT_JOB', { job: row })}
-            title="Edit Job Details"
-          >
-            ✏️ Edit
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline"
+          style={{ fontSize: '0.74rem', padding: '0.25rem 0.55rem' }}
+          onClick={() => window.AppStore.openModal('EDIT_JOB', { job: row })}
+          title="Edit Job Details"
+        >
+          ✏️ Edit
+        </button>
       )
     }
   ];
