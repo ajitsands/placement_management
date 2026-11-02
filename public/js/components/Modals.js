@@ -1175,7 +1175,7 @@ function JobModal({ state, job }) {
     department: job?.department || '',
     salary_bhd: job?.salary_bhd || job?.salary_offered_bhd || '450.000',
     vacancies_count: job?.vacancies_count || 1,
-    status: job?.status || 'active',
+    status: (job?.status === 'closed' ? 'closed' : 'active'),
     work_location: job?.work_location || 'Kingdom of Bahrain',
     requirements: job?.requirements || '',
     description: job?.description || ''
@@ -1341,12 +1341,10 @@ function JobModal({ state, job }) {
               <label className="form-label">Vacancy Status</label>
               <select
                 className="select-control"
-                value={form.status}
+                value={form.status === 'closed' ? 'closed' : 'active'}
                 onChange={e => setForm({ ...form, status: e.target.value })}
               >
-                <option value="active">Active / Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="filled">Filled</option>
+                <option value="active">Active</option>
                 <option value="closed">Closed</option>
               </select>
             </div>
