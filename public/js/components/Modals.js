@@ -141,6 +141,16 @@ function NewCandidateModal({ state }) {
       { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
     ];
   }, [documentCategories]);
+
+  const selectedDocCategory = useMemo(() => {
+    if (!uploadDocType) return activeDocCategories[0] || null;
+    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+    return activeDocCategories.find(c => {
+      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
+    }) || activeDocCategories[0] || null;
+  }, [activeDocCategories, uploadDocType]);
+
   const [checkedItems, setCheckedItems] = useState(() => new Set());
 
   const activeChecklistMasters = useMemo(() => {
@@ -709,6 +719,28 @@ function NewCandidateModal({ state }) {
                 </label>
               </div>
             </div>
+
+            {selectedDocCategory?.description && (
+              <div style={{
+                marginBottom: '0.85rem',
+                fontSize: '0.74rem',
+                color: 'var(--text-secondary, #475569)',
+                background: 'rgba(59, 130, 246, 0.07)',
+                borderLeft: '3px solid #3b82f6',
+                padding: '0.4rem 0.65rem',
+                borderRadius: '0 4px 4px 0',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.45rem',
+                lineHeight: 1.4
+              }}>
+                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
+                <div>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
+                  <span>{selectedDocCategory.description}</span>
+                </div>
+              </div>
+            )}
 
             {/* Documents List */}
             {documents.length > 0 ? (
@@ -1562,7 +1594,17 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
       { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
     ];
   }, [documentCategories]);
-  const [uploadDocType, setUploadDocType] = useState('🆔 CPR / Smart Card Copy');
+
+  const selectedDocCategory = useMemo(() => {
+    if (!uploadDocType) return activeDocCategories[0] || null;
+    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+    return activeDocCategories.find(c => {
+      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
+    }) || activeDocCategories[0] || null;
+  }, [activeDocCategories, uploadDocType]);
+
+  const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
   const [uploadDocName, setUploadDocName] = useState('');
   const [uploading, setUploading] = useState(false);
 
@@ -1753,6 +1795,28 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
               </label>
             </div>
           </div>
+
+          {selectedDocCategory?.description && (
+            <div style={{
+              marginTop: '0.65rem',
+              fontSize: '0.74rem',
+              color: 'var(--text-secondary, #475569)',
+              background: 'rgba(59, 130, 246, 0.07)',
+              borderLeft: '3px solid #3b82f6',
+              padding: '0.4rem 0.65rem',
+              borderRadius: '0 4px 4px 0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.45rem',
+              lineHeight: 1.4
+            }}>
+              <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
+                <span>{selectedDocCategory.description}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Existing Documents List */}
@@ -5156,6 +5220,16 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
       { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
     ];
   }, [documentCategories]);
+
+  const selectedDocCategory = useMemo(() => {
+    if (!uploadDocType) return activeDocCategories[0] || null;
+    const cleanType = String(uploadDocType).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+    return activeDocCategories.find(c => {
+      const cleanName = String(c.name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+      return c.name === uploadDocType || c.code === uploadDocType || cleanName === cleanType || cleanType.includes(cleanName);
+    }) || activeDocCategories[0] || null;
+  }, [activeDocCategories, uploadDocType]);
+
   if (!initialCandidate) return null;
   const { currentUser, caseManagers = [], settings = {} } = state;
   const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
@@ -5604,6 +5678,28 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 </label>
               </div>
             </div>
+
+            {selectedDocCategory?.description && (
+              <div style={{
+                marginBottom: '0.75rem',
+                fontSize: '0.74rem',
+                color: 'var(--text-secondary, #475569)',
+                background: 'rgba(59, 130, 246, 0.07)',
+                borderLeft: '3px solid #3b82f6',
+                padding: '0.4rem 0.65rem',
+                borderRadius: '0 4px 4px 0',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.45rem',
+                lineHeight: 1.4
+              }}>
+                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
+                <div>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
+                  <span>{selectedDocCategory.description}</span>
+                </div>
+              </div>
+            )}
 
             {/* List of New Attachments Added */}
             {newDocuments.length > 0 && (
