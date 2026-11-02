@@ -92,3 +92,4 @@ class DocumentCategoryController {
         Response::json(null, 200, "Document category #{$id} removed successfully");
     }
 }
+

@@ -246,3 +246,4 @@ class DocumentCategory {
         return false;
     }
 }
+

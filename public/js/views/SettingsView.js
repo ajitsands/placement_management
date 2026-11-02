@@ -42,15 +42,17 @@ function SettingsView({ state }) {
   }, [checklistMasters]);
 
   // Compute Document Category Master Summary
-  const { totalDocCategoriesCount, activeDocCatCount, mandatoryDocCatCount } = useMemo(() => {
+  const { totalDocCategoriesCount, activeDocCatCount, inactiveDocCatCount } = useMemo(() => {
     let tot = (documentCategories || []).length;
     let active = 0;
-    let mand = 0;
     (documentCategories || []).forEach(cat => {
       if (cat.is_active !== 0 && cat.is_active !== false) active++;
-      if (cat.is_mandatory) mand++;
     });
-    return { totalDocCategoriesCount: tot, activeDocCatCount: active, mandatoryDocCatCount: mand };
+    return {
+      totalDocCategoriesCount: tot,
+      activeDocCatCount: active,
+      inactiveDocCatCount: Math.max(0, tot - active)
+    };
   }, [documentCategories]);
 
   // Normalize Timezones list
@@ -307,7 +309,6 @@ function SettingsView({ state }) {
       name: '',
       icon: '📄',
       description: '',
-      is_mandatory: 0,
       display_order: nextOrder,
       is_active: 1
     });
@@ -321,7 +322,6 @@ function SettingsView({ state }) {
       name: item.name || '',
       icon: item.icon || '📄',
       description: item.description || '',
-      is_mandatory: item.is_mandatory ? 1 : 0,
       display_order: item.display_order || 1,
       is_active: (item.is_active !== 0 && item.is_active !== false) ? 1 : 0
     });
@@ -345,7 +345,7 @@ function SettingsView({ state }) {
         name: editingDocCategory.name.trim(),
         icon: editingDocCategory.icon?.trim() || '📄',
         description: editingDocCategory.description?.trim() || '',
-        is_mandatory: parseInt(editingDocCategory.is_mandatory, 10) ? 1 : 0,
+        is_mandatory: 0,
         display_order: parseInt(editingDocCategory.display_order, 10) || 1,
         is_active: parseInt(editingDocCategory.is_active, 10) ? 1 : 0
       };
@@ -907,9 +907,9 @@ function SettingsView({ state }) {
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--success, #10b981)' }}>{activeDocCatCount} Active</div>
             </div>
             <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Mandatory Uploads</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger, #ef4444)' }}>
-                {mandatoryDocCatCount} Mandatory Required
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Inactive / Disabled</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                {inactiveDocCatCount} Disabled
               </div>
             </div>
           </div>
@@ -923,7 +923,6 @@ function SettingsView({ state }) {
                   <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '60px' }}>Icon</th>
                   <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', fontSize: '0.74rem', fontWeight: 700, width: '140px' }}>Code</th>
                   <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', fontSize: '0.74rem', fontWeight: 700 }}>Category Name & Description</th>
-                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '130px' }}>Obligation</th>
                   <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '110px' }}>Status</th>
                   <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontSize: '0.74rem', fontWeight: 700, width: '120px' }}>Actions</th>
                 </tr>
@@ -955,17 +954,7 @@ function SettingsView({ state }) {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
-                          {item.is_mandatory ? (
-                            <span className="badge badge-danger" style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem' }}>
-                              ⭐ Mandatory
-                            </span>
-                          ) : (
-                            <span className="badge badge-secondary" style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}>
-                              Optional
-                            </span>
-                          )}
-                        </td>
+
                         <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
                           <button
                             type="button"
@@ -1013,7 +1002,7 @@ function SettingsView({ state }) {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No document categories defined yet. Click "Add Document Category" to configure.
                     </td>
                   </tr>
@@ -1320,30 +1309,17 @@ function SettingsView({ state }) {
                   ))}
                 </div>
 
-                {/* Display Order & Obligation */}
-                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: 0 }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Display Order</label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="input-control"
-                      value={editingDocCategory.display_order}
-                      onChange={e => setEditingDocCategory({ ...editingDocCategory, display_order: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Obligation</label>
-                    <select
-                      className="select-control"
-                      value={editingDocCategory.is_mandatory ? '1' : '0'}
-                      onChange={e => setEditingDocCategory({ ...editingDocCategory, is_mandatory: parseInt(e.target.value, 10) })}
-                    >
-                      <option value="1">Mandatory (* Required)</option>
-                      <option value="0">Optional</option>
-                    </select>
-                  </div>
+                {/* Display Order */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Display Order</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input-control"
+                    value={editingDocCategory.display_order}
+                    onChange={e => setEditingDocCategory({ ...editingDocCategory, display_order: e.target.value })}
+                  />
+                  <span className="form-help" style={{ fontSize: '0.7rem' }}>Numerical display order in candidate upload dropdowns</span>
                 </div>
 
                 {/* Active Toggle */}
