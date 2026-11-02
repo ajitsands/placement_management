@@ -36,16 +36,17 @@ CREATE TABLE IF NOT EXISTS `users` (
     INDEX `idx_users_cm_code` (`case_manager_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. Candidates & Placements Table
+-- 3. Candidates & Placements Table (With 12-Month Renewal History & Checklist Criteria)
 CREATE TABLE IF NOT EXISTS `candidates` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `ref_no` VARCHAR(64) NOT NULL UNIQUE, -- e.g. JCP/26/268524
     `full_name` VARCHAR(191) NOT NULL,
     `cpr_no` VARCHAR(32) NOT NULL,
+    `phone` VARCHAR(64) NULL,
+    `email` VARCHAR(191) NULL,
     `gender` ENUM('Male', 'Female', 'Unspecified') DEFAULT 'Unspecified',
     `education` VARCHAR(64) DEFAULT 'High School',
-    `registration_date` DATE NULL,
-    `status` ENUM('registered', 'placed', 'active', 'completed', 'resigned', 'on_hold') NOT NULL DEFAULT 'registered',
+    `date_of_birth` DATE NULL,
     `salary_bhd` DECIMAL(10, 3) NOT NULL DEFAULT 0.000,
     `position_title` VARCHAR(128) NULL,
     `employee_type` VARCHAR(64) DEFAULT 'Full-Time',
@@ -53,6 +54,11 @@ CREATE TABLE IF NOT EXISTS `candidates` (
     `employer_cr` VARCHAR(64) NULL,
     `mol_certified` VARCHAR(16) DEFAULT 'Yes', -- 'Yes', 'No', 'N/A'
     `long_mol` VARCHAR(16) DEFAULT 'No', -- 'Yes', 'No', 'N/A'
+    `registration_date` DATE NULL,
+    `last_renewal_date` DATE NULL, -- Date of most recent 12-month registration renewal
+    `renewals_count` INT NOT NULL DEFAULT 0, -- Total renewals performed
+    `renewal_history` LONGTEXT NULL, -- JSON array of renewal events, previous dates, overdue days & remarks
+    `status` VARCHAR(64) NOT NULL DEFAULT 'registered',
     `joining_date` DATE NULL,
     `case_manager_id` INT NULL,
     `case_manager_name` VARCHAR(64) NOT NULL, -- Denormalized for rapid filtering
@@ -63,12 +69,54 @@ CREATE TABLE IF NOT EXISTS `candidates` (
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `job_id` INT NULL,
+    `job_code` VARCHAR(64) NULL,
+    `checklist_completion_pct` INT NOT NULL DEFAULT 0,
+    `checklist_items` LONGTEXT NULL,
     FOREIGN KEY (`case_manager_id`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     INDEX `idx_candidates_cpr` (`cpr_no`),
     INDEX `idx_candidates_cm` (`case_manager_name`),
     INDEX `idx_candidates_status` (`status`),
     INDEX `idx_candidates_reg` (`registration_date`),
+    INDEX `idx_candidates_renewal` (`last_renewal_date`),
     INDEX `idx_candidates_joining` (`joining_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. Employer Jobs & Vacancies Table
+CREATE TABLE IF NOT EXISTS `jobs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `job_code` VARCHAR(64) NOT NULL UNIQUE,
+    `job_title` VARCHAR(191) NOT NULL,
+    `company_name` VARCHAR(191) NOT NULL,
+    `employer_cr` VARCHAR(64) DEFAULT NULL,
+    `department` VARCHAR(128) DEFAULT NULL,
+    `salary_offered_bhd` DECIMAL(10, 3) NOT NULL DEFAULT 500.000,
+    `vacancies_count` INT NOT NULL DEFAULT 1,
+    `status` ENUM('active', 'filled', 'closed') NOT NULL DEFAULT 'active',
+    `requirements` TEXT NULL,
+    `description` TEXT NULL,
+    `created_by` INT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_jobs_company` (`company_name`),
+    INDEX `idx_jobs_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 5. Candidate Registration Compliance Checklist Master Table
+CREATE TABLE IF NOT EXISTS `checklist_masters` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(64) NOT NULL UNIQUE,
+    `title` VARCHAR(191) NOT NULL,
+    `description` TEXT NULL,
+    `category` VARCHAR(64) NOT NULL DEFAULT 'Identity & Legal',
+    `weight` INT NOT NULL DEFAULT 15,
+    `is_mandatory` TINYINT(1) NOT NULL DEFAULT 1,
+    `display_order` INT NOT NULL DEFAULT 1,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_checklist_code` (`code`),
+    INDEX `idx_checklist_order` (`display_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 4. Milestone Triggers Table (Placement, 180-Day, 365-Day)
@@ -138,6 +186,7 @@ CREATE TABLE IF NOT EXISTS `payments` (
     `payment_method` ENUM('Bank Transfer', 'Cheque', 'BenefitPay', 'Cash') DEFAULT 'Bank Transfer',
     `reference_doc_no` VARCHAR(64) NULL, -- Cheque number or bank transfer reference
     `cashier_notes` VARCHAR(255) NULL,
+    `attachments` LONGTEXT NULL, -- JSON array of receipt vouchers, wire slips, bank proofs
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`claim_id`) REFERENCES `claims`(`id`) ON DELETE CASCADE,

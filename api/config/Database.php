@@ -34,6 +34,15 @@ class Database {
                         PDO::ATTR_TIMEOUT            => 2
                     ]);
                     self::$useMySQL = true;
+                    try {
+                        self::ensureDisputeColumns(self::$pdo);
+                        self::ensureJobsTable(self::$pdo);
+                        self::ensureCandidateJobColumn(self::$pdo);
+                        self::ensureChecklistTables(self::$pdo);
+                        self::ensureCandidateChecklistColumns(self::$pdo);
+                    } catch (Exception $migrationError) {
+                        // Non-fatal: continue with existing schema
+                    }
                     break;
                 } catch (Exception $e) {
                     self::$useMySQL = false;
@@ -42,6 +51,122 @@ class Database {
             }
         }
         return self::$pdo;
+    }
+
+    /**
+     * Ensure the disputes table has the columns needed for edited details and attachments.
+     */
+    private static function ensureDisputeColumns(PDO $pdo): void {
+        $wanted = [
+            'attachments'      => 'LONGTEXT NULL',
+            'remarks'          => 'TEXT NULL',
+            'milestone_id'     => 'INT NULL',
+            'candidate_id'     => 'INT NULL',
+            'updated_at'       => 'DATETIME NULL',
+            'reinstated_date'  => 'DATE NULL',
+            'terminated_date'  => 'DATE NULL'
+        ];
+        $stmt = $pdo->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'disputes'"
+        );
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (empty($existing)) {
+            return; // table not present yet
+        }
+        foreach ($wanted as $col => $def) {
+            if (!in_array($col, $existing, true)) {
+                $pdo->exec("ALTER TABLE disputes ADD COLUMN {$col} {$def}");
+            }
+        }
+    }
+
+    private static function ensureJobsTable(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `jobs` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `job_code` VARCHAR(64) NOT NULL UNIQUE,
+                `job_title` VARCHAR(191) NOT NULL,
+                `company_name` VARCHAR(191) NOT NULL,
+                `employer_cr` VARCHAR(64) NULL,
+                `department` VARCHAR(128) NULL,
+                `salary_offered_bhd` DECIMAL(10, 3) NOT NULL DEFAULT 500.000,
+                `vacancies_count` INT NOT NULL DEFAULT 1,
+                `status` ENUM('active', 'filled', 'closed') NOT NULL DEFAULT 'active',
+                `requirements` TEXT NULL,
+                `description` TEXT NULL,
+                `created_by` INT NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_jobs_company` (`company_name`),
+                INDEX `idx_jobs_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
+    private static function ensureCandidateJobColumn(PDO $pdo): void {
+        $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'candidates'");
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (!in_array('job_id', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN job_id INT NULL");
+        }
+        if (!in_array('job_code', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN job_code VARCHAR(64) NULL");
+        }
+    }
+
+    private static function ensureChecklistTables(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `checklist_masters` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `code` VARCHAR(64) NOT NULL UNIQUE,
+                `title` VARCHAR(191) NOT NULL,
+                `description` TEXT NULL,
+                `category` VARCHAR(64) NOT NULL DEFAULT 'Identity & Legal',
+                `weight` INT NOT NULL DEFAULT 15,
+                `is_mandatory` TINYINT(1) NOT NULL DEFAULT 1,
+                `display_order` INT NOT NULL DEFAULT 1,
+                `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_checklist_code` (`code`),
+                INDEX `idx_checklist_order` (`display_order`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
+    private static function ensureCandidateChecklistColumns(PDO $pdo): void {
+        $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'candidates'");
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (!in_array('checklist_completion_pct', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN checklist_completion_pct INT NOT NULL DEFAULT 0");
+        }
+        if (!in_array('checklist_items', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN checklist_items LONGTEXT NULL");
+        }
+        if (!in_array('date_of_birth', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN date_of_birth DATE NULL AFTER education");
+        }
+        if (!in_array('phone', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN phone VARCHAR(64) NULL AFTER cpr_no");
+        }
+        if (!in_array('email', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN email VARCHAR(191) NULL AFTER phone");
+        }
+        if (!in_array('last_renewal_date', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN last_renewal_date DATE NULL AFTER registration_date");
+        }
+        if (!in_array('renewals_count', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN renewals_count INT NOT NULL DEFAULT 0 AFTER last_renewal_date");
+        }
+        if (!in_array('renewal_history', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN renewal_history LONGTEXT NULL AFTER renewals_count");
+        }
+
+        try {
+            $pdo->exec("ALTER TABLE `candidates` MODIFY COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'registered'");
+        } catch (\PDOException $e) {
+            // Ignore if already modified
+        }
     }
 
     public static function isMySQL(): bool {
@@ -116,7 +241,25 @@ class Database {
             $c['case_manager_id'] = $c['case_manager_id'] !== null ? (int)$c['case_manager_id'] : null;
             $c['status'] = $c['status'] ?? 'placed';
             $c['registration_date'] = $c['registration_date'] ?? $c['joining_date'] ?? date('Y-m-d');
+            $c['last_renewal_date'] = $c['last_renewal_date'] ?? null;
+            $c['renewals_count'] = isset($c['renewals_count']) ? (int)$c['renewals_count'] : 0;
+            if (isset($c['renewal_history']) && is_string($c['renewal_history'])) {
+                $decodedRenewals = json_decode($c['renewal_history'], true);
+                $c['renewal_history'] = is_array($decodedRenewals) ? $decodedRenewals : [];
+            } else {
+                $c['renewal_history'] = is_array($c['renewal_history'] ?? null) ? $c['renewal_history'] : [];
+            }
+            $c['date_of_birth'] = $c['date_of_birth'] ?? null;
+            $c['phone'] = $c['phone'] ?? null;
+            $c['email'] = $c['email'] ?? null;
             $c['remarks'] = $c['remarks'] ?? $c['notes'] ?? '';
+            $c['checklist_completion_pct'] = isset($c['checklist_completion_pct']) ? (int)$c['checklist_completion_pct'] : 0;
+            if (isset($c['checklist_items']) && is_string($c['checklist_items'])) {
+                $decodedItems = json_decode($c['checklist_items'], true);
+                $c['checklist_items'] = is_array($decodedItems) ? $decodedItems : [];
+            } else {
+                $c['checklist_items'] = is_array($c['checklist_items'] ?? null) ? $c['checklist_items'] : [];
+            }
             if (isset($c['documents']) && is_string($c['documents'])) {
                 $decodedDocs = json_decode($c['documents'], true);
                 $c['documents'] = is_array($decodedDocs) ? $decodedDocs : [];
@@ -149,6 +292,14 @@ class Database {
             $d['id'] = (int)$d['id'];
             $d['claim_id'] = (int)$d['claim_id'];
             $d['handled_by_user_id'] = $d['handled_by_user_id'] !== null ? (int)$d['handled_by_user_id'] : null;
+            if (isset($d['milestone_id'])) $d['milestone_id'] = (int)$d['milestone_id'];
+            if (isset($d['candidate_id'])) $d['candidate_id'] = (int)$d['candidate_id'];
+            if (!empty($d['attachments']) && is_string($d['attachments'])) {
+                $decodedAtt = json_decode($d['attachments'], true);
+                $d['attachments'] = is_array($decodedAtt) ? $decodedAtt : [];
+            } else if (empty($d['attachments']) || !is_array($d['attachments'])) {
+                $d['attachments'] = [];
+            }
             return $d;
         }, $pdo->query("SELECT * FROM disputes ORDER BY id ASC")->fetchAll());
 
@@ -157,6 +308,12 @@ class Database {
             $p['id'] = (int)$p['id'];
             $p['claim_id'] = (int)$p['claim_id'];
             $p['amount_paid_bhd'] = (float)$p['amount_paid_bhd'];
+            if (!empty($p['attachments']) && is_string($p['attachments'])) {
+                $decoded = json_decode($p['attachments'], true);
+                $p['attachments'] = is_array($decoded) ? $decoded : [];
+            } else if (empty($p['attachments']) || !is_array($p['attachments'])) {
+                $p['attachments'] = [];
+            }
             return $p;
         }, $pdo->query("SELECT * FROM payments ORDER BY id ASC")->fetchAll());
 
@@ -168,16 +325,134 @@ class Database {
             return $a;
         }, $pdo->query("SELECT * FROM audit_logs ORDER BY id ASC")->fetchAll());
 
+        // Jobs
+        try {
+            $jobs = array_map(function($j) {
+                $j['id'] = (int)$j['id'];
+                $j['salary_offered_bhd'] = (float)$j['salary_offered_bhd'];
+                $j['vacancies_count'] = (int)$j['vacancies_count'];
+                return $j;
+            }, $pdo->query("SELECT * FROM jobs ORDER BY id ASC")->fetchAll());
+        } catch (Exception $e) {
+            $jobs = [];
+        }
+
+        if (empty($jobs) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['jobs'])) {
+                $jobs = $jsonRaw['jobs'];
+                self::saveJobsToMySQL($pdo, $jobs);
+            }
+        }
+
+        // Checklist Masters
+        try {
+            $checklistMasters = array_map(function($c) {
+                $c['id'] = (int)$c['id'];
+                $c['weight'] = (int)$c['weight'];
+                $c['is_mandatory'] = (int)$c['is_mandatory'];
+                $c['display_order'] = (int)$c['display_order'];
+                $c['is_active'] = (int)$c['is_active'];
+                return $c;
+            }, $pdo->query("SELECT * FROM checklist_masters ORDER BY display_order ASC, id ASC")->fetchAll());
+        } catch (Exception $e) {
+            $checklistMasters = [];
+        }
+
+        if (empty($checklistMasters) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['checklist_masters'])) {
+                $checklistMasters = $jsonRaw['checklist_masters'];
+                self::saveChecklistMastersToMySQL($pdo, $checklistMasters);
+            }
+        }
+        if (empty($checklistMasters)) {
+            $checklistMasters = \App\Models\ChecklistMaster::getDefaultItems();
+            self::saveChecklistMastersToMySQL($pdo, $checklistMasters);
+        }
+
         return [
-            'settings'   => $settings,
-            'users'      => $users,
-            'candidates' => $candidates,
-            'milestones' => $milestones,
-            'claims'     => $claims,
-            'disputes'   => $disputes,
-            'payments'   => $payments,
-            'audit_logs' => $auditLogs
+            'settings'          => $settings,
+            'users'             => $users,
+            'candidates'        => $candidates,
+            'jobs'              => $jobs,
+            'checklist_masters' => $checklistMasters,
+            'milestones'        => $milestones,
+            'claims'            => $claims,
+            'disputes'          => $disputes,
+            'payments'          => $payments,
+            'audit_logs'        => $auditLogs
         ];
+    }
+
+    private static function saveJobsToMySQL(PDO $pdo, array $jobs): void {
+        try {
+            self::ensureJobsTable($pdo);
+            $stmt = $pdo->prepare("INSERT INTO jobs (id, job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, created_at)
+                VALUES (:id, :job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    job_title = VALUES(job_title),
+                    company_name = VALUES(company_name),
+                    employer_cr = VALUES(employer_cr),
+                    department = VALUES(department),
+                    salary_offered_bhd = VALUES(salary_offered_bhd),
+                    vacancies_count = VALUES(vacancies_count),
+                    status = VALUES(status),
+                    requirements = VALUES(requirements),
+                    description = VALUES(description)");
+
+            foreach ($jobs as $j) {
+                $stmt->execute([
+                    ':id' => (int)$j['id'],
+                    ':job_code' => $j['job_code'],
+                    ':job_title' => $j['job_title'],
+                    ':company_name' => $j['company_name'],
+                    ':employer_cr' => $j['employer_cr'] ?? '',
+                    ':department' => $j['department'] ?? 'General',
+                    ':salary_offered_bhd' => (float)($j['salary_offered_bhd'] ?? 500.0),
+                    ':vacancies_count' => (int)($j['vacancies_count'] ?? 1),
+                    ':status' => $j['status'] ?? 'active',
+                    ':requirements' => $j['requirements'] ?? '',
+                    ':description' => $j['description'] ?? '',
+                    ':created_at' => $j['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Ignore error if schema being populated
+        }
+    }
+
+    private static function saveChecklistMastersToMySQL(PDO $pdo, array $items): void {
+        try {
+            self::ensureChecklistTables($pdo);
+            $stmt = $pdo->prepare("INSERT INTO checklist_masters (id, code, title, description, category, weight, is_mandatory, display_order, is_active, created_at)
+                VALUES (:id, :code, :title, :description, :category, :weight, :is_mandatory, :display_order, :is_active, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    description = VALUES(description),
+                    category = VALUES(category),
+                    weight = VALUES(weight),
+                    is_mandatory = VALUES(is_mandatory),
+                    display_order = VALUES(display_order),
+                    is_active = VALUES(is_active)");
+
+            foreach ($items as $item) {
+                $stmt->execute([
+                    ':id'            => (int)$item['id'],
+                    ':code'          => $item['code'],
+                    ':title'         => $item['title'],
+                    ':description'   => $item['description'] ?? '',
+                    ':category'      => $item['category'] ?? 'Identity & Legal',
+                    ':weight'        => (int)($item['weight'] ?? 10),
+                    ':is_mandatory'  => !empty($item['is_mandatory']) ? 1 : 0,
+                    ':display_order' => (int)($item['display_order'] ?? 1),
+                    ':is_active'     => !empty($item['is_active']) ? 1 : 0,
+                    ':created_at'    => $item['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Ignore error
+        }
     }
 
     /**
@@ -229,14 +504,20 @@ class Database {
 
             // 3. Candidates
             if (!empty($data['candidates']) && is_array($data['candidates'])) {
-                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, gender, education, registration_date, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, notes, comments, remarks, documents, created_at)
-                    VALUES (:id, :ref_no, :full_name, :cpr_no, :gender, :education, :registration_date, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :notes, :comments, :remarks, :documents, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, created_at)
+                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :created_at)
                     ON DUPLICATE KEY UPDATE
                         full_name = VALUES(full_name),
                         cpr_no = VALUES(cpr_no),
+                        phone = VALUES(phone),
+                        email = VALUES(email),
                         gender = VALUES(gender),
                         education = VALUES(education),
+                        date_of_birth = VALUES(date_of_birth),
                         registration_date = VALUES(registration_date),
+                        last_renewal_date = VALUES(last_renewal_date),
+                        renewals_count = VALUES(renewals_count),
+                        renewal_history = VALUES(renewal_history),
                         status = VALUES(status),
                         salary_bhd = VALUES(salary_bhd),
                         position_title = VALUES(position_title),
@@ -250,18 +531,29 @@ class Database {
                         notes = VALUES(notes),
                         comments = VALUES(comments),
                         remarks = VALUES(remarks),
-                        documents = VALUES(documents)");
+                        documents = VALUES(documents),
+                        job_id = VALUES(job_id),
+                        job_code = VALUES(job_code),
+                        checklist_completion_pct = VALUES(checklist_completion_pct),
+                        checklist_items = VALUES(checklist_items)");
 
                 foreach ($data['candidates'] as $c) {
                     $docsJson = !empty($c['documents']) ? (is_string($c['documents']) ? $c['documents'] : json_encode($c['documents'], JSON_UNESCAPED_UNICODE)) : '[]';
+                    $chkItemsJson = !empty($c['checklist_items']) ? (is_string($c['checklist_items']) ? $c['checklist_items'] : json_encode($c['checklist_items'], JSON_UNESCAPED_UNICODE)) : '[]';
                     $stmt->execute([
                         ':id' => (int)$c['id'],
                         ':ref_no' => $c['ref_no'],
                         ':full_name' => $c['full_name'],
                         ':cpr_no' => $c['cpr_no'],
+                        ':phone' => !empty($c['phone']) ? trim($c['phone']) : null,
+                        ':email' => !empty($c['email']) ? trim($c['email']) : null,
                         ':gender' => $c['gender'] ?? 'Unspecified',
                         ':education' => $c['education'] ?? 'High School',
+                        ':date_of_birth' => !empty($c['date_of_birth']) ? $c['date_of_birth'] : null,
                         ':registration_date' => $c['registration_date'] ?? $c['joining_date'] ?? date('Y-m-d'),
+                        ':last_renewal_date' => !empty($c['last_renewal_date']) ? $c['last_renewal_date'] : null,
+                        ':renewals_count' => (int)($c['renewals_count'] ?? 0),
+                        ':renewal_history' => !empty($c['renewal_history']) ? (is_string($c['renewal_history']) ? $c['renewal_history'] : json_encode($c['renewal_history'], JSON_UNESCAPED_UNICODE)) : '[]',
                         ':status' => $c['status'] ?? 'registered',
                         ':salary_bhd' => (float)($c['salary_bhd'] ?? 0.0),
                         ':position_title' => $c['position_title'] ?? null,
@@ -277,6 +569,10 @@ class Database {
                         ':comments' => $c['comments'] ?? null,
                         ':remarks' => $c['remarks'] ?? $c['notes'] ?? null,
                         ':documents' => $docsJson,
+                        ':job_id' => !empty($c['job_id']) ? (int)$c['job_id'] : null,
+                        ':job_code' => !empty($c['job_code']) ? $c['job_code'] : null,
+                        ':checklist_completion_pct' => (int)($c['checklist_completion_pct'] ?? 0),
+                        ':checklist_items' => $chkItemsJson,
                         ':created_at' => $c['created_at'] ?? date('Y-m-d H:i:s')
                     ]);
                 }
@@ -341,23 +637,38 @@ class Database {
 
             // 6. Disputes
             if (!empty($data['disputes']) && is_array($data['disputes'])) {
-                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, reinstated_date, terminated_date, handled_by_user_id, created_at)
-                    VALUES (:id, :claim_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, milestone_id, candidate_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, remarks, attachments, reinstated_date, terminated_date, handled_by_user_id, created_at)
+                    VALUES (:id, :claim_id, :milestone_id, :candidate_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :remarks, :attachments, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
                     ON DUPLICATE KEY UPDATE
+                        milestone_id = VALUES(milestone_id),
+                        candidate_id = VALUES(candidate_id),
+                        dispute_category = VALUES(dispute_category),
+                        dispute_reason = VALUES(dispute_reason),
+                        dispute_date = VALUES(dispute_date),
                         status = VALUES(status),
                         resolution_notes = VALUES(resolution_notes),
+                        remarks = VALUES(remarks),
+                        attachments = VALUES(attachments),
                         reinstated_date = VALUES(reinstated_date),
                         terminated_date = VALUES(terminated_date)");
 
                 foreach ($data['disputes'] as $d) {
+                    $dispAttachments = null;
+                    if (!empty($d['attachments'])) {
+                        $dispAttachments = is_string($d['attachments']) ? $d['attachments'] : json_encode($d['attachments'], JSON_UNESCAPED_UNICODE);
+                    }
                     $stmt->execute([
                         ':id' => (int)$d['id'],
                         ':claim_id' => (int)$d['claim_id'],
+                        ':milestone_id' => !empty($d['milestone_id']) ? (int)$d['milestone_id'] : null,
+                        ':candidate_id' => !empty($d['candidate_id']) ? (int)$d['candidate_id'] : null,
                         ':dispute_category' => $d['dispute_category'],
                         ':dispute_reason' => $d['dispute_reason'],
                         ':dispute_date' => $d['dispute_date'],
                         ':status' => $d['status'] ?? 'active_dispute',
                         ':resolution_notes' => $d['resolution_notes'] ?? null,
+                        ':remarks' => $d['remarks'] ?? null,
+                        ':attachments' => $dispAttachments,
                         ':reinstated_date' => $d['reinstated_date'] ?? null,
                         ':terminated_date' => $d['terminated_date'] ?? null,
                         ':handled_by_user_id' => !empty($d['handled_by_user_id']) ? (int)$d['handled_by_user_id'] : null,
@@ -368,15 +679,21 @@ class Database {
 
             // 7. Payments
             if (!empty($data['payments']) && is_array($data['payments'])) {
-                $stmt = $pdo->prepare("INSERT INTO payments (id, receipt_no, claim_id, payment_date, amount_paid_bhd, payment_method, reference_doc_no, cashier_notes, created_at)
-                    VALUES (:id, :receipt_no, :claim_id, :payment_date, :amount_paid_bhd, :payment_method, :reference_doc_no, :cashier_notes, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO payments (id, receipt_no, claim_id, payment_date, amount_paid_bhd, payment_method, reference_doc_no, cashier_notes, attachments, created_at)
+                    VALUES (:id, :receipt_no, :claim_id, :payment_date, :amount_paid_bhd, :payment_method, :reference_doc_no, :cashier_notes, :attachments, :created_at)
                     ON DUPLICATE KEY UPDATE
                         amount_paid_bhd = VALUES(amount_paid_bhd),
                         payment_method = VALUES(payment_method),
                         reference_doc_no = VALUES(reference_doc_no),
-                        cashier_notes = VALUES(cashier_notes)");
+                        cashier_notes = VALUES(cashier_notes),
+                        attachments = VALUES(attachments)");
 
                 foreach ($data['payments'] as $p) {
+                    $attachmentsJson = null;
+                    if (!empty($p['attachments'])) {
+                        $attachmentsJson = is_string($p['attachments']) ? $p['attachments'] : json_encode($p['attachments'], JSON_UNESCAPED_UNICODE);
+                    }
+
                     $stmt->execute([
                         ':id' => (int)$p['id'],
                         ':receipt_no' => $p['receipt_no'],
@@ -386,9 +703,15 @@ class Database {
                         ':payment_method' => $p['payment_method'] ?? 'Bank Transfer',
                         ':reference_doc_no' => $p['reference_doc_no'] ?? null,
                         ':cashier_notes' => $p['cashier_notes'] ?? null,
+                        ':attachments' => $attachmentsJson,
                         ':created_at' => $p['created_at'] ?? date('Y-m-d H:i:s')
                     ]);
                 }
+            }
+
+            // 7. Checklist Masters
+            if (!empty($data['checklist_masters']) && is_array($data['checklist_masters'])) {
+                self::saveChecklistMastersToMySQL($pdo, $data['checklist_masters']);
             }
 
             $pdo->commit();
@@ -428,7 +751,8 @@ class Database {
                 'country'            => 'Bahrain',
                 'theme_default'      => 'light',
                 'lead_days_alert_180'=> 14,
-                'lead_days_alert_365'=> 21
+                'lead_days_alert_365'=> 21,
+                'standard_tier_amount_bhd' => 500
             ],
             'users' => [
                 [

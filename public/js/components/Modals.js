@@ -6,6 +6,29 @@
 
 const { useState, useEffect, useMemo } = React;
 
+// Shared dispute helpers (used across Claims, Milestones, Disputes pages and the details modal)
+window.getDisputeForRow = function (disputes, { claim_id, milestone_id } = {}) {
+  const matches = (disputes || []).filter(d =>
+    (claim_id && Number(d.claim_id) === Number(claim_id)) ||
+    (milestone_id && d.milestone_id && Number(d.milestone_id) === Number(milestone_id))
+  );
+  if (!matches.length) return null;
+  const latest = (list) => list.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
+  const active = matches.filter(d => d.status === 'active_dispute');
+  return latest(active.length ? active : matches);
+};
+
+window.getDisputeRef = function (dispute) {
+  return dispute && dispute.id ? `DSP-${String(dispute.id).padStart(4, '0')}` : null;
+};
+
+window.disputeFileUrl = function (url) {
+  if (!url) return '#';
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:')) return url;
+  const base = window.location.pathname.includes('/Claims') ? '/Claims/' : '/';
+  return base + url.replace(/^\.?\//, '');
+};
+
 function Modals({ state }) {
   const { modal, candidates, claims, caseManagers, currentUser, settings } = state;
   if (!modal) return null;
@@ -13,18 +36,25 @@ function Modals({ state }) {
   const { type, props } = modal;
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) window.AppStore.closeModal(); }}>
+    <div className="modal-overlay">
       {type === 'NEW_CANDIDATE' && <NewCandidateModal state={state} />}
-      {type === 'LINK_PLACEMENT' && <LinkPlacementModal state={state} candidate={props?.candidate} />}
+      {type === 'LINK_PLACEMENT' && <LinkPlacementModal state={state} candidate={props?.candidate} job={props?.job} />}
+      {type === 'NEW_JOB' && <JobModal state={state} />}
+      {type === 'EDIT_JOB' && <JobModal state={state} job={props?.job} />}
+      {type === 'PLACEMENT_DOSSIER' && <PlacementDossierModal state={state} candidate={props?.candidate} />}
       {type === 'UPDATE_STATUS' && <UpdateStatusModal state={state} candidate={props?.candidate} />}
       {type === 'CANDIDATE_DOCUMENTS' && <CandidateDocumentsModal state={state} candidate={props?.candidate} />}
+      {type === 'CANDIDATE_CHECKLIST' && <CandidateChecklistModal state={state} candidate={props?.candidate} />}
       {type === 'CANDIDATE_DETAIL' && <CandidateDetailModal state={state} candidate={props?.candidate} />}
       {type === 'NEW_CLAIM' && <NewClaimModal state={state} initialProps={props} />}
       {type === 'NEW_PAYMENT' && <NewPaymentModal state={state} initialProps={props} />}
+      {type === 'CLAIM_PAYMENTS' && <ClaimPaymentsModal state={state} claim={props?.claim} />}
       {type === 'NEW_DISPUTE' && <NewDisputeModal state={state} initialProps={props} />}
       {type === 'DISPUTE_DETAILS' && <DisputeDetailsModal state={state} initialProps={props} />}
       {type === 'EDIT_USER' && <EditUserModal state={state} user={props?.user} />}
       {type === 'EDIT_CLAIM_AMOUNT' && <EditClaimAmountModal state={state} milestone={props?.milestone} claim={props?.claim} />}
+      {type === 'RENEW_CANDIDATE' && <RenewCandidateModal state={state} candidate={props?.candidate} />}
+      {type === 'CANDIDATE_ACTIVITY_LOG' && <CandidateActivityLogModal state={state} initialCandidateId={props?.candidateId || props?.candidate?.id} />}
       {(type === 'SANDS_PROFILE' || type === 'PRODUCTS_SHOWCASE') && <SandsCompanyProfileModal state={state} />}
     </div>
   );
@@ -41,6 +71,9 @@ function NewCandidateModal({ state }) {
     ref_no: '',
     full_name: '',
     cpr_no: '',
+    phone: '',
+    email: '',
+    date_of_birth: '',
     gender: 'Male',
     education: 'Bachelor Degree',
     registration_date: new Date().toISOString().split('T')[0],
@@ -52,6 +85,24 @@ function NewCandidateModal({ state }) {
   });
 
   const [autoRefHint, setAutoRefHint] = useState('');
+
+  // Auto-derive Date of Birth from Bahrain CPR (YYMMDD format)
+  const handleCprChange = (val) => {
+    const next = { ...form, cpr_no: val };
+    const clean = val.replace(/\D/g, '');
+    if (clean.length >= 6 && !form.date_of_birth) {
+      const yy = parseInt(clean.substring(0, 2), 10);
+      const mm = clean.substring(2, 4);
+      const dd = clean.substring(4, 6);
+      const mNum = parseInt(mm, 10);
+      const dNum = parseInt(dd, 10);
+      if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+        const fullYear = yy <= 30 ? 2000 + yy : 1900 + yy;
+        next.date_of_birth = `${fullYear}-${mm}-${dd}`;
+      }
+    }
+    setForm(next);
+  };
 
   // Fetch next available reference preview on load
   useEffect(() => {
@@ -73,24 +124,90 @@ function NewCandidateModal({ state }) {
   const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
   const [uploadDocName, setUploadDocName] = useState('');
 
-  // Placement Linker Toggle State
-  const [linkPlacementNow, setLinkPlacementNow] = useState(false);
-  const [placementForm, setPlacementForm] = useState({
-    company_name: '',
-    employer_cr: '',
-    employee_type: 'Full-Time',
-    position_title: 'Specialist',
-    salary_bhd: '450.000',
-    joining_date: new Date().toISOString().split('T')[0],
-    mol_certified: 'Yes',
-    long_mol: 'No',
-    comments: '',
-    case_manager_name: currentUser.role === 'case_manager' 
-      ? (currentUser.case_manager_code || currentUser.full_name) 
-      : (caseManagers[0]?.case_manager_code || 'Husain')
-  });
-
   const [saving, setSaving] = useState(false);
+
+  // Candidate Registration Checklist Master & Real-Time Percentage
+  const checklistMasters = state?.checklistMasters || [];
+  const [checkedItems, setCheckedItems] = useState(() => new Set());
+
+  const activeChecklistMasters = useMemo(() => {
+    if (Array.isArray(checklistMasters) && checklistMasters.length > 0) {
+      return checklistMasters.filter(m => m.is_active !== 0);
+    }
+    return [
+      { id: 1, code: 'CPR_VERIF', title: 'CPR Identity & Smart Card Verification', weight: 25, is_mandatory: 1, category: 'Identity & Legal', description: 'Valid Bahrain CPR Smart Card copy uploaded and identity confirmed against National Population Registry.' },
+      { id: 2, code: 'CV_RESUME', title: 'Curriculum Vitae (CV / Resume) Vetted', weight: 20, is_mandatory: 1, category: 'Profile & Qualifications', description: 'Current professional resume submitted, verified, and tagged with candidate specializations.' },
+      { id: 3, code: 'EDU_CERT', title: 'Educational Certificate / Attested Degree', weight: 20, is_mandatory: 1, category: 'Profile & Qualifications', description: 'Verified graduation degree or diploma certificate from accredited institution.' },
+      { id: 4, code: 'BANK_IBAN', title: 'Bank Account IBAN Certificate', weight: 15, is_mandatory: 1, category: 'Banking & Compliance', description: 'Official bank account verification letter / IBAN certificate in candidate name.' },
+      { id: 5, code: 'GOSI_RECORD', title: 'GOSI Employment History / Status Record', weight: 10, is_mandatory: 0, category: 'Compliance & Verification', description: 'Social insurance contribution clearance confirming candidate eligibility.' },
+      { id: 6, code: 'MOL_AGREE', title: 'MOL & Placement Retention Consent', weight: 10, is_mandatory: 1, category: 'Compliance & Verification', description: 'Signed candidate acknowledgment of Ministry of Labour employment terms.' }
+    ];
+  }, [checklistMasters]);
+
+  const checklistEval = useMemo(() => {
+    let totalWeight = 0;
+    let earnedWeight = 0;
+    const missingMandatory = [];
+
+    activeChecklistMasters.forEach(item => {
+      const w = parseInt(item.weight, 10) || 10;
+      totalWeight += w;
+      const isChecked = checkedItems.has(item.code) || checkedItems.has(String(item.id)) || checkedItems.has(Number(item.id));
+      if (isChecked) {
+        earnedWeight += w;
+      } else if (item.is_mandatory) {
+        missingMandatory.push(item);
+      }
+    });
+
+    const percentage = totalWeight > 0 ? Math.min(100, Math.round((earnedWeight / totalWeight) * 100)) : 0;
+    const canProceed = missingMandatory.length === 0;
+
+    return {
+      totalWeight,
+      earnedWeight,
+      percentage,
+      canProceed,
+      missingMandatory,
+      items: activeChecklistMasters
+    };
+  }, [activeChecklistMasters, checkedItems]);
+
+  const toggleChecklist = (codeOrId) => {
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(codeOrId)) next.delete(codeOrId);
+      else next.add(codeOrId);
+      return next;
+    });
+  };
+
+  const handleSelectAllChecklist = () => {
+    const next = new Set();
+    activeChecklistMasters.forEach(m => {
+      next.add(m.code);
+      next.add(String(m.id));
+    });
+    setCheckedItems(next);
+  };
+
+  const handleClearAllChecklist = () => {
+    setCheckedItems(new Set());
+  };
+
+  const autoCheckFromDocType = (docType) => {
+    const dt = String(docType || '').toLowerCase();
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (dt.includes('cpr') || dt.includes('smart card')) next.add('CPR_VERIF');
+      if (dt.includes('cv') || dt.includes('resume')) next.add('CV_RESUME');
+      if (dt.includes('degree') || dt.includes('educat') || dt.includes('graduat')) next.add('EDU_CERT');
+      if (dt.includes('iban') || dt.includes('bank')) next.add('BANK_IBAN');
+      if (dt.includes('gosi')) next.add('GOSI_RECORD');
+      if (dt.includes('contract') || dt.includes('offer') || dt.includes('mol') || dt.includes('consent')) next.add('MOL_AGREE');
+      return next;
+    });
+  };
 
   // Handle local file selection for multiple document uploads
   const handleFilesSelected = (e) => {
@@ -111,6 +228,7 @@ function NewCandidateModal({ state }) {
           uploaded_at: new Date().toISOString()
         };
         setDocuments(prev => [...prev, newDoc]);
+        autoCheckFromDocType(uploadDocType);
         setUploadDocName('');
       };
       reader.readAsDataURL(file);
@@ -129,16 +247,18 @@ function NewCandidateModal({ state }) {
       return;
     }
 
-    if (linkPlacementNow && (!placementForm.company_name.trim() || !placementForm.joining_date)) {
-      window.AppStore.showNotification('Employer Company and Joining Date are required when linking a placement', 'error');
-      return;
-    }
+    // If mandatory criteria are missing, classify as registration_incomplete (allow saving)
+    const isIncomplete = !checklistEval.canProceed;
 
     setSaving(true);
     try {
       const payload = {
         ...form,
         ref_no: form.ref_no.trim(), // Custom ref if provided, otherwise empty string allows backend to auto-generate
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        status: isIncomplete ? 'registration_incomplete' : (form.status || 'registered'),
+        checklist_items: Array.from(checkedItems),
         documents: documents.map(d => ({
           name: d.name,
           type: d.type,
@@ -148,27 +268,24 @@ function NewCandidateModal({ state }) {
         }))
       };
 
-      if (linkPlacementNow) {
-        payload.company_name = placementForm.company_name;
-        payload.employer_cr = placementForm.employer_cr;
-        payload.employee_type = placementForm.employee_type;
-        payload.position_title = placementForm.position_title;
-        payload.salary_bhd = parseFloat(placementForm.salary_bhd) || 0;
-        payload.joining_date = placementForm.joining_date;
-        payload.mol_certified = placementForm.mol_certified;
-        payload.long_mol = placementForm.long_mol;
-        payload.comments = placementForm.comments;
-        payload.case_manager_name = placementForm.case_manager_name;
-        payload.status = 'placed';
-      }
-
       const created = await window.api.candidates.create(payload);
-      window.AppStore.showNotification(
-        linkPlacementNow 
-          ? `Candidate registered as ${created.ref_no} and linked to placement with automated milestones!` 
-          : `Candidate registered successfully with Ref ${created.ref_no}!`, 
-        'success'
-      );
+      if (isIncomplete) {
+        sessionStorage.setItem('sands_claims_cand_status_v2', 'registration_incomplete');
+        sessionStorage.setItem('sands_claims_cand_status', 'registration_incomplete');
+        window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registration_incomplete' }));
+        window.AppStore.showNotification(
+          `Candidate saved in 'Incomplete Profile' list (${checklistEval.percentage}% complete) with Ref ${created.ref_no}`,
+          'warning'
+        );
+      } else {
+        sessionStorage.setItem('sands_claims_cand_status_v2', 'registered');
+        sessionStorage.setItem('sands_claims_cand_status', 'registered');
+        window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registered' }));
+        window.AppStore.showNotification(
+          `Candidate registered successfully with Ref ${created.ref_no}!`, 
+          'success'
+        );
+      }
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
@@ -184,7 +301,7 @@ function NewCandidateModal({ state }) {
         <div>
           <h2 className="modal-title">➕ Candidate Registration Module</h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Register candidate personal profile, attach multiple verification documents & link employment placement
+            Register candidate personal profile, attach verification documents & verify compliance checklist
           </span>
         </div>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
@@ -213,18 +330,99 @@ function NewCandidateModal({ state }) {
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">CPR Number *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>CPR Number *</label>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Auto-fills Date of Birth</span>
+                </div>
                 <input
                   type="text"
                   className="input-control"
                   value={form.cpr_no}
-                  onChange={e => setForm({ ...form, cpr_no: e.target.value })}
+                  onChange={e => handleCprChange(e.target.value)}
                   required
                 />
               </div>
             </div>
 
-            {/* Row 2: Candidate Reference Number & Registration Date */}
+            {/* Row 2: Contact Phone & Email */}
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Contact Phone No.</label>
+                <input
+                  type="tel"
+                  className="input-control"
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Contact Email Address</label>
+                <input
+                  type="email"
+                  className="input-control"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Row 3: Date of Birth & Gender */}
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Date of Birth</label>
+                  {form.date_of_birth && window.calculateAge && window.calculateAge(form.date_of_birth) !== null && (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700 }}>
+                      🎂 {window.calculateAge(form.date_of_birth)} yrs old
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  className="input-control"
+                  value={form.date_of_birth}
+                  onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Gender *</label>
+                <select className="select-control" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Unspecified">Unspecified</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Row 3: Education Level & Registration Date */}
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Education Level *</label>
+                <select className="select-control" value={form.education} onChange={e => setForm({ ...form, education: e.target.value })}>
+                  <option value="High School">High School (Thaniwya)</option>
+                  <option value="Diploma">Diploma / Associate Degree</option>
+                  <option value="Bachelor Degree">Bachelor Degree (BSc / BA)</option>
+                  <option value="Master Degree">Master Degree (MSc / MBA)</option>
+                  <option value="Doctorate / PhD">Doctorate / PhD</option>
+                  <option value="Vocational / Technical">Vocational / Technical Certification</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Registration Date *</label>
+                <input
+                  type="date"
+                  className="input-control"
+                  value={form.registration_date}
+                  onChange={e => setForm({ ...form, registration_date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Row 4: Candidate Reference Number & Status */}
             <div className="form-row" style={{ marginBottom: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
@@ -243,79 +441,63 @@ function NewCandidateModal({ state }) {
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Registration Date *</label>
-                <input
-                  type="date"
-                  className="input-control"
-                  value={form.registration_date}
-                  onChange={e => setForm({ ...form, registration_date: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Row 3: Gender & Education Level */}
-            <div className="form-row" style={{ marginBottom: '1rem' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Gender *</label>
-                <select className="select-control" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Unspecified">Unspecified</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Education Level *</label>
-                <select className="select-control" value={form.education} onChange={e => setForm({ ...form, education: e.target.value })}>
-                  <option value="High School">High School (Thaniwya)</option>
-                  <option value="Diploma">Diploma / Associate Degree</option>
-                  <option value="Bachelor Degree">Bachelor Degree (BSc / BA)</option>
-                  <option value="Master Degree">Master Degree (MSc / MBA)</option>
-                  <option value="Doctorate / PhD">Doctorate / PhD</option>
-                  <option value="Vocational / Technical">Vocational / Technical Certification</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Row 4: Status & Assigned Case Manager */}
-            <div className="form-row" style={{ marginBottom: '1rem' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Status *</label>
-                <select
-                  className="select-control"
-                  value={form.status}
-                  onChange={e => setForm({ ...form, status: e.target.value })}
-                >
-                  <option value="registered">Registered (Available for Placement)</option>
-                  <option value="placed">Placed (Under Employment Contract)</option>
-                  <option value="on_hold">On Hold / Verification</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Assigned Case Manager</label>
-                {isAdminOrSuper ? (
+                <label className="form-label">Talent Pool Status *</label>
+                {checklistEval.canProceed ? (
                   <select
                     className="select-control"
-                    value={form.case_manager_name}
-                    onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+                    value={form.status}
+                    onChange={e => setForm({ ...form, status: e.target.value })}
                   >
-                    {caseManagers.map(cm => (
-                      <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
-                        {cm.full_name} ({cm.case_manager_code || 'CM'})
-                      </option>
-                    ))}
+                    <option value="registered">Registered (Available for Placement)</option>
+                    <option value="on_hold">On Hold / Verification</option>
                   </select>
                 ) : (
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={form.case_manager_name}
-                    disabled
-                  />
+                  <div
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--danger)',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      minHeight: '38px'
+                    }}
+                    title="Mandatory checklist items not satisfied. Candidate will be saved under Incomplete Profile list."
+                  >
+                    <span>⚠️</span>
+                    <span>Incomplete Profile ({checklistEval.percentage}%)</span>
+                  </div>
                 )}
               </div>
+            </div>
+
+            {/* Row 5: Assigned Case Manager */}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label className="form-label">Assigned Case Manager</label>
+              {isAdminOrSuper ? (
+                <select
+                  className="select-control"
+                  value={form.case_manager_name}
+                  onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+                >
+                  {caseManagers.map(cm => (
+                    <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
+                      {cm.full_name} ({cm.case_manager_code || 'CM'})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="input-control"
+                  value={form.case_manager_name}
+                  disabled
+                />
+              )}
             </div>
 
             {/* Row 5: Remarks */}
@@ -330,7 +512,140 @@ function NewCandidateModal({ state }) {
             </div>
           </div>
 
-          {/* SECTION 2: MULTIPLE DOCUMENT UPLOAD AREA */}
+          {/* SECTION 2: CANDIDATE REGISTRATION COMPLIANCE CHECKLIST */}
+          <div style={{ background: 'var(--bg-card, #ffffff)', padding: '1.25rem', borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--border-light, #e2e8f0)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.85rem' }}>
+              <div>
+                <h3 style={{ fontSize: '0.94rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>📋</span> Candidate Registration Compliance Checklist
+                </h3>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  All mandatory criteria must be verified to complete candidate registration
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span style={{
+                  fontSize: '1.35rem',
+                  fontWeight: 800,
+                  fontFamily: 'var(--font-mono)',
+                  color: checklistEval.percentage === 100 
+                    ? 'var(--success, #10b981)' 
+                    : (checklistEval.canProceed ? 'var(--primary, #0ea5e9)' : 'var(--warning, #f59e0b)')
+                }}>
+                  {checklistEval.percentage}%
+                </span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>Score</span>
+              </div>
+            </div>
+
+            {/* Dynamic Real-Time Progress Bar */}
+            <div style={{ width: '100%', height: '10px', background: 'var(--bg-tertiary, #e2e8f0)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+              <div style={{
+                width: `${checklistEval.percentage}%`,
+                height: '100%',
+                background: checklistEval.percentage === 100 
+                  ? 'linear-gradient(90deg, #10b981, #059669)'
+                  : (checklistEval.canProceed ? 'linear-gradient(90deg, #0284c7, #0ea5e9)' : 'linear-gradient(90deg, #f59e0b, #ef4444)'),
+                transition: 'width 0.3s ease, background 0.3s ease'
+              }} />
+            </div>
+
+            {/* Compliance Status Banner & Action Buttons */}
+            <div style={{
+              background: checklistEval.canProceed ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${checklistEval.canProceed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              borderRadius: '6px',
+              padding: '0.55rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.65rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ fontSize: '0.78rem', color: checklistEval.canProceed ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>{checklistEval.canProceed ? '✓' : '⚠️'}</span>
+                <span>
+                  {checklistEval.canProceed
+                    ? `All Mandatory Criteria Satisfied (${checklistEval.percentage}%) — Candidate Profile Fully Verified`
+                    : `${checklistEval.missingMandatory.length} Mandatory Criteria Pending (${checklistEval.percentage}%) — Candidate will be saved under 'Incomplete Profile'`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
+                  onClick={handleSelectAllChecklist}
+                >
+                  ✓ Select All
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
+                  onClick={handleClearAllChecklist}
+                >
+                  ✕ Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Checklist Items Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '0.65rem' }}>
+              {checklistEval.items.map(item => {
+                const isChecked = checkedItems.has(item.code) || checkedItems.has(String(item.id)) || checkedItems.has(Number(item.id));
+                return (
+                  <div
+                    key={item.code || item.id}
+                    onClick={() => toggleChecklist(item.code || String(item.id))}
+                    style={{
+                      border: `1px solid ${isChecked ? 'var(--success, #10b981)' : 'var(--border-color, #e2e8f0)'}`,
+                      background: isChecked ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-subtle, #f8fafc)',
+                      borderRadius: '6px',
+                      padding: '0.65rem 0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.65rem'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}} // Handled by container click
+                      style={{ marginTop: '3px', width: '17px', height: '17px', cursor: 'pointer' }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '2px' }}>
+                        <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{item.title}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                          {item.is_mandatory ? (
+                            <span className="badge badge-danger" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                              * Mandatory
+                            </span>
+                          ) : (
+                            <span className="badge badge-neutral" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                              Optional
+                            </span>
+                          )}
+                          <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
+                            +{item.weight}%
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                        {item.description}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION 3: MULTIPLE DOCUMENT UPLOAD AREA */}
           <div style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -423,160 +738,12 @@ function NewCandidateModal({ state }) {
               </div>
             )}
           </div>
-
-          {/* SECTION 3: OPTIONAL IMMEDIATE PLACEMENT LINKER */}
-          <div style={{ background: linkPlacementNow ? 'rgba(30, 64, 175, 0.04)' : 'var(--bg-tertiary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: linkPlacementNow ? '1px solid var(--primary-light)' : '1px solid var(--border-light)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: linkPlacementNow ? '1rem' : '0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', margin: 0 }}>
-                <input
-                  type="checkbox"
-                  checked={linkPlacementNow}
-                  onChange={e => {
-                    setLinkPlacementNow(e.target.checked);
-                    if (e.target.checked) setForm(prev => ({ ...prev, status: 'placed' }));
-                  }}
-                  style={{ width: '18px', height: '18px' }}
-                />
-                <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
-                  🔗 Link Employer Placement to Candidate Now
-                </strong>
-              </label>
-              <span className={`badge ${linkPlacementNow ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
-                {linkPlacementNow ? 'Placement Linker Active' : 'Available Registry (Link Later)'}
-              </span>
-            </div>
-
-            {linkPlacementNow && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border-light)' }}>
-                {/* Row 1: Employer Company Name & CR Number */}
-                <div className="form-row">
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Employer Company Name *</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={placementForm.company_name}
-                      onChange={e => setPlacementForm({ ...placementForm, company_name: e.target.value })}
-                      required={linkPlacementNow}
-                    />
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">CR Number</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={placementForm.employer_cr}
-                      onChange={e => setPlacementForm({ ...placementForm, employer_cr: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Employee Type & Position */}
-                <div className="form-row">
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Employee Type *</label>
-                    <select
-                      className="select-control"
-                      value={placementForm.employee_type}
-                      onChange={e => setPlacementForm({ ...placementForm, employee_type: e.target.value })}
-                    >
-                      <option value="Full-Time">Full-Time</option>
-                      <option value="Part-Time">Part-Time</option>
-                      <option value="Contract">Contract</option>
-                      <option value="Permanent">Permanent</option>
-                      <option value="Trainee / Intern">Trainee / Intern</option>
-                      <option value="Temporary">Temporary</option>
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Position / Job Title *</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={placementForm.position_title}
-                      onChange={e => setPlacementForm({ ...placementForm, position_title: e.target.value })}
-                      required={linkPlacementNow}
-                    />
-                  </div>
-                </div>
-
-                {/* Row 3: Salary & Joining Date */}
-                <div className="form-row">
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Monthly Salary ({currency}) *</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      className="input-control"
-                      value={placementForm.salary_bhd}
-                      onChange={e => setPlacementForm({ ...placementForm, salary_bhd: e.target.value })}
-                      required={linkPlacementNow}
-                    />
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Joining / Placement Date *</label>
-                    <input
-                      type="date"
-                      className="input-control"
-                      value={placementForm.joining_date}
-                      onChange={e => setPlacementForm({ ...placementForm, joining_date: e.target.value })}
-                      required={linkPlacementNow}
-                    />
-                  </div>
-                </div>
-
-                {/* Row 4: MOL & Long MOL */}
-                <div className="form-row">
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">MOL</label>
-                    <select
-                      className="select-control"
-                      value={placementForm.mol_certified}
-                      onChange={e => setPlacementForm({ ...placementForm, mol_certified: e.target.value })}
-                    >
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                      <option value="N/A">N/A</option>
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Long MOL</label>
-                    <select
-                      className="select-control"
-                      value={placementForm.long_mol}
-                      onChange={e => setPlacementForm({ ...placementForm, long_mol: e.target.value })}
-                    >
-                      <option value="No">No</option>
-                      <option value="Yes">Yes</option>
-                      <option value="N/A">N/A</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 5: Comments */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Comments</label>
-                  <textarea
-                    className="input-control"
-                    rows="2"
-                    value={placementForm.comments}
-                    onChange={e => setPlacementForm({ ...placementForm, comments: e.target.value })}
-                  ></textarea>
-                </div>
-
-                <div style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>⚡</span>
-                  <span>Automated Day 0, Day 180, and Day 365 retention milestones will be created automatically upon registration.</span>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="modal-footer">
           <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Registering Candidate...' : 'Complete Candidate Registration'}
+            {saving ? 'Saving Candidate...' : (checklistEval.canProceed ? 'Complete Candidate Registration' : `💾 Save to Incomplete Profile (${checklistEval.percentage}%)`)}
           </button>
         </div>
       </form>
@@ -584,30 +751,80 @@ function NewCandidateModal({ state }) {
   );
 }
 
-// 2. Link Employer Placement Modal
-function LinkPlacementModal({ state, candidate }) {
-  if (!candidate) return null;
-  const { currentUser, caseManagers, settings } = state;
+// 2. Link Employer Placement Modal (Integrated with Jobs & Vacancies)
+function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJob }) {
+  const { currentUser, caseManagers = [], settings = {}, jobs = [], candidates = [] } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
   const currency = settings.currency || 'BHD';
 
-  const [form, setForm] = useState({
-    company_name: candidate.company_name || '',
-    employer_cr: candidate.employer_cr || '',
-    employee_type: candidate.employee_type || 'Full-Time',
-    position_title: candidate.position_title || 'Specialist',
-    salary_bhd: candidate.salary_bhd > 0 ? candidate.salary_bhd : '450.000',
-    joining_date: candidate.joining_date || new Date().toISOString().split('T')[0],
-    mol_certified: candidate.mol_certified || 'Yes',
-    long_mol: candidate.long_mol || 'No',
-    comments: candidate.comments || '',
-    case_manager_name: candidate.case_manager_name || (caseManagers[0]?.case_manager_code || 'Husain')
+  // Candidate selection if not pre-passed
+  const [selectedCandId, setSelectedCandId] = useState(initialCandidate ? String(initialCandidate.id) : '');
+  const activeCandidate = initialCandidate || candidates.find(c => String(c.id) === String(selectedCandId));
+
+  // Job selection if pre-passed or chosen
+  const [selectedJobCode, setSelectedJobCode] = useState(() => {
+    if (initialJob) return initialJob.job_code || String(initialJob.id);
+    if (initialCandidate?.job_code) return initialCandidate.job_code;
+    if (initialCandidate?.job_id) return String(initialCandidate.job_id);
+    return '';
+  });
+
+  const [form, setForm] = useState(() => {
+    const baseCand = initialCandidate || {};
+    const baseJob = initialJob || (jobs.find(j => j.job_code === selectedJobCode || String(j.id) === selectedJobCode));
+
+    return {
+      job_id: baseJob?.id || baseCand.job_id || null,
+      job_code: baseJob?.job_code || baseCand.job_code || '',
+      company_name: baseJob?.company_name || baseCand.company_name || '',
+      employer_cr: baseJob?.employer_cr || baseCand.employer_cr || '',
+      employee_type: baseCand.employee_type || 'Full-Time',
+      position_title: baseJob?.position_title || baseCand.position_title || 'Specialist',
+      salary_bhd: baseJob?.salary_bhd || (baseCand.salary_bhd > 0 ? baseCand.salary_bhd : '450.000'),
+      joining_date: baseCand.joining_date || new Date().toISOString().split('T')[0],
+      mol_certified: baseCand.mol_certified || 'Yes',
+      long_mol: baseCand.long_mol || 'No',
+      comments: baseCand.comments || '',
+      case_manager_name: baseCand.case_manager_name || (caseManagers[0]?.case_manager_code || 'Husain')
+    };
   });
 
   const [saving, setSaving] = useState(false);
 
+  // Handle Job selection dropdown change
+  const handleJobSelect = (e) => {
+    const val = e.target.value;
+    setSelectedJobCode(val);
+
+    if (!val) {
+      setForm(prev => ({
+        ...prev,
+        job_id: null,
+        job_code: ''
+      }));
+      return;
+    }
+
+    const matchedJob = jobs.find(j => j.job_code === val || String(j.id) === val);
+    if (matchedJob) {
+      setForm(prev => ({
+        ...prev,
+        job_id: matchedJob.id,
+        job_code: matchedJob.job_code,
+        company_name: matchedJob.company_name || prev.company_name,
+        employer_cr: matchedJob.employer_cr || prev.employer_cr,
+        position_title: matchedJob.position_title || prev.position_title,
+        salary_bhd: matchedJob.salary_bhd || prev.salary_bhd
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!activeCandidate) {
+      window.AppStore.showNotification('Please select a candidate to link this placement', 'error');
+      return;
+    }
     if (!form.company_name.trim() || !form.joining_date) {
       window.AppStore.showNotification('Employer Company Name and Joining Date are required', 'error');
       return;
@@ -615,7 +832,7 @@ function LinkPlacementModal({ state, candidate }) {
 
     setSaving(true);
     try {
-      await window.api.candidates.linkPlacement(candidate.id, {
+      await window.api.candidates.linkPlacement(activeCandidate.id, {
         ...form,
         salary_bhd: parseFloat(form.salary_bhd) || 0
       });
@@ -630,12 +847,16 @@ function LinkPlacementModal({ state, candidate }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '680px' }}>
+    <div className="modal-content" style={{ maxWidth: '720px' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">🔗 Link Employer Placement</h2>
+          <h2 className="modal-title">🔗 Link Employer Placement & Job</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Candidate: <strong>{candidate.full_name}</strong> (CPR: {candidate.cpr_no})
+            {activeCandidate ? (
+              <>Candidate: <strong>{activeCandidate.full_name}</strong> (Ref: {activeCandidate.ref_no} • CPR: {activeCandidate.cpr_no})</>
+            ) : (
+              'Link an eligible candidate to an employer job opening'
+            )}
           </span>
         </div>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
@@ -643,6 +864,56 @@ function LinkPlacementModal({ state, candidate }) {
 
       <form onSubmit={handleSubmit}>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          
+          {/* Candidate Selection (if not pre-passed) */}
+          {!initialCandidate && (
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Select Candidate *</label>
+              <select
+                className="select-control"
+                value={selectedCandId}
+                onChange={e => setSelectedCandId(e.target.value)}
+                required
+              >
+                <option value="">-- Choose Candidate from Registry --</option>
+                {candidates.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.ref_no} • {c.full_name} (CPR: {c.cpr_no}) {c.company_name ? `[Current: ${c.company_name}]` : '[Available]'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Job Vacancy Selector Box */}
+          <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', padding: '0.85rem 1rem', borderRadius: '8px' }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>🏢 Select Employer Job Vacancy (Auto-fills details)</span>
+              {jobs.length > 0 && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{jobs.length} jobs available</span>}
+            </label>
+            <select
+              className="select-control"
+              value={selectedJobCode}
+              onChange={handleJobSelect}
+              style={{ fontSize: '0.85rem' }}
+            >
+              <option value="">-- Manual / Direct Placement (No Job Linked) --</option>
+              {jobs.map(j => {
+                const rem = j.vacancies_remaining ?? j.vacancies_count ?? 1;
+                return (
+                  <option key={j.id || j.job_code} value={j.job_code || String(j.id)}>
+                    {j.job_code} • {j.position_title} at {j.company_name} ({currency} {Number(j.salary_bhd || 0).toFixed(3)} • {rem} Open)
+                  </option>
+                );
+              })}
+            </select>
+            {form.job_code && (
+              <div style={{ fontSize: '0.74rem', color: 'var(--success)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>✓</span> Mapped to Job Code: <strong>{form.job_code}</strong>
+              </div>
+            )}
+          </div>
+
           {/* Row 1: Employer Company Name & CR Number */}
           <div className="form-row">
             <div className="form-group" style={{ margin: 0 }}>
@@ -652,16 +923,18 @@ function LinkPlacementModal({ state, candidate }) {
                 className="input-control"
                 value={form.company_name}
                 onChange={e => setForm({ ...form, company_name: e.target.value })}
+                placeholder="e.g. Aluminum Bahrain (Alba)"
                 required
               />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">CR Number</label>
+              <label className="form-label">Commercial Registration (CR)</label>
               <input
                 type="text"
                 className="input-control"
                 value={form.employer_cr}
                 onChange={e => setForm({ ...form, employer_cr: e.target.value })}
+                placeholder="e.g. 123456-1"
               />
             </div>
           </div>
@@ -690,6 +963,7 @@ function LinkPlacementModal({ state, candidate }) {
                 className="input-control"
                 value={form.position_title}
                 onChange={e => setForm({ ...form, position_title: e.target.value })}
+                placeholder="e.g. Senior Mechanical Specialist"
                 required
               />
             </div>
@@ -723,7 +997,7 @@ function LinkPlacementModal({ state, candidate }) {
           {/* Row 4: MOL & Long MOL */}
           <div className="form-row">
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">MOL</label>
+              <label className="form-label">MOL Certified</label>
               <select
                 className="select-control"
                 value={form.mol_certified}
@@ -758,7 +1032,7 @@ function LinkPlacementModal({ state, candidate }) {
                 onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
               >
                 {caseManagers.map(cm => (
-                  <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
+                  <option key={cm.id || cm.username} value={cm.case_manager_code || cm.full_name}>
                     {cm.full_name} ({cm.case_manager_code || 'CM'})
                   </option>
                 ))}
@@ -775,18 +1049,19 @@ function LinkPlacementModal({ state, candidate }) {
 
           {/* Row 6: Comments */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Comments</label>
+            <label className="form-label">Placement Comments / Notes</label>
             <textarea
               className="input-control"
               rows="2"
               value={form.comments}
               onChange={e => setForm({ ...form, comments: e.target.value })}
+              placeholder="Enter contract terms, probation notes, or MOL file reference..."
             ></textarea>
           </div>
 
-          <div style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ background: 'var(--success-bg, rgba(16,185,129,0.1))', border: '1px solid var(--success-border, rgba(16,185,129,0.3))', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm, 6px)', fontSize: '0.78rem', color: 'var(--success, #10b981)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>⚡</span>
-            <span>Automated Day 0, Day 180, and Day 365 retention milestones will be generated upon linking this placement.</span>
+            <span>Automated Day 0, Day 180, and Day 365 retention milestones will be automatically synced upon linking.</span>
           </div>
         </div>
 
@@ -797,6 +1072,353 @@ function LinkPlacementModal({ state, candidate }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// 2b. Job Modal (Create & Edit Job Postings)
+function JobModal({ state, job }) {
+  const { settings = {} } = state;
+  const currency = settings.currency || 'BHD';
+  const isEditing = Boolean(job && job.id);
+
+  const [form, setForm] = useState({
+    job_code: job?.job_code || '',
+    company_name: job?.company_name || '',
+    employer_cr: job?.employer_cr || '',
+    position_title: job?.position_title || '',
+    department: job?.department || 'Operations',
+    salary_bhd: job?.salary_bhd || '450.000',
+    vacancies_count: job?.vacancies_count || 1,
+    status: job?.status || 'active',
+    work_location: job?.work_location || 'Kingdom of Bahrain',
+    requirements: job?.requirements || '',
+    description: job?.description || ''
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.company_name.trim() || !form.position_title.trim()) {
+      window.AppStore.showNotification('Company Name and Position Title are required', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        salary_bhd: parseFloat(form.salary_bhd) || 0,
+        vacancies_count: parseInt(form.vacancies_count, 10) || 1
+      };
+
+      if (isEditing) {
+        await window.api.jobs.update(job.id, payload);
+        window.AppStore.showNotification(`Job opening '${form.position_title}' updated successfully!`, 'success');
+      } else {
+        await window.api.jobs.create(payload);
+        window.AppStore.showNotification(`Job opening '${form.position_title}' posted successfully!`, 'success');
+      }
+
+      window.AppStore.closeModal();
+      await window.AppStore.refreshData();
+    } catch (err) {
+      window.AppStore.showNotification('Error saving job: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '680px' }}>
+      <div className="modal-header">
+        <div>
+          <h2 className="modal-title">{isEditing ? '✏️ Edit Job Vacancy' : '➕ Post New Employer Job Vacancy'}</h2>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+            {isEditing ? `Job Code: ${job.job_code}` : 'Define an employer job position to link with national candidates'}
+          </span>
+        </div>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+          
+          {/* Row 1: Employer Company Name & CR */}
+          <div className="form-row">
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Employer Company Name *</label>
+              <input
+                type="text"
+                className="input-control"
+                value={form.company_name}
+                onChange={e => setForm({ ...form, company_name: e.target.value })}
+                placeholder="e.g. Aluminium Bahrain (Alba)"
+                required
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Commercial Registration (CR)</label>
+              <input
+                type="text"
+                className="input-control"
+                value={form.employer_cr}
+                onChange={e => setForm({ ...form, employer_cr: e.target.value })}
+                placeholder="e.g. 123456-1"
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Position Title & Department */}
+          <div className="form-row">
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Position / Job Title *</label>
+              <input
+                type="text"
+                className="input-control"
+                value={form.position_title}
+                onChange={e => setForm({ ...form, position_title: e.target.value })}
+                placeholder="e.g. Mechanical Reliability Engineer"
+                required
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Department / Division</label>
+              <input
+                type="text"
+                className="input-control"
+                value={form.department}
+                onChange={e => setForm({ ...form, department: e.target.value })}
+                placeholder="e.g. Engineering & Maintenance"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Salary, Vacancies & Status */}
+          <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Salary Offered ({currency}) *</label>
+              <input
+                type="number"
+                step="0.001"
+                className="input-control"
+                value={form.salary_bhd}
+                onChange={e => setForm({ ...form, salary_bhd: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Total Vacancies *</label>
+              <input
+                type="number"
+                min="1"
+                className="input-control"
+                value={form.vacancies_count}
+                onChange={e => setForm({ ...form, vacancies_count: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Vacancy Status</label>
+              <select
+                className="select-control"
+                value={form.status}
+                onChange={e => setForm({ ...form, status: e.target.value })}
+              >
+                <option value="active">Active / Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="filled">Filled</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 4: Job Requirements */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Candidate Requirements / Qualifications</label>
+            <textarea
+              className="input-control"
+              rows="2"
+              value={form.requirements}
+              onChange={e => setForm({ ...form, requirements: e.target.value })}
+              placeholder="e.g. Bachelor in Engineering, 2+ yrs GCC industrial experience, fluent English..."
+            ></textarea>
+          </div>
+
+          {/* Row 5: Job Description */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Job Overview & Responsibilities</label>
+            <textarea
+              className="input-control"
+              rows="2"
+              value={form.description}
+              onChange={e => setForm({ ...form, description: e.target.value })}
+              placeholder="Overview of core duties and daily responsibilities..."
+            ></textarea>
+          </div>
+
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Saving Job...' : (isEditing ? 'Save Changes' : 'Post Job Vacancy')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// 2c. Placement Dossier Modal (Dedicated Contract & Placement Breakdown)
+function PlacementDossierModal({ state, candidate }) {
+  if (!candidate) return null;
+  const { milestones = [], settings = {} } = state;
+  const currency = settings.currency || 'BHD';
+
+  const cMilestones = (milestones || []).filter(m => String(m.candidate_id) === String(candidate.id));
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="modal-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '10px',
+            background: 'rgba(14, 165, 233, 0.12)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.4rem'
+          }}>
+            📜
+          </div>
+          <div>
+            <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>
+              Placement & Contract Dossier
+            </h2>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Candidate: <strong>{candidate.full_name}</strong> &bull; Ref: <span style={{ fontFamily: 'var(--font-mono)' }}>{candidate.ref_no}</span>
+            </div>
+          </div>
+        </div>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
+      </div>
+
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        
+        {/* Banner with Employer & Status */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+          color: '#ffffff',
+          borderRadius: '10px',
+          padding: '1rem 1.25rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.85rem'
+        }}>
+          <div>
+            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.85 }}>Official Employer Placement</span>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{candidate.company_name || 'N/A'}</div>
+            <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+              {candidate.position_title} {candidate.job_code ? `• Job Code: ${candidate.job_code}` : ''}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>Monthly Base Salary</span>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+              {currency} {Number(candidate.salary_bhd || 0).toFixed(3)}
+            </div>
+            <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '4px' }}>
+              Joined: {window.formatAppDate(candidate.joining_date)}
+            </span>
+          </div>
+        </div>
+
+        {/* 2-Column Specs */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          
+          {/* Candidate Card */}
+          <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>👤</span> Candidate Particulars
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <div><strong>CPR:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{candidate.cpr_no}</span></div>
+              <div><strong>Gender & Education:</strong> {candidate.gender} &bull; {candidate.education}</div>
+              <div><strong>Registration Date:</strong> {window.formatAppDate(candidate.registration_date || candidate.created_at)}</div>
+              <div><strong>Case Manager:</strong> {candidate.case_manager_name || 'System'}</div>
+            </div>
+          </div>
+
+          {/* Employer & Compliance Card */}
+          <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>🏢</span> Corporate & MOL Terms
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <div><strong>Employer CR:</strong> {candidate.employer_cr || 'Not Stated'}</div>
+              <div><strong>Employee Type:</strong> {candidate.employee_type || 'Full-Time Standard'}</div>
+              <div><strong>MOL Certified:</strong> {candidate.mol_certified || 'Yes'}</div>
+              <div><strong>Long MOL:</strong> {candidate.long_mol || 'No'}</div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Milestone Gates Ledger */}
+        <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
+          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span>🎯</span> Retention Milestone Gates ({cMilestones.length})
+          </div>
+          {cMilestones.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {cMilestones.map(m => (
+                <div key={m.id || m.milestone_title} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '0.45rem 0.65rem', background: 'var(--bg-subtle, #f8fafc)', borderRadius: '6px', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                  <div>
+                    <strong>{m.milestone_title}</strong>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                      Target: {window.formatAppDate(m.target_date)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{currency} {Number(m.claim_amount_bhd || m.amount || 0).toFixed(3)}</span>
+                    <span className={`badge ${m.status === 'paid' ? 'badge-success' : (m.status === 'claimed' ? 'badge-info' : 'badge-neutral')}`} style={{ fontSize: '0.7rem', textTransform: 'capitalize' }}>
+                      {m.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No milestones found for this candidate.
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => {
+            window.AppStore.closeModal();
+            window.AppStore.openModal('LINK_PLACEMENT', { candidate });
+          }}
+        >
+          ✏️ Edit Placement Details
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>
+          Close Dossier
+        </button>
+      </div>
     </div>
   );
 }
@@ -845,6 +1467,7 @@ function UpdateStatusModal({ state, candidate }) {
               onChange={e => setStatus(e.target.value)}
               required
             >
+              <option value="registration_incomplete">⚠️ Incomplete Profile (Checklist Pending)</option>
               <option value="registered">📋 Registered (In Talent Pool / Available)</option>
               <option value="placed">💼 Placed (Under Placement Contract)</option>
               <option value="completed">🎓 Completed (365 Days Program Finished)</option>
@@ -1157,6 +1780,248 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
   );
 }
 
+// 4b. Candidate Registration Checklist Verification Modal
+function CandidateChecklistModal({ state, candidate: initialCandidate }) {
+  if (!initialCandidate) return null;
+  const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
+  const checklistMasters = state.checklistMasters || [];
+
+  const activeChecklistMasters = useMemo(() => {
+    if (Array.isArray(checklistMasters) && checklistMasters.length > 0) {
+      return checklistMasters.filter(m => m.is_active !== 0);
+    }
+    return [
+      { id: 1, code: 'CPR_VERIF', title: 'CPR Identity & Smart Card Verification', weight: 25, is_mandatory: 1, category: 'Identity & Legal', description: 'Valid Bahrain CPR Smart Card copy uploaded and identity confirmed against National Population Registry.' },
+      { id: 2, code: 'CV_RESUME', title: 'Curriculum Vitae (CV / Resume) Vetted', weight: 20, is_mandatory: 1, category: 'Profile & Qualifications', description: 'Current professional resume submitted, verified, and tagged with candidate specializations.' },
+      { id: 3, code: 'EDU_CERT', title: 'Educational Certificate / Attested Degree', weight: 20, is_mandatory: 1, category: 'Profile & Qualifications', description: 'Verified graduation degree or diploma certificate from accredited institution.' },
+      { id: 4, code: 'BANK_IBAN', title: 'Bank Account IBAN Certificate', weight: 15, is_mandatory: 1, category: 'Banking & Compliance', description: 'Official bank account verification letter / IBAN certificate in candidate name.' },
+      { id: 5, code: 'GOSI_RECORD', title: 'GOSI Employment History / Status Record', weight: 10, is_mandatory: 0, category: 'Compliance & Verification', description: 'Social insurance contribution clearance confirming candidate eligibility.' },
+      { id: 6, code: 'MOL_AGREE', title: 'MOL & Placement Retention Consent', weight: 10, is_mandatory: 1, category: 'Compliance & Verification', description: 'Signed candidate acknowledgment of Ministry of Labour employment terms.' }
+    ];
+  }, [checklistMasters]);
+
+  // Initial checked state from live candidate
+  const [checkedItems, setCheckedItems] = useState(() => {
+    const s = new Set();
+    const candItems = liveCandidate.checklist_items || [];
+    if (Array.isArray(candItems)) {
+      candItems.forEach(ci => {
+        if (typeof ci === 'string') s.add(ci);
+        else if (ci && (ci.completed || ci.is_checked)) s.add(ci.code || String(ci.id));
+      });
+    }
+    return s;
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const checklistEval = useMemo(() => {
+    let totalWeight = 0;
+    let earnedWeight = 0;
+    const missingMandatory = [];
+
+    activeChecklistMasters.forEach(item => {
+      const w = parseInt(item.weight, 10) || 10;
+      totalWeight += w;
+      const isChecked = checkedItems.has(item.code) || checkedItems.has(String(item.id)) || checkedItems.has(Number(item.id));
+      if (isChecked) {
+        earnedWeight += w;
+      } else if (item.is_mandatory) {
+        missingMandatory.push(item);
+      }
+    });
+
+    const percentage = totalWeight > 0 ? Math.min(100, Math.round((earnedWeight / totalWeight) * 100)) : 0;
+    const canProceed = missingMandatory.length === 0;
+
+    return {
+      totalWeight,
+      earnedWeight,
+      percentage,
+      canProceed,
+      missingMandatory,
+      items: activeChecklistMasters
+    };
+  }, [activeChecklistMasters, checkedItems]);
+
+  const toggleChecklist = (codeOrId) => {
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(codeOrId)) next.delete(codeOrId);
+      else next.add(codeOrId);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const next = new Set();
+    activeChecklistMasters.forEach(m => {
+      next.add(m.code);
+      next.add(String(m.id));
+    });
+    setCheckedItems(next);
+  };
+
+  const handleClearAll = () => {
+    setCheckedItems(new Set());
+  };
+
+  const handleSaveChecklist = async () => {
+    setSaving(true);
+    try {
+      await window.api.candidates.updateChecklist(liveCandidate.id, Array.from(checkedItems));
+      window.AppStore.showNotification(`Checklist updated: ${liveCandidate.full_name} is now ${checklistEval.percentage}% compliant!`, 'success');
+      window.AppStore.closeModal();
+      await window.AppStore.refreshData();
+    } catch (err) {
+      window.AppStore.showNotification('Failed to update checklist: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '740px', maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="modal-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '10px',
+            background: 'rgba(14, 165, 233, 0.12)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.4rem'
+          }}>
+            📋
+          </div>
+          <div>
+            <h2 className="modal-title" style={{ margin: 0 }}>Candidate Compliance & Registration Checklist</h2>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              Candidate: <strong>{liveCandidate.full_name}</strong> &bull; Ref: <span style={{ fontFamily: 'var(--font-mono)' }}>{liveCandidate.ref_no}</span> &bull; CPR: <span style={{ fontFamily: 'var(--font-mono)' }}>{liveCandidate.cpr_no}</span>
+            </span>
+          </div>
+        </div>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
+      </div>
+
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        
+        {/* Progress & Summary Banner */}
+        <div style={{ background: 'var(--bg-subtle, #f8fafc)', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border-color, #e2e8f0)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)' }}>Registration Compliance Score</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                {checklistEval.canProceed
+                  ? 'All mandatory onboarding requirements verified'
+                  : `${checklistEval.missingMandatory.length} mandatory item(s) pending completion`}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{
+                fontSize: '1.6rem',
+                fontWeight: 800,
+                fontFamily: 'var(--font-mono)',
+                color: checklistEval.percentage === 100 
+                  ? 'var(--success, #10b981)' 
+                  : (checklistEval.canProceed ? 'var(--primary, #0ea5e9)' : 'var(--warning, #f59e0b)')
+              }}>
+                {checklistEval.percentage}%
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div style={{ width: '100%', height: '10px', background: 'var(--bg-tertiary, #e2e8f0)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.65rem' }}>
+            <div style={{
+              width: `${checklistEval.percentage}%`,
+              height: '100%',
+              background: checklistEval.percentage === 100 
+                ? 'linear-gradient(90deg, #10b981, #059669)'
+                : (checklistEval.canProceed ? 'linear-gradient(90deg, #0284c7, #0ea5e9)' : 'linear-gradient(90deg, #f59e0b, #ef4444)'),
+              transition: 'width 0.3s ease, background 0.3s ease'
+            }} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span className={`badge ${checklistEval.canProceed ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.74rem' }}>
+              {checklistEval.canProceed ? '✓ Mandatory Compliance Satisfied' : '⚠️ Missing Mandatory Criteria'}
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button type="button" className="btn btn-outline btn-sm" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }} onClick={handleSelectAll}>
+                ✓ Select All
+              </button>
+              <button type="button" className="btn btn-outline btn-sm" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }} onClick={handleClearAll}>
+                ✕ Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Criteria List */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {checklistEval.items.map(item => {
+            const isChecked = checkedItems.has(item.code) || checkedItems.has(String(item.id)) || checkedItems.has(Number(item.id));
+            return (
+              <div
+                key={item.code || item.id}
+                onClick={() => toggleChecklist(item.code || String(item.id))}
+                style={{
+                  border: `1px solid ${isChecked ? 'var(--success, #10b981)' : 'var(--border-color, #e2e8f0)'}`,
+                  background: isChecked ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-subtle, #f8fafc)',
+                  borderRadius: '6px',
+                  padding: '0.75rem 0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => {}}
+                  style={{ marginTop: '3px', width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '2px' }}>
+                    <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>{item.title}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      {item.is_mandatory ? (
+                        <span className="badge badge-danger" style={{ fontSize: '0.65rem' }}>* Mandatory</span>
+                      ) : (
+                        <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>Optional</span>
+                      )}
+                      <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>+{item.weight}%</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                    {item.description}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>
+          Close
+        </button>
+        <button type="button" className="btn btn-primary" onClick={handleSaveChecklist} disabled={saving}>
+          {saving ? 'Saving...' : `Save Verification (${checklistEval.percentage}%)`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // 5. Candidate Comprehensive Dossier & Milestones Timeline Modal
 function CandidateDetailModal({ state, candidate }) {
   if (!candidate) return null;
@@ -1171,7 +2036,7 @@ function CandidateDetailModal({ state, candidate }) {
         <div>
           <h2 className="modal-title">{candidate.full_name}</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'placed'}</strong>
+            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no}{candidate.phone ? ` | 📞 ${candidate.phone}` : ''}{candidate.email ? ` | ✉️ ${candidate.email}` : ''} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'placed'}</strong>
           </span>
         </div>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
@@ -1179,10 +2044,30 @@ function CandidateDetailModal({ state, candidate }) {
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Candidate Profile Details */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>GENDER & EDUCATION</div>
             <strong style={{ fontSize: '0.85rem' }}>{candidate.gender} • {candidate.education}</strong>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CONTACT DETAILS</div>
+            <strong style={{ fontSize: '0.85rem' }}>{candidate.phone || 'No phone'}</strong>
+            {candidate.email && (
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {candidate.email}
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>DATE OF BIRTH & AGE</div>
+            <strong style={{ fontSize: '0.85rem' }}>
+              {candidate.date_of_birth ? (
+                <span>
+                  {window.formatAppDate(candidate.date_of_birth)}
+                  {window.calculateAge && window.calculateAge(candidate.date_of_birth) !== null ? ` (${window.calculateAge(candidate.date_of_birth)}y)` : ''}
+                </span>
+              ) : 'Not specified'}
+            </strong>
           </div>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>REGISTRATION DATE</div>
@@ -1274,6 +2159,44 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
         ) : null}
 
+        {/* Registration Compliance Checklist Box */}
+        <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>📋</span> Registration Compliance Checklist
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className={`badge ${(candidate.checklist_completion_pct || 0) >= 100 ? 'badge-success' : ((candidate.checklist_completion_pct || 0) >= 70 ? 'badge-info' : 'badge-warning')}`} style={{ fontSize: '0.78rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                {candidate.checklist_completion_pct || 0}% Compliant
+              </span>
+              <button
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
+                onClick={() => {
+                  window.AppStore.closeModal();
+                  window.AppStore.openModal('CANDIDATE_CHECKLIST', { candidate });
+                }}
+              >
+                ✏️ Manage Checklist &rarr;
+              </button>
+            </div>
+          </div>
+          {/* Micro Progress Bar */}
+          <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary, #e2e8f0)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.5rem' }}>
+            <div style={{
+              width: `${candidate.checklist_completion_pct || 0}%`,
+              height: '100%',
+              background: (candidate.checklist_completion_pct || 0) >= 100 ? 'var(--success, #10b981)' : ((candidate.checklist_completion_pct || 0) >= 70 ? 'var(--primary, #0ea5e9)' : 'var(--warning, #f59e0b)'),
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {(candidate.checklist_completion_pct || 0) >= 100 
+              ? '✓ All mandatory identity, educational, banking, and retainment compliance criteria verified.'
+              : 'Criteria verification in progress. Click Manage Checklist to update verified criteria and certificates.'}
+          </div>
+        </div>
+
         {/* Retention Milestones Timeline */}
         <div>
           <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
@@ -1363,8 +2286,9 @@ function NewClaimModal({ state, initialProps = {} }) {
   // Pre-selected milestone ID
   const initialMilestoneId = initialProps.milestone_id || initialProps.milestone?.id || '';
 
-  // Default claim amount: placement salary if set, otherwise 500.000
-  const defaultAmount = candidateSalary > 0 ? candidateSalary.toFixed(3) : '500.000';
+  // Default claim amount: placement salary if set, otherwise standard tier value from settings
+  const standardTierVal = state.settings?.standard_tier_amount_bhd ? Number(state.settings.standard_tier_amount_bhd).toFixed(3) : '500.000';
+  const defaultAmount = candidateSalary > 0 ? candidateSalary.toFixed(3) : standardTierVal;
 
   const [form, setForm] = useState({
     candidate_id: initialCandidate?.id || candidates[0]?.id || '',
@@ -1671,17 +2595,99 @@ function NewClaimModal({ state, initialProps = {} }) {
 function NewPaymentModal({ state, initialProps = {} }) {
   const { claims, settings } = state;
   const currency = settings.currency || 'BHD';
-  const undisputedClaims = claims.filter(c => c.status !== 'settled');
+  const undisputedClaims = (claims || []).filter(c => c.status !== 'settled');
+  const availableClaims = [...undisputedClaims];
+  if (initialProps.claim && !availableClaims.some(c => String(c.id) === String(initialProps.claim.id))) {
+    availableClaims.unshift(initialProps.claim);
+  }
+
+  const initialClaim = initialProps.claim || availableClaims.find(c => String(c.id) === String(initialProps.claim_id)) || availableClaims[0];
+  const initialAmount = (initialClaim?.balance_bhd !== undefined && initialClaim?.balance_bhd !== null)
+    ? initialClaim.balance_bhd
+    : (initialClaim?.claim_amount_bhd || '700.000');
+
+  // Sequential receipt generation: RCPT-YYYY-NNNN
+  const computeNextReceipt = () => {
+    const year = new Date().getFullYear();
+    let maxNum = 0;
+    (state.payments || []).forEach(p => {
+      const match = (p.receipt_no || '').match(new RegExp(`^RCPT-${year}-(\\d+)$`, 'i'));
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    if (maxNum === 0) {
+      maxNum = (state.payments || []).length;
+    }
+    return `RCPT-${year}-${String(maxNum + 1).padStart(4, '0')}`;
+  };
 
   const [form, setForm] = useState({
-    claim_id: initialProps.claim?.id || initialProps.claim_id || undisputedClaims[0]?.id || '',
-    amount_paid_bhd: initialProps.claim?.claim_amount_bhd || '700.000',
-    receipt_reference: 'RCPT-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000),
+    claim_id: initialClaim?.id || '',
+    amount_paid_bhd: initialAmount,
+    receipt_reference: computeNextReceipt(),
     payment_method: 'bank_transfer',
     payment_date: new Date().toISOString().split('T')[0],
+    reference_doc_no: '',
     notes: 'Direct EFT Ministry/Tamkeen Settlement'
   });
+  const [attachments, setAttachments] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (window.api?.payments?.getNextRef) {
+      window.api.payments.getNextRef().then(res => {
+        if (isMounted && res?.next_receipt_no) {
+          setForm(prev => ({ ...prev, receipt_reference: res.next_receipt_no }));
+        }
+      }).catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleAddFiles = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const newAtt = {
+          id: 'ATT-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          file_name: file.name,
+          file_size: file.size,
+          file_data: ev.target.result,
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          notes: ''
+        };
+        setAttachments(prev => [...prev, newAtt]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleUpdateAttNote = (id, notes) => {
+    setAttachments(prev => prev.map(a => a.id === id ? { ...a, notes } : a));
+  };
+
+  const handleUpdateAttName = (id, name) => {
+    setAttachments(prev => prev.map(a => a.id === id ? { ...a, name } : a));
+  };
+
+  const handleRemoveAtt = (id) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1693,7 +2699,9 @@ function NewPaymentModal({ state, initialProps = {} }) {
         receipt_reference: form.receipt_reference,
         payment_method: form.payment_method,
         payment_date: form.payment_date,
-        notes: form.notes
+        reference_doc_no: form.reference_doc_no,
+        notes: form.notes,
+        attachments: attachments
       });
       window.AppStore.showNotification(`Payment of ${currency} ${Number(form.amount_paid_bhd).toFixed(3)} recorded!`, 'success');
       window.AppStore.closeModal();
@@ -1706,24 +2714,32 @@ function NewPaymentModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content">
+    <div className="modal-content" style={{ maxWidth: '720px', width: '94vw' }}>
       <div className="modal-header">
         <h2 className="modal-title">💰 Record Payment Receipt</h2>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
       <form onSubmit={handleSubmit}>
-        <div className="modal-body">
+        <div className="modal-body" style={{ maxHeight: '78vh', overflowY: 'auto' }}>
           <div className="form-group">
             <label className="form-label">Link to Claim *</label>
             <select
               className="select-control"
               value={form.claim_id}
-              onChange={e => setForm({ ...form, claim_id: e.target.value })}
+              onChange={e => {
+                const targetId = e.target.value;
+                const found = availableClaims.find(c => String(c.id) === String(targetId));
+                setForm(prev => ({
+                  ...prev,
+                  claim_id: targetId,
+                  amount_paid_bhd: (found?.balance_bhd !== undefined && found?.balance_bhd !== null) ? found.balance_bhd : (found?.claim_amount_bhd ?? prev.amount_paid_bhd)
+                }));
+              }}
               required
             >
-              {undisputedClaims.map(c => (
+              {availableClaims.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.claim_ref} - {c.candidate_name || `Candidate #${c.candidate_id}`} ({currency} {Number(c.claim_amount_bhd).toFixed(3)})
+                  {c.claim_ref} - {c.candidate_name || `Candidate #${c.candidate_id}`} ({currency} {Number(c.balance_bhd !== undefined ? c.balance_bhd : c.claim_amount_bhd).toFixed(3)} balance)
                 </option>
               ))}
             </select>
@@ -1760,6 +2776,8 @@ function NewPaymentModal({ state, initialProps = {} }) {
                 <option value="bank_transfer">Fawri+ / Bank Transfer</option>
                 <option value="check">Cheque</option>
                 <option value="online_portal">Tamkeen E-Portal</option>
+                <option value="benefitpay">BenefitPay</option>
+                <option value="cash">Cash</option>
               </select>
             </div>
             <div className="form-group">
@@ -1773,6 +2791,164 @@ function NewPaymentModal({ state, initialProps = {} }) {
               />
             </div>
           </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Cheque / Bank Wire Ref No</label>
+              <input
+                type="text"
+                className="input-control"
+                placeholder="e.g. BBK-TRF-994102 or Cheque #44810"
+                value={form.reference_doc_no}
+                onChange={e => setForm({ ...form, reference_doc_no: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Cashier / Settlement Notes</label>
+              <input
+                type="text"
+                className="input-control"
+                placeholder="e.g. Direct EFT Ministry Settlement"
+                value={form.notes}
+                onChange={e => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* Multiple Attachments with Notes Section */}
+          <div style={{
+            marginTop: '1.25rem',
+            padding: '1rem',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <label style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                  <span>📎</span>
+                  <span>Receipt Attachments & Vouchers</span>
+                  <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>{attachments.length} attached</span>
+                </label>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  Attach bank transfer confirmations, cheque slips, or official stamped receipts. Add specific notes for each.
+                </div>
+              </div>
+              <label className="btn btn-sm btn-outline" style={{ cursor: 'pointer', margin: 0 }}>
+                <span>+ Add Files</span>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt,.csv,.xlsx"
+                  style={{ display: 'none' }}
+                  onChange={handleAddFiles}
+                />
+              </label>
+            </div>
+
+            {attachments.length === 0 ? (
+              <label style={{
+                display: 'block',
+                border: '1px dashed var(--border-light)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '1.25rem',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: 'var(--bg-card)'
+              }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>📂</div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Click to select multiple receipt attachments (PDF, PNG, JPG, DOCX, XLSX)
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  You can attach wire slips, stamped receipts, or deposit acknowledgments with notes
+                </div>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.txt,.csv,.xlsx"
+                  style={{ display: 'none' }}
+                  onChange={handleAddFiles}
+                />
+              </label>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {attachments.map((att, idx) => (
+                  <div
+                    key={att.id}
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                        <span style={{ fontSize: '1.2rem' }}>
+                          {att.file_name.toLowerCase().endsWith('.pdf') ? '📄' : (att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎')}
+                        </span>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{att.file_name}</strong>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                            ({formatFileSize(att.file_size)})
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAtt(att.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--danger)',
+                          fontSize: '0.9rem',
+                          padding: '0.2rem 0.4rem',
+                          lineHeight: 1
+                        }}
+                        title="Remove attachment"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.5rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+                          Document Label
+                        </label>
+                        <input
+                          type="text"
+                          className="input-control"
+                          style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
+                          placeholder="e.g. Bank Advice"
+                          value={att.name}
+                          onChange={e => handleUpdateAttName(att.id, e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+                          Specific Note for this Receipt Attachment
+                        </label>
+                        <input
+                          type="text"
+                          className="input-control"
+                          style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
+                          placeholder="e.g. Wire transfer confirmation from Ministry batch #4"
+                          value={att.notes}
+                          onChange={e => handleUpdateAttNote(att.id, e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="modal-footer">
           <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
@@ -1781,6 +2957,309 @@ function NewPaymentModal({ state, initialProps = {} }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// 7b. Claim Payment Receipts Modal - View breakdown of all payments received for a claim
+function ClaimPaymentsModal({ state, claim: initialClaim }) {
+  const { claims = [], candidates = [], payments = [], settings = {} } = state;
+  const currency = settings.currency || 'BHD';
+
+  // Keep fresh claim object from store
+  const claim = (claims || []).find(c => Number(c.id) === Number(initialClaim?.id)) || initialClaim;
+  if (!claim) return null;
+
+  // Find linked candidate
+  const candidate = (candidates || []).find(c => Number(c.id) === Number(claim.candidate_id));
+
+  // Find all payments linked to this claim
+  const claimPayments = useMemo(() => {
+    return (payments || [])
+      .filter(p => Number(p.claim_id) === Number(claim.id))
+      .sort((a, b) => new Date(b.payment_date || b.created_at) - new Date(a.payment_date || a.created_at));
+  }, [payments, claim.id]);
+
+  const claimAmount = parseFloat(claim.claim_amount_bhd || 0);
+  const totalPaid = claimPayments.reduce((sum, p) => sum + parseFloat(p.amount_paid_bhd || 0), 0);
+  const balance = Math.max(0, claimAmount - totalPaid);
+  const percentPaid = claimAmount > 0 ? Math.min(100, Math.round((totalPaid / claimAmount) * 100)) : 100;
+  const isSettled = claim.status === 'settled' || (balance <= 0.0001 && claimAmount > 0);
+  const isDisputed = claim.status === 'disputed';
+  const isTerminated = claim.status === 'terminated';
+
+  const candidateName = claim.candidate_name || candidate?.full_name || 'N/A';
+  const candidateCpr = claim.candidate_cpr || candidate?.cpr_no || 'N/A';
+  const candidateRef = claim.candidate_ref || candidate?.ref_no || `Cand #${claim.candidate_id}`;
+  const employerName = claim.company_name || candidate?.company_name || 'N/A';
+  const employerCr = claim.employer_cr || candidate?.employer_cr || '';
+  const milestoneTitle = claim.milestone_title || claim.claim_type || 'Retention Gate';
+
+  const handlePayRemaining = () => {
+    window.AppStore.closeModal();
+    setTimeout(() => {
+      window.AppStore.openModal('NEW_PAYMENT', { claim });
+    }, 120);
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '1100px', width: '96vw' }}>
+      <div className="modal-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '10px',
+            background: 'rgba(56, 189, 248, 0.12)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.4rem'
+          }}>
+            🧾
+          </div>
+          <div>
+            <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>
+              Payment Receipts Breakdown
+            </h2>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Claim Ref: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{claim.claim_ref}</strong>
+              <span style={{ margin: '0 0.5rem' }}>•</span>
+              Gate: <strong>{milestoneTitle}</strong>
+            </div>
+          </div>
+        </div>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
+      </div>
+
+      <div className="modal-body" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+        {/* Candidate & Claim Summary Header */}
+        <div style={{
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1rem',
+          marginBottom: '1rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '0.75rem',
+          fontSize: '0.82rem'
+        }}>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>CANDIDATE</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{candidateName}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>CPR: {candidateCpr} • {candidateRef}</div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>EMPLOYER</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{employerName}</div>
+            {employerCr && <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>CR: {employerCr}</div>}
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>CASE MANAGER / DATE</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{claim.case_manager_name || 'Unassigned'}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              Claimed: {window.formatAppDate(claim.claim_date || claim.created_at)}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>STATUS</div>
+            <span className={`badge ${isSettled ? 'badge-success' : (isDisputed ? 'badge-danger' : (isTerminated ? 'badge-neutral' : 'badge-warning'))}`} style={{ marginTop: '0.2rem', display: 'inline-block' }}>
+              {isDisputed ? '⚠️ Disputed' : (isSettled ? '✓ Settled' : (isTerminated ? 'Terminated' : 'Unsettled'))}
+            </span>
+          </div>
+        </div>
+
+        {/* Financial KPI Summary */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div style={{ background: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block' }}>Total Claimed</span>
+            <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{currency} {claimAmount.toFixed(3)}</strong>
+          </div>
+          <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--success)', display: 'block', fontWeight: 600 }}>Total Collected</span>
+            <strong style={{ fontSize: '1.05rem', color: 'var(--success)' }}>{currency} {totalPaid.toFixed(3)}</strong>
+          </div>
+          <div style={{ background: balance > 0 ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: balance > 0 ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid var(--border-light)' }}>
+            <span style={{ fontSize: '0.72rem', color: balance > 0 ? 'var(--danger)' : 'var(--text-muted)', display: 'block', fontWeight: balance > 0 ? 600 : 400 }}>Remaining Balance</span>
+            <strong style={{ fontSize: '1.05rem', color: balance > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{currency} {balance.toFixed(3)}</strong>
+          </div>
+        </div>
+
+        {/* Collection Progress Bar */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Collection Progress</span>
+            <span style={{ fontWeight: 700, color: isSettled ? 'var(--success)' : 'var(--primary)' }}>
+              {percentPaid}% Settled ({claimPayments.length} {claimPayments.length === 1 ? 'receipt' : 'receipts'})
+            </span>
+          </div>
+          <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${percentPaid}%`, background: isSettled ? 'var(--success)' : 'var(--primary)', transition: 'width 0.4s ease' }} />
+          </div>
+        </div>
+
+        {/* Payments Ledger Section */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+            <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>💰</span>
+              <span>Payment Receipts Recorded</span>
+              <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>{claimPayments.length}</span>
+            </h3>
+            {balance > 0 && !isDisputed && !isTerminated && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
+                onClick={handlePayRemaining}
+              >
+                + Record Payment
+              </button>
+            )}
+          </div>
+
+          {claimPayments.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '2.5rem 1.5rem',
+              background: 'var(--bg-tertiary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--border-light)'
+            }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⏳</div>
+              <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem' }}>No Payments Received Yet</h4>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px', marginInline: 'auto' }}>
+                No disbursement receipts have been recorded for claim <strong>{claim.claim_ref}</strong>.
+                The full amount of <strong>{currency} {claimAmount.toFixed(3)}</strong> is currently awaiting collection.
+              </p>
+              {!isDisputed && !isTerminated && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: '1rem' }}
+                  onClick={handlePayRemaining}
+                >
+                  💳 Record First Payment Receipt
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-light)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Receipt Ref</th>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Date</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>Amount Paid</th>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Method</th>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Cheque / Wire Ref</th>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Cashier Notes</th>
+                    <th style={{ padding: '0.65rem 0.75rem' }}>Attachments & Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {claimPayments.map((p, idx) => (
+                    <tr
+                      key={p.id || idx}
+                      style={{
+                        borderBottom: idx < claimPayments.length - 1 ? '1px solid var(--border-light)' : 'none',
+                        background: idx % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)'
+                      }}
+                    >
+                      <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>
+                        {p.receipt_no || p.receipt_reference || `RCPT-#${p.id}`}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        {window.formatAppDate(p.payment_date || p.created_at)}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--success)' }}>
+                        {currency} {Number(p.amount_paid_bhd || 0).toFixed(3)}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem' }}>
+                        <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+                          {p.payment_method || 'Bank Transfer'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                        {p.reference_doc_no || '—'}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', maxWidth: '160px' }}>
+                        {p.cashier_notes || p.notes || '—'}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem' }}>
+                        {p.attachments && p.attachments.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: '180px' }}>
+                            {p.attachments.map((att, aIdx) => (
+                              <div
+                                key={att.id || aIdx}
+                                style={{
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '0.35rem 0.5rem',
+                                  fontSize: '0.76rem'
+                                }}
+                              >
+                                <a
+                                  href={att.file_url ? (att.file_url.startsWith('http') || att.file_url.startsWith('/') ? att.file_url : '/' + att.file_url) : '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    color: 'var(--primary)',
+                                    fontWeight: 700,
+                                    textDecoration: 'none'
+                                  }}
+                                  title={`Click to view/download ${att.file_name}`}
+                                >
+                                  <span>📎</span>
+                                  <span style={{ textDecoration: 'underline' }}>{att.name || att.file_name}</span>
+                                </a>
+                                {att.notes && (
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                                    💬 {att.notes}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          {balance > 0 && !isDisputed && !isTerminated ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handlePayRemaining}
+            >
+              💳 Pay Remaining Balance ({currency} {balance.toFixed(3)})
+            </button>
+          ) : (
+            <span style={{ fontSize: '0.8rem', color: isSettled ? 'var(--success)' : 'var(--text-muted)', fontWeight: 600 }}>
+              {isSettled ? '✓ Claim is fully settled' : (isDisputed ? '⚠️ Payments are frozen due to active dispute' : '')}
+            </span>
+          )}
+        </div>
+        <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -1849,6 +3328,36 @@ function NewDisputeModal({ state, initialProps = {} }) {
   });
   const [saving, setSaving] = useState(false);
 
+  // Attachments (multiple, each with notes)
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handleAttachFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const att = await window.api.disputes.uploadAttachment({
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          file_name: file.name,
+          file_data: base64
+        });
+        setAttachments(prev => [...prev, { ...att, notes: '' }]);
+      } catch (err) {
+        window.AppStore.showNotification(`Upload failed for ${file.name}: ${err.message}`, 'error');
+      }
+    }
+    setUploading(false);
+  };
+
   // Handle saving new reason to master
   const handleSaveMasterReason = async (e) => {
     if (e) e.preventDefault();
@@ -1899,15 +3408,19 @@ function NewDisputeModal({ state, initialProps = {} }) {
 
     setSaving(true);
     try {
-      const resolvedReason = form.reason.trim() || form.dispute_reason;
+      const selectedCategory = form.dispute_reason;
+      const detailedGrounds = form.reason.trim();
+      const claimRemarks = form.remarks.trim();
       await window.api.disputes.create({
         claim_id: resolvedClaimId ? parseInt(resolvedClaimId) : null,
         milestone_id: resolvedMilestoneId ? parseInt(resolvedMilestoneId) : null,
         candidate_id: form.candidate_id ? parseInt(form.candidate_id) : null,
-        dispute_category: form.dispute_reason,
-        dispute_reason: form.dispute_reason,
-        reason: resolvedReason,
-        remarks: form.remarks.trim()
+        dispute_category: selectedCategory,
+        category: selectedCategory,
+        dispute_reason: detailedGrounds,
+        reason: detailedGrounds,
+        remarks: claimRemarks,
+        attachments
       });
 
       window.AppStore.showNotification(
@@ -2129,6 +3642,59 @@ function NewDisputeModal({ state, initialProps = {} }) {
             ></textarea>
           </div>
 
+          {/* Attachments with notes */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', gap: '0.5rem' }}>
+              <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>
+                📎 Attachments <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional, multiple files)</span>
+              </label>
+              <label className="btn btn-sm btn-outline" style={{ cursor: uploading ? 'wait' : 'pointer', margin: 0 }}>
+                {uploading ? 'Uploading...' : '➕ Add Files'}
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+                  style={{ display: 'none' }}
+                  disabled={uploading}
+                  onChange={handleAttachFiles}
+                />
+              </label>
+            </div>
+            {attachments.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                No files attached. Add supporting documents and a note for each.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {attachments.map(att => (
+                  <div key={att.id} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.7rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                      <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={att.file_name}>
+                        📄 {att.file_name || att.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))}
+                        title="Remove attachment"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.9rem', lineHeight: 1 }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      className="input-control"
+                      style={{ fontSize: '0.8rem', width: '100%' }}
+                      placeholder="Notes for this attachment..."
+                      value={att.notes || ''}
+                      onChange={e => setAttachments(prev => prev.map(a => a.id === att.id ? { ...a, notes: e.target.value } : a))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div style={{
             background: 'rgba(239, 68, 68, 0.08)',
             border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -2182,17 +3748,20 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   const currency = settings.currency || 'BHD';
   const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
 
-  // 1. Locate Target Dispute Record
-  const dispute = initialProps.dispute 
-    || disputes.find(d => 
-         (initialProps.dispute_id && Number(d.id) === Number(initialProps.dispute_id)) ||
-         (initialProps.claim_id && Number(d.claim_id) === Number(initialProps.claim_id)) ||
-         (initialProps.claim?.id && Number(d.claim_id) === Number(initialProps.claim.id)) ||
-         (initialProps.milestone?.claim_id && Number(d.claim_id) === Number(initialProps.milestone.claim_id)) ||
-         (initialProps.milestone?.id && d.milestone_id && Number(d.milestone_id) === Number(initialProps.milestone.id)) ||
-         (initialProps.candidate_id && d.candidate_id && Number(d.candidate_id) === Number(initialProps.candidate_id)) ||
-         (initialProps.candidate?.id && d.candidate_id && Number(d.candidate_id) === Number(initialProps.candidate.id))
-       )
+  // 1. Locate Target Dispute Record (prefer the live record from state so edits/attachments are current;
+  //    when opened from Claims/Milestones, match by claim/milestone first and pick the most recent dispute)
+  const pickLatest = (list) => list.length ? list.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a)) : null;
+  const claimIdHint = initialProps.claim_id || initialProps.claim?.id || initialProps.milestone?.claim_id;
+  const milestoneIdHint = initialProps.milestone?.id || initialProps.milestone_id;
+  const candidateIdHint = initialProps.candidate_id || initialProps.candidate?.id;
+  const requestedDisputeId = initialProps.dispute_id || initialProps.dispute?.id;
+
+  const dispute =
+    (requestedDisputeId ? disputes.find(d => Number(d.id) === Number(requestedDisputeId)) : null)
+    || (claimIdHint ? pickLatest(disputes.filter(d => Number(d.claim_id) === Number(claimIdHint))) : null)
+    || (milestoneIdHint ? pickLatest(disputes.filter(d => d.milestone_id && Number(d.milestone_id) === Number(milestoneIdHint))) : null)
+    || initialProps.dispute
+    || (candidateIdHint ? pickLatest(disputes.filter(d => d.candidate_id && Number(d.candidate_id) === Number(candidateIdHint))) : null)
     || null;
 
   // 2. Locate Linked Claim, Milestone, and Candidate
@@ -2213,9 +3782,13 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
 
   // 3. Resolve Display Attributes
   const disputeRef = dispute?.id ? `DSP-${String(dispute.id).padStart(4, '0')}` : 'DSP-ACTIVE';
-  const disputeCategory = dispute?.dispute_category || dispute?.category || 'Employment / Milestone Variance';
-  const disputeReason = dispute?.dispute_reason || dispute?.reason || 'Dispute registered during retention milestone verification';
-  const claimRemarks = claim?.remarks || dispute?.claim_remarks || dispute?.remarks || milestone?.remarks || '';
+  const disputeCategory = dispute?.dispute_category || dispute?.category || '';
+  const disputeReason = dispute?.dispute_reason !== undefined && dispute?.dispute_reason !== null
+    ? dispute.dispute_reason
+    : (dispute?.reason || '');
+  const claimRemarks = dispute?.remarks !== undefined && dispute?.remarks !== null
+    ? dispute.remarks
+    : (claim?.remarks || dispute?.claim_remarks || milestone?.remarks || '');
   const disputeDate = dispute?.dispute_date || dispute?.filed_date || dispute?.created_at?.split(' ')[0] || '';
   const caseManager = dispute?.case_manager_name || claim?.case_manager_name || candidate?.case_manager_name || 'System';
   const disputeStatus = dispute?.status || 'active_dispute';
@@ -2229,34 +3802,124 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   const claimRef = dispute?.claim_ref || claim?.claim_ref || milestone?.claim_ref || 'Pending';
   const claimAmount = dispute?.claim_amount_bhd || claim?.claim_amount_bhd || milestone?.claim_amount_bhd;
 
+  // 4. Edit mode & attachments state - strictly enabled ONLY for Active disputes from Dispute Management page
+  const canEdit = isActive && !!dispute?.id && (initialProps?.from === 'disputes' || initialProps?.source === 'disputes' || initialProps?.canEdit === true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attachments, setAttachments] = useState(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
+  const [editForm, setEditForm] = useState({
+    reason: disputeReason,
+    remarks: claimRemarks
+  });
+
+  useEffect(() => {
+    setEditForm({
+      reason: disputeReason,
+      remarks: claimRemarks
+    });
+    setAttachments(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
+  }, [dispute?.id, dispute?.dispute_reason, dispute?.remarks, dispute?.attachments]);
+
+  const formatFileSize = (bytes) => {
+    const n = Number(bytes || 0);
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return Math.round(n / 1024) + ' KB';
+    return n + ' B';
+  };
+
+  const handleAttachFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const att = await window.api.disputes.uploadAttachment({
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          file_name: file.name,
+          file_data: base64
+        });
+        setAttachments(prev => [...prev, att]);
+      } catch (err) {
+        window.AppStore.showNotification(`Upload failed for ${file.name}: ${err.message}`, 'error');
+      }
+    }
+    setUploading(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+    setAttachments(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
+    setEditForm({
+      reason: disputeReason,
+      remarks: claimRemarks
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      await window.api.disputes.update(dispute.id, {
+        dispute_reason: editForm.reason.trim(),
+        reason: editForm.reason.trim(),
+        remarks: editForm.remarks.trim(),
+        attachments
+      });
+      window.AppStore.showNotification('Dispute details updated successfully', 'success');
+      window.AppStore.closeModal();
+      await window.AppStore.refreshData();
+    } catch (err) {
+      window.AppStore.showNotification('Failed to update dispute: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="modal-content" style={{ maxWidth: '620px', width: '92vw' }}>
+    <div className="modal-content" style={{ maxWidth: '760px', width: '94vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
             width: '42px',
             height: '42px',
             borderRadius: '10px',
-            background: isActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-            color: isActive ? 'var(--danger)' : 'var(--success)',
+            background: isActive
+              ? 'rgba(239, 68, 68, 0.12)'
+              : (disputeStatus === 'reinstated' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)'),
+            color: isActive
+              ? 'var(--danger)'
+              : (disputeStatus === 'reinstated' ? 'var(--success)' : 'var(--danger)'),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '1.35rem',
             fontWeight: 700
           }}>
-            {isActive ? '⚠️' : '✓'}
+            {isActive ? '⚠️' : (disputeStatus === 'reinstated' ? '✓' : '⛔')}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h2 className="modal-title" style={{ margin: 0, fontSize: '1.2rem' }}>Dispute Details</h2>
-              <span className={`badge ${isActive ? 'badge-danger' : 'badge-success'}`} style={{ fontSize: '0.72rem' }}>
+              <span className={`badge ${isActive ? 'badge-danger' : (disputeStatus === 'reinstated' ? 'badge-success' : 'badge-danger')}`} style={{ fontSize: '0.72rem' }}>
                 {isActive ? 'Active Dispute' : String(disputeStatus).replace(/_/g, ' ')}
               </span>
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Ref: <strong style={{ fontFamily: 'var(--font-mono)' }}>{disputeRef}</strong>
               {disputeDate && <span> &bull; Filed: {window.formatAppDate ? window.formatAppDate(disputeDate) : disputeDate}</span>}
+              {dispute?.reinstated_date && dispute.reinstated_date !== '0000-00-00' && (
+                <span style={{ color: 'var(--success)' }}> &bull; Reinstated: {window.formatAppDate ? window.formatAppDate(dispute.reinstated_date) : dispute.reinstated_date}</span>
+              )}
+              {dispute?.terminated_date && dispute.terminated_date !== '0000-00-00' && (
+                <span style={{ color: 'var(--danger)' }}> &bull; Terminated: {window.formatAppDate ? window.formatAppDate(dispute.terminated_date) : dispute.terminated_date}</span>
+              )}
             </div>
           </div>
         </div>
@@ -2265,31 +3928,6 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '76vh', overflowY: 'auto' }}>
         
-        {/* Status Callout Banner */}
-        <div style={{
-          background: isActive ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
-          border: `1px solid ${isActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`,
-          borderRadius: 'var(--radius-md)',
-          padding: '0.75rem 1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          fontSize: '0.82rem',
-          color: isActive ? 'var(--danger)' : 'var(--success)'
-        }}>
-          <span style={{ fontSize: '1.25rem' }}>{isActive ? '🔒' : '✓'}</span>
-          <div>
-            <strong style={{ display: 'block', fontSize: '0.86rem' }}>
-              {isActive ? 'Dispute Active — Subsidies & Disbursements Frozen' : 'Dispute Resolved'}
-            </strong>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-              {isActive 
-                ? 'Automatic Tamkeen/Ministry claim release is currently on hold pending dispute investigation and verification.'
-                : 'This dispute record has been resolved and audit logs are permanently preserved.'}
-            </span>
-          </div>
-        </div>
-
         {/* Candidate, Employer, and Claim Overview Card */}
         <div style={{
           background: 'var(--bg-tertiary)',
@@ -2331,11 +3969,81 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             <strong style={{ color: 'var(--warning)', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>
               {claimAmount !== undefined && claimAmount !== null ? `${currency} ${Number(claimAmount).toFixed(3)}` : '—'}
             </strong>
-            <div style={{ fontSize: '0.72rem', color: 'var(--danger)', fontWeight: 600 }}>
-              {isActive ? '● Payment Frozen' : '● Cleared'}
+            <div style={{
+              fontSize: '0.72rem',
+              color: isActive ? 'var(--danger)' : (disputeStatus === 'reinstated' ? 'var(--success)' : 'var(--danger)'),
+              fontWeight: 600
+            }}>
+              {isActive
+                ? '● Payment Frozen'
+                : (disputeStatus === 'reinstated' ? '● Payment Released / Active' : '● Permanently Terminated')}
             </div>
           </div>
         </div>
+
+        {/* Reinstatement or Termination Status & Notes Card */}
+        {!isActive && (
+          <div style={{
+            background: disputeStatus === 'reinstated' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+            border: `1px solid ${disputeStatus === 'reinstated' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+            borderRadius: 'var(--radius-md)',
+            padding: '0.9rem 1.1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.55rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.3rem' }}>
+                  {disputeStatus === 'reinstated' ? '✓' : '⛔'}
+                </span>
+                <strong style={{
+                  fontSize: '0.96rem',
+                  color: disputeStatus === 'reinstated' ? 'var(--success)' : 'var(--danger)',
+                  textTransform: 'capitalize'
+                }}>
+                  {disputeStatus === 'reinstated' ? 'Placement Reinstated' : 'Placement Terminated'}
+                </strong>
+                <span className={`badge ${disputeStatus === 'reinstated' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.72rem' }}>
+                  {disputeStatus === 'reinstated' ? 'Active / Undisputed' : 'Audit Preserved'}
+                </span>
+              </div>
+              {(dispute?.reinstated_date || dispute?.terminated_date) && (
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: disputeStatus === 'reinstated' ? 'var(--success)' : 'var(--danger)',
+                  background: 'var(--bg-primary)',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  {disputeStatus === 'reinstated' ? 'Reinstated Date: ' : 'Terminated Date: '}
+                  {window.formatAppDate ? window.formatAppDate(dispute.reinstated_date || dispute.terminated_date) : (dispute.reinstated_date || dispute.terminated_date)}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', fontWeight: 700, display: 'block', marginBottom: '0.25rem' }}>
+                {disputeStatus === 'reinstated' ? 'Reinstatement Remarks / Notes:' : 'Termination Reason / Notes:'}
+              </span>
+              <div style={{
+                fontSize: '0.86rem',
+                color: 'var(--text-primary)',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.65rem 0.85rem',
+                lineHeight: 1.45,
+                whiteSpace: 'pre-wrap'
+              }}>
+                {dispute?.resolution_notes || 'No resolution notes recorded.'}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dispute Category & Reason Box */}
         <div style={{
@@ -2382,7 +4090,24 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
               color: 'var(--text-primary)',
               whiteSpace: 'pre-wrap'
             }}>
-              {disputeReason || 'No detailed grounds specified.'}
+              {editing ? (
+                <textarea
+                  className="input-control"
+                  rows="3"
+                  style={{ fontSize: '0.84rem', width: '100%' }}
+                  placeholder="Enter detailed grounds or investigation notes (optional)..."
+                  value={editForm.reason}
+                  onChange={e => setEditForm({ ...editForm, reason: e.target.value })}
+                />
+              ) : (
+                disputeReason ? (
+                  disputeReason
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No detailed grounds specified.
+                  </span>
+                )
+              )}
             </div>
           </div>
 
@@ -2416,40 +4141,141 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             padding: '0.65rem 0.85rem',
             fontSize: '0.85rem',
             lineHeight: 1.45,
-            color: claimRemarks ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontStyle: claimRemarks ? 'normal' : 'italic'
+            color: 'var(--text-primary)',
+            whiteSpace: 'pre-wrap'
           }}>
-            {claimRemarks || 'No remarks recorded for this claim.'}
+            {editing ? (
+              <textarea
+                className="input-control"
+                rows="2"
+                style={{ fontSize: '0.84rem', width: '100%' }}
+                placeholder="Enter remarks for the claim record (optional)..."
+                value={editForm.remarks}
+                onChange={e => setEditForm({ ...editForm, remarks: e.target.value })}
+              />
+            ) : (
+              claimRemarks ? (
+                claimRemarks
+              ) : (
+                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No remarks recorded for this claim.
+                </span>
+              )
+            )}
           </div>
         </div>
 
-        {/* Resolution Notes (if resolved) */}
-        {dispute?.resolution_notes && !isActive && (
-          <div style={{
-            background: 'rgba(16, 185, 129, 0.08)',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            borderRadius: 'var(--radius-md)',
-            padding: '0.8rem 1rem'
-          }}>
-            <span style={{ color: 'var(--success)', fontSize: '0.74rem', fontWeight: 700, display: 'block', marginBottom: '0.25rem' }}>
-              ✓ Resolution Remarks & Audit Summary
+        {/* Attachments */}
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.9rem 1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', fontWeight: 700 }}>
+              📎 Attachments ({attachments.length})
             </span>
-            <div style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>
-              {dispute.resolution_notes}
-            </div>
+            {editing && (
+              <label className="btn btn-sm btn-outline" style={{ cursor: uploading ? 'wait' : 'pointer', margin: 0 }}>
+                {uploading ? 'Uploading...' : '➕ Add Files'}
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+                  style={{ display: 'none' }}
+                  disabled={uploading}
+                  onChange={handleAttachFiles}
+                />
+              </label>
+            )}
           </div>
-        )}
+          {attachments.length === 0 ? (
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No attachments{editing ? ' yet. Click "Add Files" to upload one or more documents.' : '.'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {attachments.map(att => (
+                <div
+                  key={att.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.45rem 0.7rem',
+                    fontSize: '0.82rem'
+                  }}
+                >
+                  <a
+                    href={window.disputeFileUrl(att.file_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+                    title={att.file_name}
+                  >
+                    📄 {att.file_name || att.name}
+                  </a>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
+                    {formatFileSize(att.file_size)}
+                  </span>
+                  {editing ? (
+                    <input
+                      type="text"
+                      className="input-control"
+                      style={{ fontSize: '0.78rem', flex: 1, minWidth: '140px' }}
+                      placeholder="Notes..."
+                      value={att.notes || ''}
+                      onChange={e => setAttachments(prev => prev.map(a => a.id === att.id ? { ...a, notes: e.target.value } : a))}
+                    />
+                  ) : (att.notes ? (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', fontStyle: 'italic', flex: 1 }}>
+                      💬 {att.notes}
+                    </span>
+                  ) : null)}
+                  {editing && (
+                    <button
+                      type="button"
+                      onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))}
+                      title="Remove attachment"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.9rem', lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
       </div>
 
-      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => window.AppStore.closeModal()}
-        >
-          Close
-        </button>
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.5rem' }}>
+        {editing ? (
+          <>
+            <button type="button" className="btn btn-secondary" onClick={handleCancelEdit} disabled={saving || uploading}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleSaveEdit} disabled={saving || uploading}>
+              {saving ? 'Saving...' : '💾 Save Changes'}
+            </button>
+          </>
+        ) : (
+          <>
+            {canEdit && (
+              <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
+                ✏️ Edit
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => window.AppStore.closeModal()}
+            >
+              Close
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -3053,7 +4879,8 @@ function EditClaimAmountModal({ state, milestone, claim }) {
     if (activeClaim?.claim_amount_bhd !== undefined && activeClaim?.claim_amount_bhd !== null && !isNaN(activeClaim.claim_amount_bhd)) {
       return parseFloat(activeClaim.claim_amount_bhd).toFixed(3);
     }
-    return '500.000';
+    const fallbackVal = state.settings?.standard_tier_amount_bhd ? Number(state.settings.standard_tier_amount_bhd).toFixed(3) : '500.000';
+    return fallbackVal;
   };
 
   const [amount, setAmount] = useState(getInitialAmount());
@@ -3248,6 +5075,1287 @@ function EditClaimAmountModal({ state, milestone, claim }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// =========================================================================
+// RENEW CANDIDATE REGISTRATION MODAL
+// Preserves Candidate Reference Number (ref_no), calculates days past 12m,
+// permits updating contact, education, case manager & attaching renewal documents.
+// =========================================================================
+function RenewCandidateModal({ state, candidate: initialCandidate }) {
+  if (!initialCandidate) return null;
+  const { currentUser, caseManagers = [], settings = {} } = state;
+  const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
+
+  // Compute 12-month lifecycle baseline & overdue days
+  const baselineDate = liveCandidate.last_renewal_date || liveCandidate.registration_date || (liveCandidate.created_at ? liveCandidate.created_at.substring(0, 10) : new Date().toISOString().split('T')[0]);
+  const daysElapsed = Math.max(0, Math.floor((new Date().setHours(0,0,0,0) - new Date(baselineDate).getTime()) / 86400000));
+  const isPast12m = daysElapsed > 365;
+  const daysPast12m = isPast12m ? daysElapsed - 365 : 0;
+
+  const [phone, setPhone] = useState(liveCandidate.phone || '');
+  const [email, setEmail] = useState(liveCandidate.email || '');
+  const [education, setEducation] = useState(liveCandidate.education || 'Bachelor Degree');
+  const [caseManager, setCaseManager] = useState(liveCandidate.case_manager_name || (caseManagers[0]?.case_manager_code || 'Husain'));
+  const [renewalDate, setRenewalDate] = useState(new Date().toISOString().split('T')[0]);
+  const [remarks, setRemarks] = useState(`12-month registration cycle renewal. Candidate profile active in national talent pool.`);
+  const [newDocuments, setNewDocuments] = useState([]);
+  const [uploadDocType, setUploadDocType] = useState('🪪 Renewed CPR / Smart Card');
+  const [uploadDocName, setUploadDocName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Handle uploading renewal supporting documents (e.g. renewed CPR, updated CV)
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const base64Data = uploadEvent.target.result;
+        const newDoc = {
+          id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          name: uploadDocName || file.name,
+          type: uploadDocType,
+          file_name: file.name,
+          file_size: file.size,
+          file_data: base64Data,
+          uploaded_at: new Date().toISOString()
+        };
+        setNewDocuments(prev => [...prev, newDoc]);
+        setUploadDocName('');
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleRemoveDoc = (index) => {
+    setNewDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        phone: phone.trim(),
+        email: email.trim(),
+        education,
+        case_manager_name: caseManager,
+        renewal_date: renewalDate,
+        remarks: remarks.trim(),
+        documents: newDocuments
+      };
+
+      const res = await window.api.candidates.renew(liveCandidate.id, payload);
+
+      if (window.swal) {
+        window.swal.fire({
+          icon: 'success',
+          title: 'Candidate Registration Renewed!',
+          html: `<div style="text-align: left; font-size: 0.9rem; line-height: 1.5;">
+            <div><strong>Candidate:</strong> ${liveCandidate.full_name}</div>
+            <div><strong>Reference Number:</strong> <span style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">${liveCandidate.ref_no}</span> (Preserved)</div>
+            <div><strong>Renewal Date:</strong> ${renewalDate}</div>
+            <div style="margin-top: 6px; color: var(--success); font-weight: 600;">✓ Successfully moved back to "Available in Pool" with reset 12-month validity.</div>
+          </div>`,
+          confirmButtonColor: 'var(--primary)'
+        });
+      }
+
+      await window.AppStore.loadInitialData();
+      window.AppStore.closeModal();
+
+      // Switch view filter to "registered" (Available in Pool)
+      window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registered' }));
+    } catch (err) {
+      console.error('Error renewing candidate:', err);
+      if (window.swal) {
+        window.swal.fire({
+          icon: 'error',
+          title: 'Renewal Failed',
+          text: err.message || 'An error occurred while renewing candidate registration.',
+          confirmButtonColor: 'var(--danger)'
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+        <div>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
+            <span>🔄</span> Renew Candidate Registration
+          </h2>
+          <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
+            Preserve candidate reference number and extend national talent pool placement validity for 12 months.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="modal-close"
+          onClick={() => window.AppStore.closeModal()}
+          style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: 'var(--text-muted)' }}
+        >
+          &times;
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', padding: '1.25rem' }}>
+
+          {/* Banner: Preserved Reference Number & 12-Month Overdue Info */}
+          <div
+            style={{
+              background: isPast12m ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0, 106, 148, 0.06)',
+              border: `1px solid ${isPast12m ? 'rgba(245, 158, 11, 0.35)' : 'rgba(0, 106, 148, 0.25)'}`,
+              borderRadius: 'var(--radius-md, 8px)',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+                  Preserved Registration Reference (Locked)
+                </span>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>🔒</span> {liveCandidate.ref_no}
+                </div>
+              </div>
+
+              <div>
+                {isPast12m ? (
+                  <span
+                    className="badge badge-warning"
+                    style={{
+                      fontSize: '0.8rem',
+                      padding: '0.3rem 0.65rem',
+                      fontWeight: 800,
+                      background: 'rgba(245, 158, 11, 0.18)',
+                      color: 'var(--warning, #d97706)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span>⚠️</span> Expired (+{daysPast12m} days past 12 months)
+                  </span>
+                ) : (
+                  <span
+                    className="badge badge-success"
+                    style={{
+                      fontSize: '0.8rem',
+                      padding: '0.3rem 0.65rem',
+                      fontWeight: 800,
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: 'var(--success, #059669)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span>✓</span> Within Active Cycle ({daysElapsed}/365 days)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.45rem', marginTop: '0.25rem' }}>
+              <div><strong>Candidate:</strong> {liveCandidate.full_name}</div>
+              <div><strong>CPR:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{liveCandidate.cpr_no}</span></div>
+              <div><strong>Initial Registration:</strong> {window.formatAppDate(liveCandidate.registration_date || liveCandidate.created_at)}</div>
+              <div><strong>Previous Renewals:</strong> {liveCandidate.renewals_count || 0} time(s)</div>
+              {liveCandidate.last_renewal_date && <div><strong>Last Renewal:</strong> {window.formatAppDate(liveCandidate.last_renewal_date)}</div>}
+              <div><strong>Current Status:</strong> <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>{liveCandidate.status}</span></div>
+            </div>
+          </div>
+
+          {/* Section 1: Renewal Effective Date & Assigned Case Manager */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                Renewal Effective Date *
+              </label>
+              <input
+                type="date"
+                className="input-control"
+                value={renewalDate}
+                onChange={e => setRenewalDate(e.target.value)}
+                required
+              />
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Resets the 12-month validity timer starting from this date.
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                Assigned Case Manager *
+              </label>
+              <select
+                className="input-control"
+                value={caseManager}
+                onChange={e => setCaseManager(e.target.value)}
+                required
+              >
+                {caseManagers.map(cm => (
+                  <option key={cm.id || cm.case_manager_code} value={cm.case_manager_code || cm.full_name}>
+                    {cm.full_name || cm.case_manager_code} ({cm.case_manager_code})
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Case Manager overseeing placement matching & retention gates.
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Editable Contact Info & Education Upgrade */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                Contact Phone Number
+              </label>
+              <input
+                type="text"
+                className="input-control"
+                value={phone}
+                placeholder="e.g. 39991234 or +973 39991234"
+                onChange={e => setPhone(e.target.value)}
+              />
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Update if candidate changed their contact telephone.
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                Contact Email Address
+              </label>
+              <input
+                type="email"
+                className="input-control"
+                value={email}
+                placeholder="candidate@example.bh"
+                onChange={e => setEmail(e.target.value)}
+              />
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Primary email for job notifications and interviews.
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                Education Level (Qualification Upgrade)
+              </label>
+              <select
+                className="input-control"
+                value={education}
+                onChange={e => setEducation(e.target.value)}
+              >
+                <option value="High School / Secondary">High School / Secondary</option>
+                <option value="Diploma">Diploma (Associate Degree)</option>
+                <option value="Higher Diploma">Higher Diploma</option>
+                <option value="Bachelor Degree">Bachelor Degree</option>
+                <option value="Master Degree">Master Degree</option>
+                <option value="Doctorate / PhD">Doctorate / PhD</option>
+                <option value="Professional Certification">Professional Certification</option>
+              </select>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Update if candidate achieved a higher educational degree.
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Renewal Supporting Attachments */}
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', background: 'var(--bg-subtle, #f8fafc)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>📎</span> Attach Renewal Documents (Optional)
+              </div>
+              <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+                {newDocuments.length} New File(s)
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', marginBottom: '0.65rem' }}>
+              <div>
+                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Document Category</label>
+                <select
+                  className="input-control"
+                  style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
+                  value={uploadDocType}
+                  onChange={e => setUploadDocType(e.target.value)}
+                >
+                  <option value="🪪 Renewed CPR / Smart Card">🪪 Renewed CPR / Smart Card Copy</option>
+                  <option value="📄 Updated CV / Resume">📄 Updated CV / Resume</option>
+                  <option value="🎓 Degree / Graduation Certificate">🎓 Degree / Graduation Certificate</option>
+                  <option value="📜 Experience / Training Certificate">📜 Experience / Training Certificate</option>
+                  <option value="📑 Renewal Consent Form">📑 Renewal Consent Form</option>
+                  <option value="📎 Other Supporting Document">📎 Other Supporting Document</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Custom Title / Label</label>
+                <input
+                  type="text"
+                  className="input-control"
+                  style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
+                  placeholder="e.g. CPR Valid 2028, Updated CV 2026"
+                  value={uploadDocName}
+                  onChange={e => setUploadDocName(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                <label
+                  className="btn btn-outline btn-sm"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.8rem',
+                    padding: '0.45rem 0.75rem',
+                    background: 'var(--bg-card)'
+                  }}
+                >
+                  <span>📁</span> Select & Attach File
+                  <input
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelect}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* List of New Attachments Added */}
+            {newDocuments.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+                {newDocuments.map((doc, idx) => (
+                  <div
+                    key={doc.id || idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'var(--bg-card)',
+                      padding: '0.4rem 0.65rem',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '0.78rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                      <span className="badge badge-info" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
+                        {doc.type}
+                      </span>
+                      <strong style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '300px' }}>
+                        {doc.name || doc.file_name}
+                      </strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        ({Math.round(doc.file_size / 1024)} KB)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem' }}
+                      onClick={() => handleRemoveDoc(idx)}
+                      title="Remove attachment"
+                    >
+                      &times; Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 4: Renewal Remarks / Justification */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+              Renewal Remarks & Notes *
+            </label>
+            <textarea
+              className="input-control"
+              rows="3"
+              style={{ fontSize: '0.85rem' }}
+              value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+              placeholder="Enter remarks for audit and history tracking..."
+              required
+            />
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Recorded in candidate renewal history and permanent audit ledger.
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.85rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            Ref <strong>{liveCandidate.ref_no}</strong> will be preserved. Candidate status resets to <strong>Available</strong>.
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => window.AppStore.closeModal()}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}
+              disabled={saving}
+            >
+              {saving ? (
+                <span>Renewing...</span>
+              ) : (
+                <>
+                  <span>🔄</span> Confirm Renewal (Keep {liveCandidate.ref_no})
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// =========================================================================
+// CANDIDATE ACTIVITY LOG & AUDIT TIMELINE MODAL
+// Aggregates candidate lifecycle history: registration, renewals, checklist,
+// documents, placements, milestones, claims, payments, disputes, audit events.
+// Includes full export to Excel (CSV).
+// =========================================================================
+// =========================================================================
+// CANDIDATE SEARCHABLE SELECT COMBOBOX
+// Real-time keyboard-navigable combobox searchable by Candidate Name,
+// Registration Reference Number (e.g. JCP/...), or CPR Identification Number.
+// =========================================================================
+function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = React.useRef(null);
+  const searchInputRef = React.useRef(null);
+
+  const selectedCandidate = useMemo(() => {
+    return candidates.find(c => String(c.id) === String(selectedId)) || candidates[0] || null;
+  }, [candidates, selectedId]);
+
+  // Real-time filtering by Candidate Name, Ref Number, or CPR
+  const filteredCandidates = useMemo(() => {
+    if (!searchTerm.trim()) return candidates;
+    const q = searchTerm.toLowerCase().trim();
+    return candidates.filter(c => {
+      const name = String(c.full_name || '').toLowerCase();
+      const ref = String(c.ref_no || '').toLowerCase();
+      const cpr = String(c.cpr_no || '').toLowerCase();
+      const caseMgr = String(c.case_manager_name || '').toLowerCase();
+      return name.includes(q) || ref.includes(q) || cpr.includes(q) || caseMgr.includes(q);
+    });
+  }, [candidates, searchTerm]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Auto-focus search input when opened
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm('');
+      setTimeout(() => searchInputRef.current?.focus(), 40);
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', minWidth: '320px', flex: 1 }}>
+      {/* Trigger Box displaying Selected Candidate */}
+      <div
+        className="input-control"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          padding: '0.45rem 0.75rem',
+          fontSize: '0.86rem',
+          minHeight: '38px',
+          background: 'var(--bg-card)',
+          borderColor: isOpen ? 'var(--primary)' : 'var(--border-light)',
+          boxShadow: isOpen ? '0 0 0 3px var(--primary-glow)' : 'none',
+          userSelect: 'none'
+        }}
+        title="Click to search candidates by Name, CPR, or Reference Number"
+      >
+        {selectedCandidate ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', flex: 1, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              {selectedCandidate.full_name}
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                color: 'var(--primary)',
+                background: 'var(--bg-tertiary)',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '4px',
+                border: '1px solid var(--border-light)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {selectedCandidate.ref_no}
+            </span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              CPR: <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{selectedCandidate.cpr_no}</strong>
+            </span>
+            <span className="badge badge-neutral" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', textTransform: 'capitalize' }}>
+              {selectedCandidate.status || 'registered'}
+            </span>
+          </div>
+        ) : (
+          <span style={{ color: 'var(--text-muted)' }}>Select candidate...</span>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+          <span>{isOpen ? '▲' : '▼'}</span>
+        </div>
+      </div>
+
+      {/* Popover Searchable Dropdown */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 1050,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 12px 28px -4px rgba(0, 0, 0, 0.22), 0 8px 12px -6px rgba(0, 0, 0, 0.12)',
+            padding: '0.55rem',
+            animation: 'fadeIn 0.12s ease-out',
+            minWidth: '380px'
+          }}
+        >
+          {/* Live Search Input Box */}
+          <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              🔍
+            </span>
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="input-control"
+              style={{ paddingLeft: '2.2rem', paddingRight: searchTerm ? '2rem' : '0.75rem', fontSize: '0.84rem' }}
+              placeholder="Search candidate name, CPR number, or ref (e.g. JCP/26/...)..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              onClick={e => e.stopPropagation()}
+            />
+            {searchTerm && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearchTerm('');
+                  searchInputRef.current?.focus();
+                }}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700
+                }}
+                title="Clear search"
+              >
+                ✕
+              </span>
+            )}
+          </div>
+
+          {/* Search Results Summary Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.4rem 0.4rem', fontSize: '0.72rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-light)', marginBottom: '0.35rem' }}>
+            <span>
+              {searchTerm ? `Found ${filteredCandidates.length} matching candidate(s)` : `All Candidates (${candidates.length})`}
+            </span>
+            <span>Click to select & view history</span>
+          </div>
+
+          {/* Candidate Items Scrollable List */}
+          <div
+            style={{
+              maxHeight: '260px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3px'
+            }}
+          >
+            {filteredCandidates.length === 0 ? (
+              <div style={{ padding: '1.25rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                <div style={{ fontSize: '1.4rem', marginBottom: '0.25rem' }}>🔍</div>
+                <div>No candidates match "<strong>{searchTerm}</strong>"</div>
+                <div style={{ fontSize: '0.72rem', marginTop: '0.2rem' }}>Try searching by candidate name, 9-digit CPR, or reference code.</div>
+              </div>
+            ) : (
+              filteredCandidates.map(c => {
+                const isSelected = String(c.id) === String(selectedCandidate?.id);
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      onSelect(String(c.id));
+                      setIsOpen(false);
+                    }}
+                    style={{
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: 'var(--radius-sm, 6px)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                      background: isSelected ? 'var(--primary-subtle, rgba(0, 106, 148, 0.12))' : 'transparent',
+                      border: isSelected ? '1px solid var(--primary)' : '1px solid transparent',
+                      transition: 'background 0.1s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'var(--bg-subtle, #f8fafc)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    {/* Top Row: Full Name + Ref Badge + Status Badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', overflow: 'hidden' }}>
+                        <strong style={{ fontSize: '0.86rem', color: isSelected ? 'var(--primary)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {c.full_name}
+                        </strong>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: 'var(--primary)',
+                            background: 'var(--bg-tertiary)',
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '3px'
+                          }}
+                        >
+                          {c.ref_no}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span className="badge badge-neutral" style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', textTransform: 'capitalize' }}>
+                          {c.status || 'registered'}
+                        </span>
+                        {isSelected && (
+                          <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '0.85rem' }}>✓</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Subtitle Row: CPR + Registration Date + Case Manager */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      <span>CPR: <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{c.cpr_no}</strong></span>
+                      <span>•</span>
+                      <span>Reg: {window.formatAppDate ? window.formatAppDate(c.registration_date) : c.registration_date}</span>
+                      <span>•</span>
+                      <span>Mgr: {c.case_manager_name || 'System'}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CandidateActivityLogModal({ state, initialCandidateId }) {
+  const { candidates = [], settings = {} } = state;
+  const currency = settings.currency || 'BHD';
+
+  // State
+  const [selectedId, setSelectedId] = useState(() => {
+    if (initialCandidateId) return String(initialCandidateId);
+    return candidates[0] ? String(candidates[0].id) : '';
+  });
+  const [activities, setActivities] = useState([]);
+  const [candidateInfo, setCandidateInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch candidate activities
+  const fetchActivities = async (candId) => {
+    if (!candId) return;
+    setLoading(true);
+    try {
+      const res = await window.api.candidates.getActivities(candId);
+      setActivities(res.activities || []);
+      setCandidateInfo(res.candidate || null);
+    } catch (err) {
+      console.error('Error fetching candidate activities:', err);
+      if (window.swal) {
+        window.swal.fire({
+          icon: 'error',
+          title: 'Failed to Load Activity Log',
+          text: err.message || 'Could not retrieve candidate history.'
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedId) {
+      fetchActivities(selectedId);
+    }
+  }, [selectedId]);
+
+  // Active candidate object
+  const currentCandidate = useMemo(() => {
+    return candidateInfo || candidates.find(c => String(c.id) === String(selectedId)) || null;
+  }, [candidateInfo, candidates, selectedId]);
+
+  // Filter activities by category and search keyword
+  const filteredActivities = useMemo(() => {
+    return activities.filter(act => {
+      if (categoryFilter !== 'all' && act.category !== categoryFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const str = `${act.title || ''} ${act.ref || ''} ${act.details || ''} ${act.actor || ''} ${act.status || ''}`.toLowerCase();
+        if (!str.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [activities, categoryFilter, searchQuery]);
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts = { all: activities.length };
+    activities.forEach(a => {
+      const cat = a.category || 'other';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [activities]);
+
+  // Export Complete Activity Log to Excel (CSV with UTF-8 BOM)
+  const handleExportCSV = () => {
+    if (!activities.length || !currentCandidate) {
+      if (window.swal) window.swal.fire({ icon: 'warning', title: 'No Activities', text: 'There are no activities to export for this candidate.' });
+      return;
+    }
+
+    const headers = [
+      'Activity ID',
+      'Date & Time',
+      'Date',
+      'Category',
+      'Activity Title',
+      'Reference / Code',
+      `Financial Amount (${currency})`,
+      'Status',
+      'Details / Description',
+      'Action Taken By / Actor'
+    ];
+
+    const escapeCsv = (val) => {
+      const s = String(val ?? '').replace(new RegExp('"', 'g'), '""');
+      return `"${s}"`;
+    };
+
+    const rows = activities.map(act => [
+      act.id,
+      (window.formatAppDate ? window.formatAppDate(act.date || act.timestamp) : act.date) + (act.timestamp && act.timestamp.includes(' ') ? ' ' + act.timestamp.split(' ')[1].substring(0, 5) : ''),
+      window.formatAppDate ? window.formatAppDate(act.date) : act.date,
+      (act.category || '').toUpperCase(),
+      act.title,
+      act.ref || '',
+      act.amount !== null && act.amount !== undefined ? Number(act.amount).toFixed(3) : '',
+      act.status || '',
+      act.details || '',
+      act.actor || ''
+    ]);
+
+    const csvContent = '\uFEFF' + [
+      headers.map(escapeCsv).join(','),
+      ...rows.map(r => r.map(escapeCsv).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeRef = (currentCandidate.ref_no || 'CAND').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `Activity_Log_${safeRef}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    if (window.swal) {
+      window.swal.fire({
+        icon: 'success',
+        title: 'Export Successful!',
+        text: `Activity log downloaded as ${fileName}`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    }
+  };
+
+  // Category Icon & Styling Helper
+  const getCategoryMeta = (cat) => {
+    switch (cat) {
+      case 'registration': return { icon: '👤', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Registration' };
+      case 'renewal':      return { icon: '🔄', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)', label: 'Renewal' };
+      case 'checklist':    return { icon: '📋', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', label: 'Checklist' };
+      case 'document':     return { icon: '📄', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', label: 'Document' };
+      case 'placement':    return { icon: '💼', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.12)', label: 'Placement' };
+      case 'milestone':    return { icon: '🎯', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)', label: 'Retention Gate' };
+      case 'claim':        return { icon: '📑', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.12)', label: 'Subsidy Claim' };
+      case 'payment':      return { icon: '💵', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Disbursement' };
+      case 'dispute':      return { icon: '⚠️', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Dispute' };
+      case 'audit':        return { icon: '🛡️', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Audit Log' };
+      default:             return { icon: '📌', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Event' };
+    }
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '960px', maxHeight: '92vh', overflowY: 'auto' }}>
+      {/* Header */}
+      <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+        <div>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
+            <span>📜</span> Candidate Activity Log & Lifecycle Audit
+          </h2>
+          <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
+            Unified chronological audit trail across registrations, renewals, placements, retention milestones, subsidy claims, disbursements, and disputes.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="modal-close"
+          onClick={() => window.AppStore.closeModal()}
+          style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: 'var(--text-muted)' }}
+        >
+          &times;
+        </button>
+      </div>
+
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }}>
+
+        {/* Top Control Bar: Candidate Selector & Excel Export Button */}
+        <div
+          style={{
+            background: 'var(--bg-subtle, #f8fafc)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.85rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: '320px', position: 'relative', zIndex: 110 }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span>👤</span> Candidate:
+            </label>
+            <CandidateSearchSelect
+              candidates={candidates}
+              selectedId={selectedId}
+              onSelect={id => setSelectedId(id)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+              onClick={() => fetchActivities(selectedId)}
+              disabled={loading}
+              title="Refresh timeline data"
+            >
+              <span>🔄</span> Refresh
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', fontWeight: 700 }}
+              onClick={handleExportCSV}
+              disabled={loading || !activities.length}
+              title="Download full candidate history as Excel-compatible CSV file"
+            >
+              <span>📥</span> Export Activity Log to Excel (CSV)
+            </button>
+          </div>
+        </div>
+
+        {/* Candidate Profile Summary Header */}
+        {currentCandidate && (
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.85rem 1rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '0.75rem',
+              fontSize: '0.8rem'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Candidate Name & CPR
+              </div>
+              <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{currentCandidate.full_name}</strong>
+              <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>CPR: {currentCandidate.cpr_no}</div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Registration Ref
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' }}>
+                {currentCandidate.ref_no}
+              </div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                Reg: {window.formatAppDate(currentCandidate.registration_date)}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Talent Pool Status
+              </div>
+              <span className="badge badge-info" style={{ fontWeight: 700, fontSize: '0.74rem' }}>
+                {currentCandidate.status}
+              </span>
+              {currentCandidate.renewals_count > 0 && (
+                <div style={{ marginTop: '2px', color: 'var(--success)', fontWeight: 600, fontSize: '0.72rem' }}>
+                  🔄 Renewed {currentCandidate.renewals_count} time(s)
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Case Manager
+              </div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                {currentCandidate.case_manager_name || 'System Assigned'}
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                Edu: {currentCandidate.education || 'N/A'}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                History Events
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {activities.length} <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-muted)' }}>total logged</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Pills Bar & Search Box - Responsive Wrapping with ZERO Horizontal Scroll */}
+        <div
+          style={{
+            background: 'var(--bg-subtle, #f8fafc)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.65rem'
+          }}
+        >
+          {/* Top Row: Section Label + Keyword Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              <span>🏷️</span> Filter Activities by Category:
+            </div>
+
+            {/* Keyword Search Input */}
+            <div style={{ flex: '0 1 320px', minWidth: '240px' }}>
+              <input
+                type="text"
+                className="input-control"
+                style={{ fontSize: '0.8rem', padding: '0.38rem 0.65rem' }}
+                placeholder="🔍 Search candidate log..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Category Filter Pills - Flex Wrapped with NO Horizontal Scroll */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+            {[
+              { key: 'all', label: 'All Activities' },
+              { key: 'registration', label: 'Registration' },
+              { key: 'renewal', label: 'Renewals' },
+              { key: 'checklist', label: 'Checklist' },
+              { key: 'document', label: 'Documents' },
+              { key: 'placement', label: 'Placements' },
+              { key: 'milestone', label: 'Retention Gates' },
+              { key: 'claim', label: 'Claims' },
+              { key: 'payment', label: 'Disbursements' },
+              { key: 'dispute', label: 'Disputes' },
+              { key: 'audit', label: 'Audit Logs' }
+            ].map(tab => {
+              const count = categoryCounts[tab.key] || 0;
+              const isSelected = categoryFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline'}`}
+                  style={{
+                    borderRadius: 'var(--radius-full)',
+                    padding: '0.25rem 0.65rem',
+                    fontSize: '0.74rem',
+                    whiteSpace: 'nowrap',
+                    background: isSelected ? undefined : 'var(--bg-card)'
+                  }}
+                  onClick={() => setCategoryFilter(tab.key)}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      marginLeft: '0.35rem',
+                      background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                      padding: '0.05rem 0.35rem',
+                      borderRadius: 'var(--radius-full)',
+                      fontSize: '0.68rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Timeline Activities Feed */}
+        <div style={{ position: 'relative', marginTop: '0.5rem' }}>
+          {loading ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>⏳</div>
+              <div>Retrieving comprehensive candidate activity history...</div>
+            </div>
+          ) : filteredActivities.length === 0 ? (
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-subtle, #f8fafc)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>📭</div>
+              <div style={{ fontWeight: 600 }}>No activity records match your current filters.</div>
+              <div style={{ fontSize: '0.78rem', marginTop: '0.25rem' }}>Try clearing the search query or selecting "All Activities".</div>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                position: 'relative',
+                paddingLeft: '1.5rem',
+                borderLeft: '2px solid var(--border-light)'
+              }}
+            >
+              {filteredActivities.map((act, index) => {
+                const meta = getCategoryMeta(act.category);
+                return (
+                  <div
+                    key={act.id || index}
+                    style={{
+                      position: 'relative',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem 1rem',
+                      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.03))'
+                    }}
+                  >
+                    {/* Timeline Node Icon */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '-2.15rem',
+                        top: '0.85rem',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: meta.color,
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.72rem',
+                        boxShadow: '0 0 0 3px var(--bg-card)'
+                      }}
+                      title={meta.label}
+                    >
+                      {meta.icon}
+                    </div>
+
+                    {/* Top Row: Category Pill, Ref Code, Amount & Timestamp */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '4px',
+                            background: meta.bg,
+                            color: meta.color,
+                            border: `1px solid ${meta.color}40`,
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {meta.label}
+                        </span>
+
+                        {act.ref && (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--bg-tertiary)', padding: '0.1rem 0.45rem', borderRadius: '4px' }}>
+                            {act.ref}
+                          </span>
+                        )}
+
+                        {act.amount !== null && act.amount !== undefined && (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 800, color: 'var(--success, #059669)', background: 'rgba(5, 150, 105, 0.1)', padding: '0.1rem 0.45rem', borderRadius: '4px' }}>
+                            {currency} {Number(act.amount).toFixed(3)}
+                          </span>
+                        )}
+
+                        {act.status && (
+                          <span className="badge badge-neutral" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', textTransform: 'capitalize' }}>
+                            {act.status}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>📅</span>
+                        <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                          {window.formatAppDate ? window.formatAppDate(act.date || act.timestamp) : act.date}
+                        </strong>
+                        {act.timestamp && act.timestamp.includes(' ') && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                            • {act.timestamp.split(' ')[1].substring(0, 5)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                      {act.title}
+                    </div>
+
+                    {/* Details / Narrative */}
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {act.details}
+                    </div>
+
+                    {/* Footer Row: Action Performed By */}
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      <div>
+                        Action taken by: <strong style={{ color: 'var(--text-primary)' }}>{act.actor || 'System'}</strong>
+                      </div>
+                      <div>
+                        Event #{act.id}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal Footer */}
+      <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.85rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+          Showing <strong>{filteredActivities.length}</strong> of <strong>{activities.length}</strong> candidate timeline entries.
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleExportCSV}
+            disabled={!activities.length}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+          >
+            <span>📥</span> Export to Excel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => window.AppStore.closeModal()}
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

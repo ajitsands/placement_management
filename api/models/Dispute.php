@@ -57,6 +57,28 @@ class Dispute {
         return $result;
     }
 
+    private static function cleanAttachments($list): array {
+        $clean = [];
+        if (!is_array($list)) {
+            return $clean;
+        }
+        foreach ($list as $att) {
+            if (!is_array($att) || empty($att['file_url'])) {
+                continue;
+            }
+            $clean[] = [
+                'id'          => $att['id'] ?? ('ATT-' . time() . '-' . rand(100, 999)),
+                'name'        => $att['name'] ?? ($att['file_name'] ?? 'Attachment'),
+                'notes'       => trim((string)($att['notes'] ?? '')),
+                'file_name'   => $att['file_name'] ?? '',
+                'file_size'   => (int)($att['file_size'] ?? 0),
+                'file_url'    => $att['file_url'],
+                'uploaded_at' => $att['uploaded_at'] ?? date('Y-m-d H:i:s')
+            ];
+        }
+        return $clean;
+    }
+
     public static function logDispute(array $data, array $currentUser): array {
         $store = Database::getStore();
         $id = count($store['disputes']) > 0 ? max(array_column($store['disputes'], 'id')) + 1 : 1;
@@ -76,21 +98,36 @@ class Dispute {
 
         // If still no claim found, create a claim record for this milestone
         if ($claimId <= 0 && $milestoneId > 0 && $candId > 0) {
+            $msType = 'placement';
+            foreach ($store['milestones'] ?? [] as $m) {
+                if ((int)$m['id'] === $milestoneId && !empty($m['milestone_type'])) {
+                    $msType = $m['milestone_type'];
+                    break;
+                }
+            }
             $createdClaim = Claim::create([
                 'candidate_id' => $candId,
                 'milestone_id' => $milestoneId,
-                'claim_type' => $data['claim_type'] ?? 'placement',
+                'claim_type' => $data['claim_type'] ?? $msType,
                 'claim_amount_bhd' => (float)($data['claim_amount_bhd'] ?? 500.000),
                 'status' => 'disputed',
-                'remarks' => trim($data['remarks'] ?? 'Claim marked as disputed')
+                'remarks' => trim($data['remarks'] ?? 'Milestone flagged as disputed')
             ], $currentUser);
             $claimId = (int)$createdClaim['id'];
             $store = Database::getStore();
             $id = count($store['disputes']) > 0 ? max(array_column($store['disputes'], 'id')) + 1 : 1;
         }
 
-        $reason = trim($data['dispute_reason'] ?? ($data['reason'] ?? 'Dispute reported during employment milestone verification'));
-        $category = trim($data['dispute_category'] ?? ($data['category'] ?? $reason));
+        // Category (master reason), detailed grounds (free text) and claim remarks are stored separately
+        $category = trim($data['dispute_category'] ?? ($data['category'] ?? ''));
+        if ($category === '') {
+            $category = trim($data['dispute_reason'] ?? 'Other Administrative Exception');
+        }
+        $grounds = trim($data['reason'] ?? ($data['grounds'] ?? ($data['detailed_grounds'] ?? '')));
+        // If reason was passed as detailed grounds, keep it distinct from category
+        if ($grounds === '' && isset($data['dispute_reason']) && $data['dispute_reason'] !== $category) {
+            $grounds = trim((string)$data['dispute_reason']);
+        }
         $remarks = trim($data['remarks'] ?? '');
 
         $newDispute = [
@@ -99,11 +136,12 @@ class Dispute {
             'milestone_id'       => $milestoneId,
             'candidate_id'       => $candId,
             'dispute_category'   => $category,
-            'dispute_reason'     => $reason,
+            'dispute_reason'     => $grounds,
             'dispute_date'       => !empty($data['dispute_date']) ? $data['dispute_date'] : date('Y-m-d'),
             'status'             => 'active_dispute',
-            'resolution_notes'   => !empty($remarks) ? $remarks : trim($data['resolution_notes'] ?? 'Under review with employer and Ministry of Labour'),
+            'resolution_notes'   => trim($data['resolution_notes'] ?? ''),
             'remarks'            => $remarks,
+            'attachments'        => self::cleanAttachments($data['attachments'] ?? []),
             'handled_by_user_id' => $currentUser['id'],
             'created_at'         => date('Y-m-d H:i:s')
         ];
@@ -143,7 +181,7 @@ class Dispute {
             'action' => 'DISPUTE_LOGGED',
             'entity_type' => 'claim',
             'entity_id' => $claimId,
-            'details' => "Dispute logged ({$category}): {$reason}" . (!empty($remarks) ? " | Remarks: {$remarks}" : ""),
+            'details' => "Dispute logged ({$category}): {$grounds}" . (!empty($remarks) ? " | Remarks: {$remarks}" : ""),
             'created_at' => date('Y-m-d H:i:s')
         ];
 
@@ -155,12 +193,68 @@ class Dispute {
         return self::logDispute($data, $currentUser);
     }
 
-    public static function reinstate(int $disputeId, string $notes, array $currentUser): ?array {
+    /**
+     * Edit an existing dispute record (category, grounds, remarks, filed date, attachments).
+     */
+    public static function updateDispute(int $disputeId, array $data, array $currentUser): ?array {
+        $store = Database::getStore();
+        foreach ($store['disputes'] as &$d) {
+            if ((int)$d['id'] !== $disputeId) {
+                continue;
+            }
+
+            if (array_key_exists('dispute_category', $data) || array_key_exists('category', $data)) {
+                $cat = trim($data['dispute_category'] ?? $data['category'] ?? '');
+                if ($cat !== '') {
+                    $d['dispute_category'] = $cat;
+                }
+            }
+            if (array_key_exists('dispute_reason', $data) || array_key_exists('reason', $data)) {
+                $d['dispute_reason'] = trim($data['dispute_reason'] ?? ($data['reason'] ?? ''));
+            }
+            if (array_key_exists('dispute_date', $data) && !empty($data['dispute_date'])) {
+                $d['dispute_date'] = $data['dispute_date'];
+            }
+            if (array_key_exists('remarks', $data)) {
+                $d['remarks'] = trim((string)$data['remarks']);
+                // Keep linked claim remarks in sync
+                foreach ($store['claims'] as &$c) {
+                    if ((int)$c['id'] === (int)$d['claim_id']) {
+                        $c['remarks'] = $d['remarks'];
+                        break;
+                    }
+                }
+                unset($c);
+            }
+            if (array_key_exists('attachments', $data)) {
+                $d['attachments'] = self::cleanAttachments($data['attachments'] ?? []);
+            }
+            $d['updated_at'] = date('Y-m-d H:i:s');
+
+            $store['audit_logs'][] = [
+                'id' => count($store['audit_logs']) + 1,
+                'user_id' => $currentUser['id'],
+                'username' => $currentUser['username'],
+                'role' => $currentUser['role'],
+                'action' => 'DISPUTE_UPDATED',
+                'entity_type' => 'dispute',
+                'entity_id' => $disputeId,
+                'details' => 'Dispute details edited',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            Database::saveStore($store);
+            return $d;
+        }
+        return null;
+    }
+
+    public static function reinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
         $store = Database::getStore();
         foreach ($store['disputes'] as &$d) {
             if ((int)$d['id'] === $disputeId) {
                 $d['status'] = 'reinstated';
-                $d['reinstated_date'] = date('Y-m-d');
+                $d['reinstated_date'] = !empty($date) ? $date : date('Y-m-d');
                 $d['resolution_notes'] = $notes;
 
                 $claimId = (int)$d['claim_id'];
@@ -206,16 +300,16 @@ class Dispute {
         return null;
     }
 
-    public static function resolveAndReinstate(int $disputeId, string $notes, array $currentUser): ?array {
-        return self::reinstate($disputeId, $notes, $currentUser);
+    public static function resolveAndReinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
+        return self::reinstate($disputeId, $notes, $currentUser, $date);
     }
 
-    public static function terminate(int $disputeId, string $notes, array $currentUser): ?array {
+    public static function terminate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
         $store = Database::getStore();
         foreach ($store['disputes'] as &$d) {
             if ((int)$d['id'] === $disputeId) {
                 $d['status'] = 'terminated';
-                $d['terminated_date'] = date('Y-m-d');
+                $d['terminated_date'] = !empty($date) ? $date : date('Y-m-d');
                 $d['resolution_notes'] = $notes;
 
                 $claimId = (int)$d['claim_id'];
@@ -261,7 +355,7 @@ class Dispute {
         return null;
     }
 
-    public static function terminatePlacement(int $disputeId, string $notes, array $currentUser): ?array {
-        return self::terminate($disputeId, $notes, $currentUser);
+    public static function terminatePlacement(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
+        return self::terminate($disputeId, $notes, $currentUser, $date);
     }
 }

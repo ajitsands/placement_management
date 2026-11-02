@@ -825,12 +825,10 @@ function MilestonesView({ state }) {
       if (matched.length > 0) linkedClaim = matched[matched.length - 1];
     }
 
-    const linkedDispute = (disputes || []).find(d => 
-      (linkedClaim?.id && Number(d.claim_id) === Number(linkedClaim.id)) ||
-      (row.claim_id && Number(d.claim_id) === Number(row.claim_id)) ||
-      (row.id && d.milestone_id && Number(d.milestone_id) === Number(row.id)) ||
-      (row.candidate_id && d.candidate_id && Number(d.candidate_id) === Number(row.candidate_id))
-    );
+    const linkedDispute = window.getDisputeForRow(disputes, {
+      claim_id: linkedClaim?.id || row.claim_id,
+      milestone_id: row.id
+    });
 
     window.AppStore.openModal('DISPUTE_DETAILS', {
       dispute: linkedDispute,
@@ -838,7 +836,8 @@ function MilestonesView({ state }) {
       claim: linkedClaim,
       claim_id: linkedClaim?.id || row.claim_id,
       candidate_id: row.candidate_id,
-      candidate: candidateMap[row.candidate_id]
+      candidate: candidateMap[row.candidate_id],
+      from: 'milestones'
     });
   };
 
@@ -1106,7 +1105,11 @@ function MilestonesView({ state }) {
         const isDisputed = val === 'disputed';
         const isOverdue = val === 'overdue';
         const isDue = val === 'due';
+        const disputeRef = isDisputed
+          ? window.getDisputeRef(window.getDisputeForRow(disputes, { claim_id: row.claim_id, milestone_id: row.id }))
+          : null;
         return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
           <span
             className={`badge ${
               isClaimed ? 'badge-success' : 
@@ -1126,6 +1129,26 @@ function MilestonesView({ state }) {
           >
             {isDisputed ? '⚠️ Disputed' : val}
           </span>
+          {disputeRef && (
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                color: '#dc2626',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid #fca5a5',
+                borderRadius: '3px',
+                padding: '0.05rem 0.4rem',
+                cursor: 'pointer'
+              }}
+              onClick={() => handleViewDispute(row)}
+              title="Dispute reference number"
+            >
+              {disputeRef}
+            </span>
+          )}
+          </div>
         );
       }
     },
@@ -1206,25 +1229,45 @@ function MilestonesView({ state }) {
           );
         }
         return (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-            onClick={() => window.AppStore.openModal('NEW_CLAIM', {
-              candidate: candidateMap[row.candidate_id],
-              candidate_id: row.candidate_id,
-              candidate_name: row.candidate_name,
-              milestone_id: row.id,
-              milestone_stage: row.milestone_stage,
-              milestone_type: row.milestone_type,
-              milestone_title: row.milestone_title,
-              milestone: row,
-              claim_type: row.milestone_type || (row.milestone_stage === 0 ? 'placement' : (row.milestone_stage === 180 ? '180_days' : '365_days')),
-              case_manager_name: row.case_manager_name
-            })}
-          >
-            Submit Claim
-          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              onClick={() => window.AppStore.openModal('NEW_CLAIM', {
+                candidate: candidateMap[row.candidate_id],
+                candidate_id: row.candidate_id,
+                candidate_name: row.candidate_name,
+                milestone_id: row.id,
+                milestone_stage: row.milestone_stage,
+                milestone_type: row.milestone_type,
+                milestone_title: row.milestone_title,
+                milestone: row,
+                claim_type: row.milestone_type || (row.milestone_stage === 0 ? 'placement' : (row.milestone_stage === 180 ? '180_days' : '365_days')),
+                case_manager_name: row.case_manager_name
+              })}
+            >
+              Submit Claim
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm"
+              style={{
+                padding: '0.25rem 0.65rem',
+                fontSize: '0.78rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: 'var(--danger, #dc2626)',
+                borderColor: 'var(--danger-border, #fca5a5)'
+              }}
+              onClick={() => handleDisputeClaim(row)}
+              title="Flag and mark this upcoming milestone as disputed"
+            >
+              <span>⚠️</span>
+              <span>Dispute</span>
+            </button>
+          </div>
         );
       }
     }

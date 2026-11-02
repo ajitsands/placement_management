@@ -31,10 +31,6 @@ class Claim {
                 }
             }
 
-            if ($statusFilter && $c['status'] !== $statusFilter) {
-                continue;
-            }
-
             $cand = $candidates[$c['candidate_id']] ?? null;
             $ms = $milestones[$c['milestone_id']] ?? null;
 
@@ -48,6 +44,16 @@ class Claim {
                 $status = 'settled';
             }
 
+            if ($statusFilter) {
+                if ($statusFilter === 'unsettled') {
+                    if ($status === 'settled' || $status === 'disputed' || $status === 'terminated') {
+                        continue;
+                    }
+                } else if ($status !== $statusFilter) {
+                    continue;
+                }
+            }
+
             $c['status'] = $status;
             $c['total_paid_bhd'] = $paid;
             $c['balance_bhd'] = $balance;
@@ -55,6 +61,7 @@ class Claim {
             $c['candidate_name'] = $cand['full_name'] ?? 'N/A';
             $c['candidate_cpr'] = $cand['cpr_no'] ?? 'N/A';
             $c['company_name'] = $cand['company_name'] ?? 'N/A';
+            $c['employer_cr'] = $cand['employer_cr'] ?? 'N/A';
             $c['milestone_title'] = $ms['milestone_title'] ?? ucfirst(str_replace('_', ' ', $c['claim_type']));
 
             $result[] = $c;

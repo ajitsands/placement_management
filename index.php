@@ -7,7 +7,7 @@
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // 1. Check if request is directed to the Micro-API
-if (str_contains($uri, '/api/')) {
+if (str_starts_with($uri, '/api') || str_contains($uri, '/api/')) {
     require_once __DIR__ . '/api/index.php';
     exit(0);
 }
@@ -78,17 +78,21 @@ if (file_exists($publicFile) && !is_dir($publicFile)) {
         'xls'   => 'application/vnd.ms-excel',
         'xlsx'  => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'woff2' => 'font/woff2',
+        'woff'  => 'font/woff',
         'ttf'   => 'font/ttf'
     ];
     $mime = $mimes[$ext] ?? 'application/octet-stream';
     header("Content-Type: {$mime}");
     header("Content-Length: " . filesize($publicFile));
 
-    // Display inline for viewable formats, download attachment for others
-    if ($ext === 'pdf' || str_starts_with($mime, 'image/') || $ext === 'txt') {
-        header("Content-Disposition: inline; filename=\"" . basename($publicFile) . "\"");
-    } else {
-        header("Content-Disposition: attachment; filename=\"" . basename($publicFile) . "\"");
+    // Web assets (js, css, fonts, images) must NOT have attachment disposition
+    $webAssets = ['js', 'css', 'json', 'html', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'woff2', 'woff', 'ttf'];
+    if (!in_array($ext, $webAssets, true)) {
+        if ($ext === 'pdf' || $ext === 'txt') {
+            header("Content-Disposition: inline; filename=\"" . basename($publicFile) . "\"");
+        } else {
+            header("Content-Disposition: attachment; filename=\"" . basename($publicFile) . "\"");
+        }
     }
 
     readfile($publicFile);
@@ -96,5 +100,6 @@ if (file_exists($publicFile) && !is_dir($publicFile)) {
 }
 
 // 4. Default to single page React application for client-side routing
+header('Content-Type: text/html; charset=utf-8');
 readfile(__DIR__ . '/public/index.html');
 exit(0);

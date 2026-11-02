@@ -28,6 +28,9 @@ function DashboardView({ state }) {
   } = state;
 
   const currency = settings.currency || 'BHD';
+  const standardTier = (settings?.standard_tier_amount_bhd !== undefined && settings?.standard_tier_amount_bhd !== null && !isNaN(Number(settings.standard_tier_amount_bhd)))
+    ? parseFloat(settings.standard_tier_amount_bhd)
+    : 500;
 
   // ---------------------------------------------------------------------------
   // 1. FILTER CONTROLS STATE
@@ -178,7 +181,7 @@ function DashboardView({ state }) {
 
       const claimAmount = linkedClaim?.claim_amount_bhd !== undefined && linkedClaim?.claim_amount_bhd !== null
         ? parseFloat(linkedClaim.claim_amount_bhd)
-        : (m.claim_amount_bhd !== undefined && m.claim_amount_bhd !== null ? parseFloat(m.claim_amount_bhd) : 500);
+        : (m.claim_amount_bhd !== undefined && m.claim_amount_bhd !== null ? parseFloat(m.claim_amount_bhd) : standardTier);
 
       const collected = linkedClaim?.amount_collected_bhd !== undefined
         ? parseFloat(linkedClaim.amount_collected_bhd || 0)
@@ -204,7 +207,7 @@ function DashboardView({ state }) {
         effectiveDate: target || m.created_at
       };
     });
-  }, [milestones, claims, candidateMap, claimByMilestoneId, todayMidnight]);
+  }, [milestones, claims, candidateMap, claimByMilestoneId, todayMidnight, standardTier]);
 
   // ---------------------------------------------------------------------------
   // 5. FILTERED DATASETS
@@ -505,7 +508,7 @@ function DashboardView({ state }) {
       if (m.computedStatus === 'settled') return;
 
       const days = m.daysRemaining;
-      const amt = m.claimAmount || 500;
+      const amt = m.claimAmount || standardTier;
 
       if (days !== null && days !== undefined) {
         if (days < 0) {
@@ -528,7 +531,7 @@ function DashboardView({ state }) {
     });
 
     return buckets;
-  }, [filteredMilestones]);
+  }, [filteredMilestones, standardTier]);
 
   const handleResetFilters = () => {
     setSelectedCM('all');
@@ -1654,7 +1657,7 @@ function DashboardView({ state }) {
                 <span>Retention Due Horizon & Cashflow Maturation Forecast</span>
               </div>
               <div className="dash-chart-subtitle">
-                Forward-looking timeline of upcoming claims and projected subsidy cashflow
+                Forward-looking timeline of upcoming claims and projected subsidy cashflow (Benchmark: {currency} {standardTier.toLocaleString('en-US', { minimumFractionDigits: 1 })})
               </div>
             </div>
             <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>

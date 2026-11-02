@@ -53,6 +53,51 @@ function formatAppDate(dateVal) {
 
 window.formatAppDate = formatAppDate;
 
+function calculateAge(dob) {
+  if (!dob) return null;
+  const clean = String(dob).trim().split('T')[0].split(' ')[0];
+  const d = (dob instanceof Date) ? dob : new Date(clean);
+  if (isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+    age--;
+  }
+  return age >= 0 && age < 130 ? age : null;
+}
+window.calculateAge = calculateAge;
+
+const APP_VALID_TABS = [
+  'dashboard',
+  'candidates',
+  'jobs',
+  'placements',
+  'milestones',
+  'claims',
+  'disputes',
+  'payments',
+  'reports',
+  'users',
+  'settings',
+  'profile'
+];
+
+const APP_TAB_ALIASES = {
+  'jobs': 'jobs',
+  'job': 'jobs',
+  'vacancies': 'jobs',
+  'vacancy': 'jobs',
+  'placements': 'placements',
+  'placement': 'placements',
+  'candidates': 'candidates',
+  'candidate': 'candidates',
+  'candidates-and-placements': 'candidates',
+  'profile': 'profile',
+  'my-profile': 'profile',
+  'account': 'profile'
+};
+
 class AppStoreClass {
   constructor() {
     this.formatDate = formatAppDate;
@@ -60,26 +105,15 @@ class AppStoreClass {
     const savedAuth = localStorage.getItem('sands_claims_auth') === 'true';
 
     // Resolve initial active tab from URL hash, fallback to localStorage, fallback to 'dashboard'
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
-    const tabAliases = {
-      'placements': 'candidates',
-      'placement': 'candidates',
-      'candidate': 'candidates',
-      'candidates-and-placements': 'candidates',
-      'profile': 'profile',
-      'my-profile': 'profile',
-      'account': 'profile'
-    };
-
     let initialTab = 'dashboard';
     const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
-    const resolvedHash = tabAliases[rawHash] || rawHash;
+    const resolvedHash = APP_TAB_ALIASES[rawHash] || rawHash;
 
-    if (validTabs.includes(resolvedHash)) {
+    if (APP_VALID_TABS.includes(resolvedHash)) {
       initialTab = resolvedHash;
     } else {
       const savedTab = localStorage.getItem('sands_claims_active_tab');
-      if (validTabs.includes(savedTab)) {
+      if (APP_VALID_TABS.includes(savedTab)) {
         initialTab = savedTab;
       }
     }
@@ -103,7 +137,8 @@ class AppStoreClass {
         date_format: 'DD MMM YYYY',
         time_format: '12h',
         default_country: 'Bahrain',
-        auto_calc_enabled: '0'
+        auto_calc_enabled: '0',
+        standard_tier_amount_bhd: 500
       },
       supportedTimezones: [],
       supportedCurrencies: [],
@@ -111,6 +146,8 @@ class AppStoreClass {
       timeFormats: [],
       kpis: {},
       candidates: [],
+      jobs: [],
+      checklistMasters: [],
       milestones: [],
       claims: [],
       disputes: [],
@@ -130,8 +167,8 @@ class AppStoreClass {
     // Listen to browser Back / Forward buttons and manual hash changes
     window.addEventListener('hashchange', () => {
       const currentHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
-      const targetTab = tabAliases[currentHash] || currentHash;
-      if (validTabs.includes(targetTab) && targetTab !== this.state.activeTab) {
+      const targetTab = APP_TAB_ALIASES[currentHash] || currentHash;
+      if (APP_VALID_TABS.includes(targetTab) && targetTab !== this.state.activeTab) {
         this.setActiveTab(targetTab, false);
       }
     });
@@ -219,18 +256,8 @@ class AppStoreClass {
   }
 
   setActiveTab(tab, updateHash = true) {
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
-    const tabAliases = {
-      'placements': 'candidates',
-      'placement': 'candidates',
-      'candidate': 'candidates',
-      'candidates-and-placements': 'candidates',
-      'profile': 'profile',
-      'my-profile': 'profile',
-      'account': 'profile'
-    };
-    const resolvedTab = tabAliases[tab] || tab;
-    if (!validTabs.includes(resolvedTab)) return;
+    const resolvedTab = APP_TAB_ALIASES[tab] || tab;
+    if (!APP_VALID_TABS.includes(resolvedTab)) return;
 
     localStorage.setItem('sands_claims_active_tab', resolvedTab);
 
@@ -241,24 +268,18 @@ class AppStoreClass {
     this.setState({ activeTab: resolvedTab });
   }
 
+  setTab(tab) {
+    this.setActiveTab(tab);
+  }
+
   setAuthenticatedUser(user) {
     localStorage.setItem('sands_claims_auth', 'true');
     this.state.currentUser = user;
     this.state.isAuthenticated = true;
 
-    const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
-    const tabAliases = {
-      'placements': 'candidates',
-      'placement': 'candidates',
-      'candidate': 'candidates',
-      'candidates-and-placements': 'candidates',
-      'profile': 'profile',
-      'my-profile': 'profile',
-      'account': 'profile'
-    };
     const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
-    const resolvedHash = tabAliases[rawHash] || rawHash;
-    const targetTab = validTabs.includes(resolvedHash)
+    const resolvedHash = APP_TAB_ALIASES[rawHash] || rawHash;
+    const targetTab = APP_VALID_TABS.includes(resolvedHash)
       ? resolvedHash
       : (localStorage.getItem('sands_claims_active_tab') || 'dashboard');
 
@@ -316,25 +337,15 @@ class AppStoreClass {
 
       // 4. Load all transactions scoped to current user if authenticated
       if (this.state.isAuthenticated) {
-        const validTabs = ['dashboard', 'candidates', 'milestones', 'claims', 'disputes', 'payments', 'reports', 'users', 'settings', 'profile'];
-        const tabAliases = {
-          'placements': 'candidates',
-          'placement': 'candidates',
-          'candidate': 'candidates',
-          'candidates-and-placements': 'candidates',
-          'profile': 'profile',
-          'my-profile': 'profile',
-          'account': 'profile'
-        };
         const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
-        const resolvedHash = tabAliases[rawHash] || rawHash;
+        const resolvedHash = APP_TAB_ALIASES[rawHash] || rawHash;
 
         let targetTab = this.state.activeTab;
-        if (validTabs.includes(resolvedHash)) {
+        if (APP_VALID_TABS.includes(resolvedHash)) {
           targetTab = resolvedHash;
         } else {
           const savedTab = localStorage.getItem('sands_claims_active_tab');
-          if (validTabs.includes(savedTab)) {
+          if (APP_VALID_TABS.includes(savedTab)) {
             targetTab = savedTab;
           }
         }
@@ -355,9 +366,11 @@ class AppStoreClass {
 
   async refreshData() {
     try {
-      const [kpisRes, candRes, msRes, claimsRes, dispRes, payRes] = await Promise.all([
+      const [kpisRes, candRes, jobsRes, chkRes, msRes, claimsRes, dispRes, payRes] = await Promise.all([
         window.api.reports.getKPIs(),
         window.api.candidates.getAll(),
+        window.api.jobs.getAll().catch(() => ({ jobs: [] })),
+        window.api.checklistMaster.getAll().catch(() => ({ items: [] })),
         window.api.milestones.getAll(),
         window.api.claims.getAll(),
         window.api.disputes.getAll(),
@@ -372,6 +385,8 @@ class AppStoreClass {
       this.setState({
         kpis: kpisRes?.kpis || {},
         candidates: candRes?.candidates || [],
+        jobs: jobsRes?.jobs || [],
+        checklistMasters: chkRes?.items || [],
         milestones: msRes?.milestones || [],
         claims: claimsRes?.claims || [],
         disputes: dispRes?.disputes || [],

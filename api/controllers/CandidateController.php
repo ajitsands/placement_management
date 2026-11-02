@@ -83,12 +83,37 @@ class CandidateController {
             ? ($user['case_manager_code'] ?? $user['full_name']) 
             : null;
 
+        // Verify registration checklist compliance
+        $checklistPending = false;
+        if (isset($data['checklist_items'])) {
+            $checked = [];
+            if (is_array($data['checklist_items'])) {
+                foreach ($data['checklist_items'] as $item) {
+                    if (is_string($item) || is_numeric($item)) {
+                        $checked[] = $item;
+                    } elseif (is_array($item) && (!empty($item['completed']) || !empty($item['is_checked']))) {
+                        $checked[] = $item['code'] ?? ($item['id'] ?? null);
+                    }
+                }
+            }
+            $eval = \App\Models\ChecklistMaster::evaluateProgress($checked);
+            if (!empty($eval['missing_mandatory'])) {
+                $checklistPending = true;
+                $data['status'] = 'registration_incomplete';
+            }
+        }
+
         $newCandidate = Candidate::create($data, $defaultCaseManager);
         $hasPlacement = !empty($newCandidate['company_name']);
 
-        $message = $hasPlacement 
-            ? 'Candidate registered and linked to placement with automated Day 0, Day 180, and Day 365 retention milestones'
-            : 'Candidate registered successfully in available registry';
+        if ($checklistPending || ($newCandidate['status'] ?? '') === 'registration_incomplete') {
+            $pct = $newCandidate['checklist_completion_pct'] ?? 0;
+            $message = "Candidate saved in Incomplete Profile list ({$pct}% checklist completed)";
+        } elseif ($hasPlacement) {
+            $message = 'Candidate registered and linked to placement with automated Day 0, Day 180, and Day 365 retention milestones';
+        } else {
+            $message = 'Candidate registered successfully in available registry';
+        }
 
         Response::json($newCandidate, 201, $message);
     }
@@ -262,5 +287,73 @@ class CandidateController {
         }
 
         Response::json($updated, 200, 'Document removed from candidate profile');
+    }
+
+    public function updateChecklist(array $data, array $params): void {
+        $id = (int)($params['id'] ?? 0);
+        $scope = Auth::getScopedCaseManagerName();
+        $candidate = Candidate::find($id, $scope);
+
+        if (!$candidate) {
+            Response::notFound("Candidate record not found or access restricted to assigned Case Manager");
+        }
+
+        $checked = is_array($data['checked'] ?? null) 
+            ? $data['checked'] 
+            : (is_array($data['checklist_items'] ?? null) ? $data['checklist_items'] : []);
+
+        $updated = Candidate::updateChecklist($id, $checked, $scope);
+        Response::json($updated, 200, "Candidate registration checklist updated ({$updated['checklist_completion_pct']}% complete)");
+    }
+
+    public function renew(array $data, array $params): void {
+        $id = (int)($params['id'] ?? 0);
+        $user = Auth::getCurrentUser();
+        $scope = Auth::getScopedCaseManagerName();
+
+        $candidate = Candidate::find($id, $scope);
+        if (!$candidate) {
+            Response::notFound("Candidate record not found or access restricted to assigned Case Manager");
+        }
+
+        $renewedBy = $user['full_name'] ?? ($user['username'] ?? 'Directorate Officer');
+        $renewed = Candidate::renew($id, $data, $renewedBy);
+
+        if (!$renewed) {
+            Response::error("Failed to renew candidate registration", 500);
+        }
+
+        Response::json($renewed, 200, "Candidate registration successfully renewed (Ref: {$renewed['ref_no']})");
+    }
+
+    public function activities(array $data, array $params): void {
+        $id = (int)($params['id'] ?? 0);
+        $scope = Auth::getScopedCaseManagerName();
+        $candidate = Candidate::find($id, $scope);
+
+        if (!$candidate) {
+            Response::notFound("Candidate record not found or access restricted to assigned Case Manager");
+        }
+
+        $activities = Candidate::getActivityLog($id);
+
+        Response::json([
+            'candidate' => [
+                'id'                => $candidate['id'],
+                'full_name'         => $candidate['full_name'],
+                'cpr_no'            => $candidate['cpr_no'],
+                'ref_no'            => $candidate['ref_no'],
+                'status'            => $candidate['status'],
+                'registration_date' => $candidate['registration_date'],
+                'last_renewal_date' => $candidate['last_renewal_date'] ?? null,
+                'renewals_count'    => (int)($candidate['renewals_count'] ?? 0),
+                'education'         => $candidate['education'] ?? 'N/A',
+                'case_manager_name' => $candidate['case_manager_name'] ?? 'System',
+                'phone'             => $candidate['phone'] ?? '',
+                'email'             => $candidate['email'] ?? ''
+            ],
+            'count'      => count($activities),
+            'activities' => $activities
+        ]);
     }
 }

@@ -25,6 +25,10 @@ function App() {
         return <window.DashboardView state={state} />;
       case 'candidates':
         return <window.CandidatesView state={state} />;
+      case 'jobs':
+        return <window.JobsView state={state} />;
+      case 'placements':
+        return <window.PlacementsView state={state} />;
       case 'milestones':
         return <window.MilestonesView state={state} />;
       case 'claims':

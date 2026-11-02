@@ -406,6 +406,61 @@ a {
 .kpi-card.warning::before { background: var(--warning); }
 .kpi-card.success::before { background: var(--success); }
 .kpi-card.danger::before { background: var(--danger); }
+.kpi-card.info::before { background: var(--info, #0284c7); }
+
+/* Aliases & Fallbacks for Stats Grid & Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary);
+}
+
+.stat-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.stat-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  line-height: 1.1;
+  font-family: var(--font-sans);
+}
+
+.stat-help {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
 
 .kpi-header {
   display: flex;
@@ -978,7 +1033,8 @@ a {
   border-color: var(--primary);
 }
 
-/* Theme Button */
+/* Top Bar Action Icon Buttons (Theme, Settings, Profile) */
+.top-icon-btn,
 .top-theme-btn {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-light);
@@ -986,17 +1042,37 @@ a {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
   font-size: 0.85rem;
+  padding: 0;
+  outline: none;
+  position: relative;
 }
 
+.top-icon-btn:hover,
 .top-theme-btn:hover {
   background: var(--bg-hover);
   color: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.top-icon-btn.active {
+  background: var(--primary-glow);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.top-icon-btn svg,
+.top-theme-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 /* User Capsule */
@@ -1385,6 +1461,26 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* DataTable Expandable Child Row Styling */
+.datatable-row.expanded {
+  background-color: var(--bg-hover) !important;
+}
+
+.datatable-child-row {
+  background: var(--bg-tertiary, #f8fafc) !important;
+  transition: all 0.2s ease-in-out;
+}
+
+.datatable-child-row td {
+  border-top: none !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.attachment-link:hover {
+  border-color: var(--primary) !important;
+  background: rgba(37, 99, 235, 0.06) !important;
 }
 
 /* ==========================================================================
@@ -2649,4 +2745,55 @@ a {
   border-radius: var(--radius-md);
   font-size: 0.82rem;
 }
+
+/* ==========================================================================
+   PRINT STYLESHEET
+   Clean output for printing & PDF export
+   ========================================================================== */
+@media print {
+  .portal-header-wrapper,
+  .portal-footer,
+  .toast-container,
+  .header-actions,
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .dash-filter-bar,
+  .horizontal-menu-bar,
+  .top-header,
+  .datatable-topbar,
+  .datatable-bottombar,
+  .modal-close-btn,
+  .footer-system-meta,
+  .footer-col-developer,
+  .theme-toggle-btn {
+    display: none !important;
+  }
+
+  body, .main-wrapper {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .card {
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .data-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .data-table th, .data-table td {
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 8px !important;
+    font-size: 9pt !important;
+  }
+}
+
 

@@ -89,7 +89,22 @@ class ApiService {
     updateStatus: (id, status, remarks) => this.request(`/candidates/${id}/status`, { method: 'POST', body: { status, remarks } }),
     uploadDocument: (data) => this.request('/candidates/upload', { method: 'POST', body: data }),
     addDocument: (id, doc) => this.request(`/candidates/${id}/documents`, { method: 'POST', body: doc }),
-    deleteDocument: (id, docId) => this.request(`/candidates/${id}/documents/${docId}`, { method: 'DELETE' })
+    deleteDocument: (id, docId) => this.request(`/candidates/${id}/documents/${docId}`, { method: 'DELETE' }),
+    updateChecklist: (id, checked) => this.request(`/candidates/${id}/checklist`, { method: 'POST', body: { checked } }),
+    renew: (id, data) => this.request(`/candidates/${id}/renew`, { method: 'POST', body: data }),
+    getActivities: (id) => this.request(`/candidates/${id}/activities`)
+  };
+
+  jobs = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/jobs${qs ? '?' + qs : ''}`);
+    },
+    getNextCode: () => this.request('/jobs/next-code'),
+    getOne: (id) => this.request(`/jobs/${id}`),
+    create: (data) => this.request('/jobs', { method: 'POST', body: data }),
+    update: (id, data) => this.request(`/jobs/${id}`, { method: 'PUT', body: data }),
+    delete: (id) => this.request(`/jobs/${id}`, { method: 'DELETE' })
   };
 
   milestones = {
@@ -123,8 +138,16 @@ class ApiService {
     getReasons: () => this.request('/dispute-reasons'),
     addReason: (reason) => this.request('/dispute-reasons', { method: 'POST', body: { reason } }),
     create: (disputeData) => this.request('/disputes', { method: 'POST', body: disputeData }),
-    reinstate: (id, notes) => this.request(`/disputes/${id}/reinstate`, { method: 'POST', body: { notes } }),
-    terminate: (id, notes) => this.request(`/disputes/${id}/terminate`, { method: 'POST', body: { notes } })
+    update: (id, disputeData) => this.request(`/disputes/${id}`, { method: 'PUT', body: disputeData }),
+    uploadAttachment: (data) => this.request('/disputes/upload', { method: 'POST', body: data }),
+    reinstate: (id, payload) => {
+      const body = typeof payload === 'object' ? payload : { notes: payload };
+      return this.request(`/disputes/${id}/reinstate`, { method: 'POST', body });
+    },
+    terminate: (id, payload) => {
+      const body = typeof payload === 'object' ? payload : { notes: payload };
+      return this.request(`/disputes/${id}/terminate`, { method: 'POST', body });
+    }
   };
 
   payments = {
@@ -132,7 +155,22 @@ class ApiService {
       const qs = new URLSearchParams(params).toString();
       return this.request(`/payments${qs ? '?' + qs : ''}`);
     },
+    getNextRef: () => this.request('/payments/next-ref'),
+    uploadAttachment: (data) => this.request('/payments/upload', { method: 'POST', body: data }),
+    create: (paymentData) => this.request('/payments', { method: 'POST', body: paymentData }),
     recordPayment: (paymentData) => this.request('/payments', { method: 'POST', body: paymentData })
+  };
+
+  checklistMaster = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/checklist-master${qs ? '?' + qs : ''}`);
+    },
+    getOne: (id) => this.request(`/checklist-master/${id}`),
+    create: (data) => this.request('/checklist-master', { method: 'POST', body: data }),
+    update: (id, data) => this.request(`/checklist-master/${id}`, { method: 'PUT', body: data }),
+    delete: (id) => this.request(`/checklist-master/${id}`, { method: 'DELETE' }),
+    evaluate: (checked) => this.request('/checklist-master/evaluate', { method: 'POST', body: { checked } })
   };
 
   settings = {

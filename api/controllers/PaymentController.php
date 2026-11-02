@@ -28,6 +28,11 @@ class PaymentController {
         ]);
     }
 
+    public function nextRef(): void {
+        $nextRef = Payment::generateNextReceiptNo();
+        Response::json(['next_receipt_no' => $nextRef]);
+    }
+
     public function create(array $data): void {
         $user = Auth::getCurrentUser();
         $claimId = (int)($data['claim_id'] ?? 0);
@@ -49,5 +54,80 @@ class PaymentController {
 
         $payment = Payment::recordPayment($data, $user);
         Response::json($payment, 201, "Payment of BHD {$amount} recorded with receipt {$payment['receipt_no']}");
+    }
+
+    public function uploadAttachment(array $data): void {
+        $uploadDir = dirname(__DIR__, 2) . '/public/uploads/payments/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        $docName = trim($data['name'] ?? 'Payment Receipt Voucher');
+        $docNotes = trim($data['notes'] ?? '');
+        $fileName = '';
+        $fileSize = 0;
+        $fileUrl = '';
+
+        if (!empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+            $origName = basename($_FILES['file']['name']);
+            $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+            $allowedExts = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'txt', 'csv', 'xlsx'];
+            if (!in_array($ext, $allowedExts)) {
+                Response::error('Invalid file format. Allowed: PDF, PNG, JPG, JPEG, DOCX, XLSX, TXT', 400);
+            }
+
+            $safeName = 'receipt_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            $targetPath = $uploadDir . $safeName;
+
+            if (move_uploaded_file($_FILES['file']['tmp_name'], $targetPath)) {
+                $fileName = $origName;
+                $fileSize = filesize($targetPath);
+                $fileUrl = 'uploads/payments/' . $safeName;
+            } else {
+                Response::error('Failed to save uploaded file to storage directory', 500);
+            }
+        } elseif (!empty($data['file_data']) && !empty($data['file_name'])) {
+            $origName = basename($data['file_name']);
+            $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+            $allowedExts = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'txt', 'csv', 'xlsx'];
+            if (!in_array($ext, $allowedExts)) {
+                Response::error('Invalid file format. Allowed: PDF, PNG, JPG, JPEG, DOCX, XLSX, TXT', 400);
+            }
+
+            $rawBase64 = $data['file_data'];
+            if (str_contains($rawBase64, ',')) {
+                $rawBase64 = explode(',', $rawBase64)[1];
+            }
+
+            $decoded = base64_decode($rawBase64);
+            if ($decoded === false) {
+                Response::error('Failed to decode base64 file data', 400);
+            }
+
+            $safeName = 'receipt_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            $targetPath = $uploadDir . $safeName;
+
+            if (file_put_contents($targetPath, $decoded) !== false) {
+                $fileName = $origName;
+                $fileSize = strlen($decoded);
+                $fileUrl = 'uploads/payments/' . $safeName;
+            } else {
+                Response::error('Failed to write decoded file to disk', 500);
+            }
+        } else {
+            Response::error('No file data provided in request', 400);
+        }
+
+        $attachment = [
+            'id'          => 'ATT-' . time() . '-' . rand(100, 999),
+            'name'        => !empty($docName) ? $docName : $fileName,
+            'notes'       => $docNotes,
+            'file_name'   => $fileName,
+            'file_size'   => $fileSize,
+            'file_url'    => $fileUrl,
+            'uploaded_at' => date('Y-m-d H:i:s')
+        ];
+
+        Response::json($attachment, 201, "Receipt attachment uploaded successfully");
     }
 }

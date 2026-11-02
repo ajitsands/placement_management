@@ -1,6 +1,6 @@
 /**
  * Two-Tier Header Navigation System:
- * 1. Thin Top Header: Propel logo, portal title, DB status, ACT AS role switcher, theme toggle, and Sign Out.
+ * 1. Thin Top Header: Propel logo, portal title, ACT AS role switcher, theme toggle, settings icon, profile icon, and Sign Out.
  * 2. Dedicated Horizontal Menu Bar: Full-width navigation links directly underneath the top header.
  */
 
@@ -34,6 +34,21 @@ function NavIcon({ type }) {
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case 'jobs':
+      return (
+        <svg {...props}>
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        </svg>
+      );
+    case 'placements':
+      return (
+        <svg {...props}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <polyline points="16 11 18 13 22 9" />
         </svg>
       );
     case 'milestones':
@@ -92,6 +107,13 @@ function NavIcon({ type }) {
           <circle cx="12" cy="7" r="4" />
         </svg>
       );
+    case 'settings':
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -102,17 +124,18 @@ function Navbar({ state }) {
   const { currentUser, activeTab, theme, settings, databaseStatus } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
 
+  // Dedicated horizontal menu items (operational modules only)
   const navItems = [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'candidates', label: 'Candidates and Placements' },
+    { id: 'candidates', label: 'Candidates' },
+    { id: 'jobs', label: 'Jobs' },
+    { id: 'placements', label: 'Placements' },
     { id: 'milestones', label: 'Retention Milestones' },
-    // Hidden for git release: Claims Ledger, Dispute Management, Payment Receipts, Enterprise Reports
-    // { id: 'claims', label: 'Claims Ledger' },
-    // { id: 'disputes', label: 'Dispute Management' },
-    // { id: 'payments', label: 'Payment Receipts' },
-    // { id: 'reports', label: 'Enterprise Reports' },
-    ...(isAdminOrSuper ? [{ id: 'users', label: 'Users & RBAC' }] : []),
-    { id: 'profile', label: 'My Profile' }
+    { id: 'claims', label: 'Claims Ledger' },
+    { id: 'disputes', label: 'Dispute Management' },
+    { id: 'payments', label: 'Payment Receipts' },
+    { id: 'reports', label: 'Reports' },
+    ...(isAdminOrSuper ? [{ id: 'users', label: 'Users' }] : [])
   ];
 
   const handleNavClick = (tabId) => {
@@ -178,7 +201,7 @@ function Navbar({ state }) {
             </span>
           </div>
 
-          {/* Right: ACT AS Switcher, Theme Toggle, User Profile, Sign Out */}
+          {/* Right: ACT AS Switcher, Theme Toggle, Settings Icon, Profile Icon, Sign Out */}
           <div className="top-header-right">
 
             {/* Quick ACT AS Role Switcher */}
@@ -223,17 +246,18 @@ function Navbar({ state }) {
 
             {/* Dark/Light Mode Toggle */}
             <button
+              type="button"
               className="top-theme-btn"
               onClick={() => window.AppStore.toggleTheme()}
               title={`Switch to ${theme === 'light' ? 'Dark Mode' : 'Light Mode'}`}
               aria-label="Toggle Theme"
             >
               {theme === 'light' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="#facc15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#facc15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
                   <circle cx="12" cy="12" r="5" />
                   <line x1="12" y1="1" x2="12" y2="3" />
                   <line x1="12" y1="21" x2="12" y2="23" />
@@ -247,28 +271,37 @@ function Navbar({ state }) {
               )}
             </button>
 
-            {/* User Profile Capsule */}
-            <div
-              className={`top-user-capsule hide-mobile ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => handleNavClick('profile')}
-              style={{
-                cursor: 'pointer',
-                borderColor: activeTab === 'profile' ? 'var(--primary)' : 'var(--border-light)',
-                boxShadow: activeTab === 'profile' ? '0 0 0 2px rgba(37, 99, 235, 0.25)' : 'none'
-              }}
-              title="Click to view My Profile & Reset Password"
+            {/* Settings (Icon Only with Tooltip, No Text) */}
+            <button
+              type="button"
+              className={`top-icon-btn ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => handleNavClick('settings')}
+              title="System Settings"
+              aria-label="Settings"
             >
-              <div className="top-user-avatar">
-                {currentUser.full_name?.charAt(0) || 'U'}
-              </div>
-              <div className="top-user-details">
-                <span className="top-user-name">{currentUser.full_name}</span>
-                <span className="top-user-role">{currentUser.role}</span>
-              </div>
-            </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+
+            {/* Profile (Icon Only with Tooltip, No Text) */}
+            <button
+              type="button"
+              className={`top-icon-btn ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => handleNavClick('profile')}
+              title={`My Profile (${currentUser.full_name || 'User'})`}
+              aria-label="My Profile"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </button>
 
             {/* Sign Out Button */}
             <button
+              type="button"
               className="top-logout-btn"
               onClick={handleLogout}
               title="Sign Out of Portal"
@@ -283,6 +316,7 @@ function Navbar({ state }) {
 
             {/* Mobile Menu Toggle Button */}
             <button
+              type="button"
               className="top-mobile-toggle-btn"
               onClick={() => setMobileOpen(!mobileOpen)}
               title="Toggle Navigation Menu"

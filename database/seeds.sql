@@ -31,7 +31,8 @@ INSERT INTO `settings` (`id`, `setting_key`, `setting_value`, `category`) VALUES
 (8, 'country', 'Bahrain', 'localization'),
 (9, 'theme_default', 'light', 'ui'),
 (10, 'lead_days_alert_180', '14', 'cron'),
-(11, 'lead_days_alert_365', '21', 'cron');
+(11, 'lead_days_alert_365', '21', 'cron'),
+(12, 'standard_tier_amount_bhd', '500', 'general');
 
 -- 2. Default Users: Super Administrator, Administrator, and 4 Case Managers (Total 6 Users)
 -- Passwords default to password123 (bcrypt hash: $2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi)
