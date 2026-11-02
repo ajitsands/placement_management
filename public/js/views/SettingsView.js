@@ -406,7 +406,6 @@ function SettingsView({ state }) {
       console.error('Error deleting document category:', err);
       window.AppStore.showNotification(err?.message || 'Failed to delete category', 'error');
     }
-    }
   };
 
   return (
