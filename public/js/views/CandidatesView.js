@@ -783,8 +783,8 @@ function CandidatesView({ state }) {
       <div className="candidate-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
           { key: 'registered', label: '📋 Available in Pool', count: statusCounts.registered },
-          { key: 'awaiting_renewal', label: '⏳ Awaiting Renewal', count: statusCounts.awaiting_renewal, isWarning: true },
           { key: 'registration_incomplete', label: '⚠️ Incomplete Profile', count: statusCounts.registration_incomplete, isDanger: true },
+          { key: 'awaiting_renewal', label: '⏳ Awaiting Renewal', count: statusCounts.awaiting_renewal, isWarning: true },
           { key: 'placed', label: '💼 Placed in Employment', count: statusCounts.placed },
           { key: 'all', label: 'All Candidates', count: statusCounts.all },
         ].map(tab => {
