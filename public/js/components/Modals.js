@@ -122,7 +122,7 @@ function NewCandidateModal({ state }) {
   // Multiple Document Upload Area State
   const [documents, setDocuments] = useState([]);
   const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
-  const [uploadDocName, setUploadDocName] = useState('');
+  const [uploadDocName, setUploadDocName] = useState('CPR / Smart Card Copy');
 
   const [saving, setSaving] = useState(false);
 
@@ -252,7 +252,7 @@ function NewCandidateModal({ state }) {
         };
         setDocuments(prev => [...prev, newDoc]);
         autoCheckFromDocType(uploadDocType);
-        setUploadDocName('');
+        setUploadDocName(uploadDocType);
       };
       reader.readAsDataURL(file);
     });
@@ -686,7 +686,11 @@ function NewCandidateModal({ state }) {
                 <select
                   className="select-control"
                   value={uploadDocType}
-                  onChange={e => setUploadDocType(e.target.value)}
+                  onChange={e => {
+                    const newCat = e.target.value;
+                    setUploadDocType(newCat);
+                    setUploadDocName(newCat);
+                  }}
                 >
                   {activeDocCategories.map(cat => (
                     <option key={cat.code || cat.id} value={cat.name}>
@@ -1605,7 +1609,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
   }, [activeDocCategories, uploadDocType]);
 
   const [uploadDocType, setUploadDocType] = useState('CPR / Smart Card Copy');
-  const [uploadDocName, setUploadDocName] = useState('');
+  const [uploadDocName, setUploadDocName] = useState('CPR / Smart Card Copy');
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -1653,7 +1657,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
           } else {
             window.AppStore.showNotification(`Document '${file.name}' uploaded successfully!`, 'success');
           }
-          setUploadDocName('');
+          setUploadDocName(uploadDocType);
           await window.AppStore.refreshData();
         } catch (err) {
           if (window.Swal) {
@@ -1753,7 +1757,11 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                 className="select-control"
                 style={{ fontSize: '0.82rem' }}
                 value={uploadDocType}
-                onChange={e => setUploadDocType(e.target.value)}
+                onChange={e => {
+                  const newCat = e.target.value;
+                  setUploadDocType(newCat);
+                  setUploadDocName(newCat);
+                }}
               >
                 {activeDocCategories.map(cat => (
                   <option key={cat.code || cat.id} value={cat.name}>
@@ -5263,8 +5271,9 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
       : `12-month registration cycle renewal. Candidate profile active in national talent pool.`
   );
   const [newDocuments, setNewDocuments] = useState([]);
-  const [uploadDocType, setUploadDocType] = useState(wasPlaced ? '📄 Resignation Letter / Exit Settlement' : '🪪 Renewed CPR / Smart Card');
-  const [uploadDocName, setUploadDocName] = useState('');
+  const initialRenewalDoc = wasPlaced ? 'Resignation Letter / Exit Settlement' : 'Renewed CPR / Smart Card';
+  const [uploadDocType, setUploadDocType] = useState(initialRenewalDoc);
+  const [uploadDocName, setUploadDocName] = useState(initialRenewalDoc);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -5287,7 +5296,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
           uploaded_at: new Date().toISOString()
         };
         setNewDocuments(prev => [...prev, newDoc]);
-        setUploadDocName('');
+        setUploadDocName(uploadDocType);
       };
       reader.readAsDataURL(file);
     });
@@ -5632,7 +5641,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                   className="input-control"
                   style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
                   value={uploadDocType}
-                  onChange={e => setUploadDocType(e.target.value)}
+                  onChange={e => {
+                    const newCat = e.target.value;
+                    setUploadDocType(newCat);
+                    setUploadDocName(newCat);
+                  }}
                 >
                   {activeDocCategories.map(cat => (
                     <option key={cat.code || cat.id} value={cat.name}>
