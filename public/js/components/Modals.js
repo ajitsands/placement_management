@@ -1126,13 +1126,54 @@ function JobModal({ state, job }) {
   const currency = settings.currency || 'BHD';
   const isEditing = Boolean(job && job.id);
 
+  // Extract unique existing data to provide autocomplete popups and avoid filter duplications
+  const { existingEmployers, existingCRs, existingPositions, existingDepartments } = useMemo(() => {
+    const empMap = new Map();
+    const crSet = new Set();
+    const posSet = new Set();
+    const deptSet = new Set();
+
+    (state.jobs || []).forEach(j => {
+      const comp = (j.company_name || '').trim();
+      const cr = (j.employer_cr || '').trim();
+      const pos = (j.position_title || j.job_title || '').trim();
+      const dept = (j.department || '').trim();
+
+      if (comp && !empMap.has(comp.toLowerCase())) {
+        empMap.set(comp.toLowerCase(), { name: comp, cr: cr || '' });
+      }
+      if (cr) crSet.add(cr);
+      if (pos) posSet.add(pos);
+      if (dept) deptSet.add(dept);
+    });
+
+    (state.candidates || []).forEach(c => {
+      const comp = (c.company_name || '').trim();
+      const cr = (c.employer_cr || '').trim();
+      const pos = (c.position_title || '').trim();
+
+      if (comp && !empMap.has(comp.toLowerCase())) {
+        empMap.set(comp.toLowerCase(), { name: comp, cr: cr || '' });
+      }
+      if (cr) crSet.add(cr);
+      if (pos) posSet.add(pos);
+    });
+
+    return {
+      existingEmployers: Array.from(empMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      existingCRs: Array.from(crSet).sort(),
+      existingPositions: Array.from(posSet).sort((a, b) => a.localeCompare(b)),
+      existingDepartments: Array.from(deptSet).sort((a, b) => a.localeCompare(b))
+    };
+  }, [state.jobs, state.candidates]);
+
   const [form, setForm] = useState({
     job_code: job?.job_code || '',
     company_name: job?.company_name || '',
     employer_cr: job?.employer_cr || '',
-    position_title: job?.position_title || '',
-    department: job?.department || 'Operations',
-    salary_bhd: job?.salary_bhd || '450.000',
+    position_title: job?.position_title || job?.job_title || '',
+    department: job?.department || '',
+    salary_bhd: job?.salary_bhd || job?.salary_offered_bhd || '450.000',
     vacancies_count: job?.vacancies_count || 1,
     status: job?.status || 'active',
     work_location: job?.work_location || 'Kingdom of Bahrain',
@@ -1141,6 +1182,15 @@ function JobModal({ state, job }) {
   });
 
   const [saving, setSaving] = useState(false);
+
+  const handleCompanyChange = (val) => {
+    const match = existingEmployers.find(e => e.name.toLowerCase() === val.trim().toLowerCase());
+    setForm(prev => ({
+      ...prev,
+      company_name: val,
+      employer_cr: (match && match.cr && !prev.employer_cr) ? match.cr : prev.employer_cr
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1197,10 +1247,16 @@ function JobModal({ state, job }) {
                 type="text"
                 className="input-control"
                 value={form.company_name}
-                onChange={e => setForm({ ...form, company_name: e.target.value })}
-                placeholder="e.g. Aluminium Bahrain (Alba)"
+                onChange={e => handleCompanyChange(e.target.value)}
+                list="existing-job-employers-list"
+                autoComplete="off"
                 required
               />
+              <datalist id="existing-job-employers-list">
+                {existingEmployers.map((emp, idx) => (
+                  <option key={idx} value={emp.name}>{emp.cr ? `CR: ${emp.cr}` : ''}</option>
+                ))}
+              </datalist>
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Commercial Registration (CR)</label>
@@ -1209,8 +1265,14 @@ function JobModal({ state, job }) {
                 className="input-control"
                 value={form.employer_cr}
                 onChange={e => setForm({ ...form, employer_cr: e.target.value })}
-                placeholder="e.g. 123456-1"
+                list="existing-job-crs-list"
+                autoComplete="off"
               />
+              <datalist id="existing-job-crs-list">
+                {existingCRs.map((cr, idx) => (
+                  <option key={idx} value={cr} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -1223,9 +1285,15 @@ function JobModal({ state, job }) {
                 className="input-control"
                 value={form.position_title}
                 onChange={e => setForm({ ...form, position_title: e.target.value })}
-                placeholder="e.g. Mechanical Reliability Engineer"
+                list="existing-job-positions-list"
+                autoComplete="off"
                 required
               />
+              <datalist id="existing-job-positions-list">
+                {existingPositions.map((pos, idx) => (
+                  <option key={idx} value={pos} />
+                ))}
+              </datalist>
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Department / Division</label>
@@ -1234,8 +1302,14 @@ function JobModal({ state, job }) {
                 className="input-control"
                 value={form.department}
                 onChange={e => setForm({ ...form, department: e.target.value })}
-                placeholder="e.g. Engineering & Maintenance"
+                list="existing-job-departments-list"
+                autoComplete="off"
               />
+              <datalist id="existing-job-departments-list">
+                {existingDepartments.map((dept, idx) => (
+                  <option key={idx} value={dept} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -1286,7 +1360,6 @@ function JobModal({ state, job }) {
               rows="2"
               value={form.requirements}
               onChange={e => setForm({ ...form, requirements: e.target.value })}
-              placeholder="e.g. Bachelor in Engineering, 2+ yrs GCC industrial experience, fluent English..."
             ></textarea>
           </div>
 
@@ -1298,7 +1371,6 @@ function JobModal({ state, job }) {
               rows="2"
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
-              placeholder="Overview of core duties and daily responsibilities..."
             ></textarea>
           </div>
 

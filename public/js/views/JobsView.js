@@ -18,7 +18,7 @@ function JobsView({ state }) {
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
   const [selectedDepartment, setSelectedDepartment] = useState(() => readSaved('department'));
   const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
-  const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'all'));
+  const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
 
   const persist = (setter, key) => (val) => {
     setter(val);
@@ -33,10 +33,10 @@ function JobsView({ state }) {
     handleEmployerChange('');
     handleDepartmentChange('');
     handlePositionChange('');
-    handleStatusChange('all');
+    handleStatusChange('active');
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -88,8 +88,8 @@ function JobsView({ state }) {
 
   // Status Filter Options
   const statusOptions = [
-    { id: 'all', label: 'All Jobs' },
     { id: 'active', label: 'Open Vacancies' },
+    { id: 'all', label: 'All Jobs' },
     { id: 'filled', label: 'Filled' },
     { id: 'closed', label: 'Closed' }
   ];
@@ -101,9 +101,18 @@ function JobsView({ state }) {
       if (selectedDepartment && strcasecmp(j.department, selectedDepartment) !== 0) return false;
       if (selectedPosition && strcasecmp(j.job_title, selectedPosition) !== 0) return false;
       if (statusFilter !== 'all') {
-        const compStatus = (j.computed_status || j.status || 'active').toLowerCase();
-        if (statusFilter === 'active' && compStatus !== 'active' && compStatus !== 'open') return false;
-        if (statusFilter === 'filled' && compStatus !== 'filled') return false;
+        const total = parseInt(j.vacancies_count, 10) || 1;
+        const placed = parseInt(j.placed_count, 10) || 0;
+        const remaining = (j.vacancies_remaining !== undefined && j.vacancies_remaining !== null)
+          ? parseInt(j.vacancies_remaining, 10)
+          : Math.max(0, total - placed);
+        const compStatus = (j.computed_status || (remaining === 0 ? 'filled' : (j.status || 'active'))).toLowerCase();
+
+        if (statusFilter === 'active') {
+          if (compStatus !== 'active' && compStatus !== 'open') return false;
+          if (remaining <= 0) return false;
+        }
+        if (statusFilter === 'filled' && compStatus !== 'filled' && remaining > 0) return false;
         if (statusFilter === 'closed' && compStatus !== 'closed') return false;
       }
       return true;
