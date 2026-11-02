@@ -608,6 +608,15 @@ function PlacementsView({ state }) {
           </button>
 
           <button
+            className="btn btn-warning btn-sm"
+            title="If candidate exited or resigned, renew registration and return to available pool"
+            style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}
+            onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+          >
+            <span>🔄</span> Renew / Exit
+          </button>
+
+          <button
             className="btn btn-primary btn-sm"
             title="File Subsidy Claim for this Placement"
             style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}

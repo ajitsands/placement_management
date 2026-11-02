@@ -448,6 +448,37 @@ class Candidate {
                     'documents_count'       => !empty($data['documents']) && is_array($data['documents']) ? count($data['documents']) : 0
                 ];
 
+                // If candidate was in placed status or clear_placement requested (e.g. exit or resigned renewal)
+                $wasPlaced = in_array(strtolower($c['status'] ?? ''), ['placed', 'active']) || !empty($c['company_name']);
+                if ($wasPlaced || !empty($data['clear_placement']) || !empty($data['exit_type'])) {
+                    $exitType = $data['exit_type'] ?? 'resigned';
+                    $exitReason = $data['exit_reason'] ?? $remarks;
+                    $exitDate = $data['exit_date'] ?? $renewalDate;
+
+                    $renewalItem['previous_placement'] = [
+                        'company_name'   => $c['company_name'] ?? null,
+                        'position_title' => $c['position_title'] ?? null,
+                        'employer_cr'    => $c['employer_cr'] ?? null,
+                        'salary_bhd'     => $c['salary_bhd'] ?? 0,
+                        'joining_date'   => $c['joining_date'] ?? null,
+                        'job_id'         => $c['job_id'] ?? null,
+                        'job_code'       => $c['job_code'] ?? null,
+                        'exit_type'      => $exitType,
+                        'exit_reason'    => $exitReason,
+                        'exit_date'      => $exitDate,
+                    ];
+                    $renewalItem['exit_type'] = $exitType;
+
+                    // Clear active placement fields so candidate is free in the pool for new placement matching
+                    $c['company_name']   = null;
+                    $c['position_title'] = null;
+                    $c['employer_cr']    = null;
+                    $c['salary_bhd']     = 0.000;
+                    $c['joining_date']   = null;
+                    $c['job_id']         = null;
+                    $c['job_code']       = null;
+                }
+
                 $c['last_renewal_date'] = $renewalDate;
                 $c['renewals_count'] = $renewalsCount;
 
@@ -473,10 +504,20 @@ class Candidate {
                     $c['documents'] = $currentDocs;
                 }
 
-                // Renewing places candidate back in Available in Pool
+                // Renewing moves candidate back to Available in Pool (registered)
                 $c['status'] = 'registered';
 
                 // Record in audit logs
+                $logDetails = "Candidate {$c['full_name']} (Ref: {$refNo}) renewed for 12 months.";
+                if ($wasPlaced) {
+                    $logDetails .= " Previous placement archived (Exit type: " . ($data['exit_type'] ?? 'resigned') . "). Returned to Available in Pool.";
+                } else {
+                    $logDetails .= " Previous validity was " . ($daysPast12m > 0 ? "expired by {$daysPast12m} days." : "within cycle.");
+                }
+                if ($remarks) {
+                    $logDetails .= " Remarks: {$remarks}";
+                }
+
                 $store['audit_logs'][] = [
                     'id'          => count($store['audit_logs'] ?? []) + 1,
                     'user_id'     => null,
@@ -485,7 +526,7 @@ class Candidate {
                     'action'      => 'candidate_renewed',
                     'entity_type' => 'candidate',
                     'entity_id'   => $id,
-                    'details'     => "Candidate {$c['full_name']} (Ref: {$refNo}) renewed for 12 months. Previous validity was " . ($daysPast12m > 0 ? "expired by {$daysPast12m} days." : "within cycle.") . " Remarks: {$remarks}",
+                    'details'     => $logDetails,
                     'ip_address'  => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
                     'created_at'  => date('Y-m-d H:i:s')
                 ];
@@ -528,16 +569,26 @@ class Candidate {
             $rTime = $r['renewed_at'] ?? ($rDate . ' 10:00:00');
             $pastDays = (int)($r['days_past_12m'] ?? 0);
             $expiryNote = $pastDays > 0 ? " (+{$pastDays} days past 12m validity)" : "";
+            $title = "Candidate Registration Renewed (Cycle #" . ($r['renewal_index'] ?? ($idx + 1)) . ")";
+            $details = "12-month registration cycle successfully renewed{$expiryNote}. Reference number preserved.";
+            if (!empty($r['previous_placement']['company_name'])) {
+                $p = $r['previous_placement'];
+                $title = "Placement Exit & Registration Renewed (Cycle #" . ($r['renewal_index'] ?? ($idx + 1)) . ")";
+                $details .= " Previous placement at {$p['company_name']} (" . ($p['position_title'] ?: 'Position') . ") archived under exit type '" . ($r['exit_type'] ?? 'resigned') . "'. Candidate returned to Available in Pool.";
+            }
+            if (!empty($r['remarks'])) {
+                $details .= " Remarks: " . $r['remarks'];
+            }
             $activities[] = [
                 'id'        => 'act_ren_' . ($idx + 1),
                 'timestamp' => $rTime,
                 'date'      => $rDate,
                 'category'  => 'renewal',
-                'title'     => "Candidate Registration Renewed (Cycle #" . ($r['renewal_index'] ?? ($idx + 1)) . ")",
+                'title'     => $title,
                 'ref'       => $candidate['ref_no'],
                 'amount'    => null,
                 'status'    => 'renewed',
-                'details'   => "12-month registration cycle successfully renewed{$expiryNote}. Reference number preserved. Remarks: " . ($r['remarks'] ?: 'Profile active in pool.'),
+                'details'   => $details,
                 'actor'     => $r['renewed_by'] ?? 'Directorate Admin'
             ];
         }

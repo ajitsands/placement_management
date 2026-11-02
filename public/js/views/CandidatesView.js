@@ -189,17 +189,14 @@ function CandidatesView({ state }) {
     };
   };
 
-  // Compute status counts for filter tabs
+  // Compute status counts for filter tabs strictly based on core lifecycle logic
   const statusCounts = useMemo(() => {
     const counts = {
       all: candidates.length,
       registered: 0,
       awaiting_renewal: 0,
       registration_incomplete: 0,
-      placed: 0,
-      completed: 0,
-      resigned: 0,
-      on_hold: 0
+      placed: 0
     };
     candidates.forEach(c => {
       const incomplete = isCandidateIncomplete(c);
@@ -210,18 +207,15 @@ function CandidatesView({ state }) {
 
       if (incomplete) {
         counts.registration_incomplete++;
+      } else if (isPlaced) {
+        counts.placed++;
       } else if (ren.isAwaitingRenewal) {
         // Completed 12 months and not placed -> Awaiting Renewal
         counts.awaiting_renewal++;
-      } else if (!isPlaced) {
+      } else {
         // Complete checklist, not placed, within 12 months -> Available in Pool
         counts.registered++;
       }
-
-      if (st === 'placed') counts.placed++;
-      if (st === 'completed') counts.completed++;
-      if (st === 'resigned') counts.resigned++;
-      if (st === 'on_hold') counts.on_hold++;
     });
     return counts;
   }, [candidates]);
@@ -240,30 +234,27 @@ function CandidatesView({ state }) {
         if (st === 'active') st = 'placed';
         const isPlaced = st === 'placed';
 
-        // 1. Incomplete Profile Tab
+        // 1. Available in Pool: mandatory checklist complete, not placed, within 12 months
+        if (statusFilter === 'registered') {
+          return !isPlaced && !incomplete && !ren.isAwaitingRenewal;
+        }
+
+        // 2. Awaiting Renewal Tab: not placed, complete checklist, and completed 12 months
+        if (statusFilter === 'awaiting_renewal') {
+          return !isPlaced && !incomplete && ren.isAwaitingRenewal;
+        }
+
+        // 3. Incomplete Profile Tab: candidates with pending mandatory checklist
         if (statusFilter === 'registration_incomplete') {
           return incomplete;
         }
-        if (incomplete) {
-          return false;
+
+        // 4. Placed in Employment Tab: placed candidates
+        if (statusFilter === 'placed') {
+          return isPlaced;
         }
 
-        // 2. Awaiting Renewal Tab: not placed and completed 12 months
-        if (statusFilter === 'awaiting_renewal') {
-          return !isPlaced && ren.isAwaitingRenewal;
-        }
-
-        // 3. Available in Pool: mandatory checklist complete, not placed, within 12 months
-        if (statusFilter === 'registered') {
-          if (isPlaced) return false;
-          if (ren.isAwaitingRenewal) return false;
-          // Includes candidates not placed, or resigned, or on hold within 12 months
-          return true;
-        }
-
-        // 4. Other specific statuses (placed, completed, resigned, on_hold)
-        if (statusFilter === 'placed') return isPlaced;
-        return st === statusFilter;
+        return true;
       });
     }
     if (selectedGender && selectedGender !== 'all') {
@@ -294,15 +285,43 @@ function CandidatesView({ state }) {
     return result;
   }, [candidates, selectedCaseManager, statusFilter, selectedGender, selectedEducation, regDateFrom, regDateTo]);
 
-  // Status badge styling helper
+  // Status badge styling helper strictly mapped to core lifecycle logic
   const renderStatusBadge = (status, candidate) => {
     const ren = getCandidateRenewalInfo(candidate);
     let st = (status || 'registered').toLowerCase();
     if (st === 'active') st = 'placed';
+    const isPlaced = st === 'placed';
 
+    // 1. Incomplete Profile
     if (isCandidateIncomplete(candidate) || st === 'incomplete' || st === 'pending_registration' || st === 'registration_incomplete' || st === 'registration_not_completed') {
-      st = 'registration_incomplete';
-    } else if (ren.isAwaitingRenewal) {
+      return (
+        <span
+          className="badge badge-danger"
+          style={{ cursor: 'pointer', fontWeight: 800, fontSize: '0.74rem', padding: '0.25rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+          title="Mandatory checklist pending. Click to complete checklist criteria."
+          onClick={() => window.AppStore.openModal('CANDIDATE_CHECKLIST', { candidate })}
+        >
+          <span>⚠️</span> Incomplete Profile ▾
+        </span>
+      );
+    }
+
+    // 2. Placed in Employment
+    if (isPlaced) {
+      return (
+        <span
+          className="badge badge-warning"
+          style={{ cursor: 'pointer', fontWeight: 700, fontSize: '0.74rem', padding: '0.25rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+          title={`Placed with ${candidate.company_name || 'Employer'}. Click to update placement status.`}
+          onClick={() => window.AppStore.openModal('UPDATE_STATUS', { candidate })}
+        >
+          <span>💼</span> Placed ▾
+        </span>
+      );
+    }
+
+    // 3. Awaiting Renewal (>12 months from registration/renewal)
+    if (ren.isAwaitingRenewal) {
       return (
         <span
           className="badge badge-warning"
@@ -326,24 +345,15 @@ function CandidatesView({ state }) {
       );
     }
 
-    const config = {
-      registration_incomplete: { label: '⚠️ Incomplete Profile', cls: 'badge-danger', title: 'Incomplete Profile (Mandatory Checklist Pending)' },
-      registered: { label: '📋 Available / Pool', cls: 'badge-info', title: 'Available in Talent Pool' },
-      placed:     { label: '💼 Placed', cls: 'badge-warning', title: 'Placement Contract Linked' },
-      completed:  { label: '🎓 Completed', cls: 'badge-primary', title: '365 Days Program Completed' },
-      resigned:   { label: '⚠️ Resigned', cls: 'badge-danger', title: 'Resigned / Voluntary Exit' },
-      on_hold:    { label: '⏸️ On Hold', cls: 'badge-neutral', title: 'Verification / On Hold' }
-    };
-    const c = config[st] || config.registered;
-
+    // 4. Available in Pool (default valid state)
     return (
       <span
-        className={`badge ${c.cls}`}
-        style={{ cursor: 'pointer', fontWeight: 700, fontSize: '0.74rem', padding: '0.25rem 0.6rem' }}
-        title={`${c.title} • Click to change status`}
+        className="badge badge-info"
+        style={{ cursor: 'pointer', fontWeight: 700, fontSize: '0.74rem', padding: '0.25rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+        title="Checklist verified. Available in national talent pool for corporate matching."
         onClick={() => window.AppStore.openModal('UPDATE_STATUS', { candidate })}
       >
-        {c.label} ▾
+        <span>📋</span> Available in Pool ▾
       </span>
     );
   };
@@ -394,13 +404,21 @@ function CandidatesView({ state }) {
                 <div><strong>Position:</strong> {row.position_title} {row.job_code ? `(${row.job_code})` : ''}</div>
                 <div><strong>Base Wage:</strong> {currency} {Number(row.salary_bhd || 0).toFixed(3)}</div>
                 <div><strong>Joined:</strong> {window.formatAppDate(row.joining_date)}</div>
-                <div style={{ marginTop: '0.35rem' }}>
+                <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-outline btn-sm"
                     style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
                     onClick={() => window.AppStore.setTab('placements')}
                   >
-                    💼 View Placements Ledger &rarr;
+                    💼 Placements Ledger &rarr;
+                  </button>
+                  <button
+                    className="btn btn-warning btn-sm"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}
+                    title="If candidate exited or resigned, renew their registration and return to available pool"
+                    onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+                  >
+                    <span>🔄</span> Exit / Resign & Renew to Pool
                   </button>
                 </div>
               </div>
@@ -679,6 +697,30 @@ function CandidatesView({ state }) {
               </button>
             )}
 
+            {/* Placed candidate exit or renewal option */}
+            {ren.isPlaced && (
+              <button
+                className="btn btn-outline btn-sm"
+                title="If candidate exited or resigned, renew registration and return to available pool"
+                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', display: 'flex', alignItems: 'center', gap: '3px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+              >
+                <span>🔄</span> Renew / Exit
+              </button>
+            )}
+
+            {/* Resigned candidate direct renewal option */}
+            {String(row.status || '').toLowerCase() === 'resigned' && !ren.isAwaitingRenewal && (
+              <button
+                className="btn btn-warning btn-sm"
+                title="Renew resigned candidate registration and return to available pool"
+                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}
+                onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+              >
+                <span>🔄</span> Renew to Pool
+              </button>
+            )}
+
             <button
               className="btn btn-outline btn-sm"
               title="Candidate Full Activity Log & Export to Excel"
@@ -737,16 +779,13 @@ function CandidatesView({ state }) {
         </div>
       </div>
 
-      {/* Lifecycle Status Filter Navigation Tabs - Available in Pool first, Awaiting Renewal second, All Candidates at the end */}
+      {/* Lifecycle Status Filter Navigation Tabs - Strictly required lifecycle stages based on business logic */}
       <div className="candidate-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
           { key: 'registered', label: '📋 Available in Pool', count: statusCounts.registered },
           { key: 'awaiting_renewal', label: '⏳ Awaiting Renewal', count: statusCounts.awaiting_renewal, isWarning: true },
           { key: 'registration_incomplete', label: '⚠️ Incomplete Profile', count: statusCounts.registration_incomplete, isDanger: true },
           { key: 'placed', label: '💼 Placed in Employment', count: statusCounts.placed },
-          { key: 'completed', label: '🎓 Completed Program', count: statusCounts.completed },
-          { key: 'resigned', label: '⚠️ Resigned / Exited', count: statusCounts.resigned },
-          { key: 'on_hold', label: '⏸️ On Hold', count: statusCounts.on_hold },
           { key: 'all', label: 'All Candidates', count: statusCounts.all },
         ].map(tab => {
           const isSelected = statusFilter === tab.key;

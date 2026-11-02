@@ -53,7 +53,7 @@ function Modals({ state }) {
       {type === 'DISPUTE_DETAILS' && <DisputeDetailsModal state={state} initialProps={props} />}
       {type === 'EDIT_USER' && <EditUserModal state={state} user={props?.user} />}
       {type === 'EDIT_CLAIM_AMOUNT' && <EditClaimAmountModal state={state} milestone={props?.milestone} claim={props?.claim} />}
-      {type === 'RENEW_CANDIDATE' && <RenewCandidateModal state={state} candidate={props?.candidate} />}
+      {type === 'RENEW_CANDIDATE' && <RenewCandidateModal state={state} candidate={props?.candidate} fromPlaced={props?.fromPlaced} />}
       {type === 'CANDIDATE_ACTIVITY_LOG' && <CandidateActivityLogModal state={state} initialCandidateId={props?.candidateId || props?.candidate?.id} />}
       {(type === 'SANDS_PROFILE' || type === 'PRODUCTS_SHOWCASE') && <SandsCompanyProfileModal state={state} />}
     </div>
@@ -1404,17 +1404,31 @@ function PlacementDossierModal({ state, candidate }) {
 
       </div>
 
-      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={() => {
-            window.AppStore.closeModal();
-            window.AppStore.openModal('LINK_PLACEMENT', { candidate });
-          }}
-        >
-          ✏️ Edit Placement Details
-        </button>
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              window.AppStore.closeModal();
+              window.AppStore.openModal('LINK_PLACEMENT', { candidate });
+            }}
+          >
+            ✏️ Edit Placement Details
+          </button>
+          <button
+            type="button"
+            className="btn btn-warning"
+            style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            title="If candidate exited or resigned, renew their registration and return them to the talent pool"
+            onClick={() => {
+              window.AppStore.closeModal();
+              setTimeout(() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate, fromPlaced: true }), 100);
+            }}
+          >
+            <span>🔄</span> Record Exit & Renew to Pool
+          </button>
+        </div>
         <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>
           Close Dossier
         </button>
@@ -1467,14 +1481,34 @@ function UpdateStatusModal({ state, candidate }) {
               onChange={e => setStatus(e.target.value)}
               required
             >
+              <option value="registered">📋 Available in Pool (Checklist Verified)</option>
+              <option value="placed">💼 Placed in Employment</option>
               <option value="registration_incomplete">⚠️ Incomplete Profile (Checklist Pending)</option>
-              <option value="registered">📋 Registered (In Talent Pool / Available)</option>
-              <option value="placed">💼 Placed (Under Placement Contract)</option>
-              <option value="completed">🎓 Completed (365 Days Program Finished)</option>
-              <option value="resigned">⚠️ Resigned / Voluntary Exit</option>
-              <option value="on_hold">⏸️ On Hold / Verification Required</option>
+              <option value="resigned">⚠️ Resigned / Exited (Can Renew to Pool)</option>
             </select>
           </div>
+
+          {(status === 'resigned' || candidate.company_name) && (
+            <div style={{ padding: '0.75rem 0.85rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--warning, #d97706)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>🔄</span> Need to return candidate to Talent Pool?
+              </div>
+              <div style={{ lineHeight: 1.4 }}>
+                If candidate exited or resigned, you can directly <strong>Renew</strong> them to archive this placement and make them available in the talent pool with a fresh 12-month validity period (preserving Ref: <strong>{candidate.ref_no}</strong>).
+              </div>
+              <button
+                type="button"
+                className="btn btn-warning btn-sm"
+                style={{ marginTop: '0.5rem', fontSize: '0.74rem', padding: '0.25rem 0.6rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => {
+                  window.AppStore.closeModal();
+                  setTimeout(() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate, fromPlaced: true }), 120);
+                }}
+              >
+                <span>🔄</span> Exit & Renew to Pool &rarr;
+              </button>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Status Change Reason / Remarks</label>
@@ -5084,7 +5118,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
 // Preserves Candidate Reference Number (ref_no), calculates days past 12m,
 // permits updating contact, education, case manager & attaching renewal documents.
 // =========================================================================
-function RenewCandidateModal({ state, candidate: initialCandidate }) {
+function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: initialFromPlaced }) {
   if (!initialCandidate) return null;
   const { currentUser, caseManagers = [], settings = {} } = state;
   const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
@@ -5095,14 +5129,30 @@ function RenewCandidateModal({ state, candidate: initialCandidate }) {
   const isPast12m = daysElapsed > 365;
   const daysPast12m = isPast12m ? daysElapsed - 365 : 0;
 
+  // Check if candidate is currently in placed status or has active employer linkage
+  const wasPlaced = initialFromPlaced || ['placed', 'active'].includes(String(liveCandidate.status || '').toLowerCase()) || Boolean(liveCandidate.company_name);
+
+  const [exitType, setExitType] = useState('resigned');
+  const [exitDate, setExitDate] = useState(new Date().toISOString().split('T')[0]);
+  const [exitReason, setExitReason] = useState(
+    wasPlaced 
+      ? `Candidate exited placement with ${liveCandidate.company_name || 'employer'}. Renewed registration and returned to Available in Pool.`
+      : ''
+  );
+  const [clearPlacement, setClearPlacement] = useState(true);
+
   const [phone, setPhone] = useState(liveCandidate.phone || '');
   const [email, setEmail] = useState(liveCandidate.email || '');
   const [education, setEducation] = useState(liveCandidate.education || 'Bachelor Degree');
   const [caseManager, setCaseManager] = useState(liveCandidate.case_manager_name || (caseManagers[0]?.case_manager_code || 'Husain'));
   const [renewalDate, setRenewalDate] = useState(new Date().toISOString().split('T')[0]);
-  const [remarks, setRemarks] = useState(`12-month registration cycle renewal. Candidate profile active in national talent pool.`);
+  const [remarks, setRemarks] = useState(
+    wasPlaced
+      ? `Placement with ${liveCandidate.company_name || 'employer'} ended (Exit/Resigned). Registration renewed and candidate moved back to Available in Pool.`
+      : `12-month registration cycle renewal. Candidate profile active in national talent pool.`
+  );
   const [newDocuments, setNewDocuments] = useState([]);
-  const [uploadDocType, setUploadDocType] = useState('🪪 Renewed CPR / Smart Card');
+  const [uploadDocType, setUploadDocType] = useState(wasPlaced ? '📄 Resignation Letter / Exit Settlement' : '🪪 Renewed CPR / Smart Card');
   const [uploadDocName, setUploadDocName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -5148,7 +5198,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate }) {
         case_manager_name: caseManager,
         renewal_date: renewalDate,
         remarks: remarks.trim(),
-        documents: newDocuments
+        documents: newDocuments,
+        clear_placement: wasPlaced ? clearPlacement : false,
+        exit_type: wasPlaced ? exitType : null,
+        exit_date: wasPlaced ? exitDate : null,
+        exit_reason: wasPlaced ? (exitReason || remarks.trim()) : null
       };
 
       const res = await window.api.candidates.renew(liveCandidate.id, payload);
@@ -5156,10 +5210,12 @@ function RenewCandidateModal({ state, candidate: initialCandidate }) {
       if (window.swal) {
         window.swal.fire({
           icon: 'success',
-          title: 'Candidate Registration Renewed!',
+          title: wasPlaced ? 'Placement Exited & Candidate Renewed!' : 'Candidate Registration Renewed!',
           html: `<div style="text-align: left; font-size: 0.9rem; line-height: 1.5;">
             <div><strong>Candidate:</strong> ${liveCandidate.full_name}</div>
             <div><strong>Reference Number:</strong> <span style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">${liveCandidate.ref_no}</span> (Preserved)</div>
+            ${wasPlaced && liveCandidate.company_name ? `<div><strong>Previous Employer:</strong> ${liveCandidate.company_name} (Archived)</div>` : ''}
+            ${wasPlaced ? `<div><strong>Exit Type:</strong> <span style="text-transform: capitalize;">${exitType.replace('_', ' ')}</span></div>` : ''}
             <div><strong>Renewal Date:</strong> ${renewalDate}</div>
             <div style="margin-top: 6px; color: var(--success); font-weight: 600;">✓ Successfully moved back to "Available in Pool" with reset 12-month validity.</div>
           </div>`,
@@ -5192,10 +5248,12 @@ function RenewCandidateModal({ state, candidate: initialCandidate }) {
       <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
         <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            <span>🔄</span> Renew Candidate Registration
+            <span>🔄</span> {wasPlaced ? 'Record Placement Exit & Renew to Pool' : 'Renew Candidate Registration'}
           </h2>
           <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
-            Preserve candidate reference number and extend national talent pool placement validity for 12 months.
+            {wasPlaced
+              ? 'Archive employer placement, preserve candidate reference number, and renew talent pool validity for 12 months.'
+              : 'Preserve candidate reference number and extend national talent pool placement validity for 12 months.'}
           </p>
         </div>
         <button
@@ -5210,6 +5268,72 @@ function RenewCandidateModal({ state, candidate: initialCandidate }) {
 
       <form onSubmit={handleSubmit}>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', padding: '1.25rem' }}>
+
+          {/* Placement Exit Banner if candidate was placed */}
+          {wasPlaced && (
+            <div
+              style={{
+                background: 'rgba(14, 165, 233, 0.08)',
+                border: '1px solid rgba(14, 165, 233, 0.35)',
+                borderRadius: 'var(--radius-md, 8px)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>💼</span> Placement Exit & Return to Talent Pool
+                </div>
+                <span className="badge badge-warning" style={{ fontSize: '0.74rem' }}>
+                  Currently Placed
+                </span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                Candidate is currently linked to <strong>{liveCandidate.company_name || 'Employer'}</strong> as <strong>{liveCandidate.position_title || 'Placed Specialist'}</strong>.
+                Completing this renewal will archive their placement and exit details in candidate logs, reset the 12-month registration validity, and move the candidate back to <strong>Available in Pool</strong>.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '0.25rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit / Resignation Type *</label>
+                  <select
+                    className="select-control"
+                    value={exitType}
+                    onChange={e => setExitType(e.target.value)}
+                    style={{ fontSize: '0.82rem' }}
+                  >
+                    <option value="resigned">⚠️ Voluntary Resignation (Candidate Resigned)</option>
+                    <option value="terminated">⚠️ Employer Contract Ended / Terminated</option>
+                    <option value="probation_exit">⚠️ Probation Period Exit</option>
+                    <option value="completed_365">🎓 365-Day Program Completed (Re-enrolling in Pool)</option>
+                    <option value="general_renewal">🔄 Cycle Renewal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Effective Date *</label>
+                  <input
+                    type="date"
+                    className="input-control"
+                    value={exitDate}
+                    onChange={e => setExitDate(e.target.value)}
+                    style={{ fontSize: '0.82rem' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Reason / Clearance Note</label>
+                <input
+                  type="text"
+                  className="input-control"
+                  placeholder="e.g. Candidate tendered resignation / contract completed / mutually separated"
+                  value={exitReason}
+                  onChange={e => setExitReason(e.target.value)}
+                  style={{ fontSize: '0.82rem' }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Banner: Preserved Reference Number & 12-Month Overdue Info */}
           <div
