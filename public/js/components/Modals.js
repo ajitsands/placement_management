@@ -1203,6 +1203,9 @@ function JobModal({ state, job }) {
     try {
       const payload = {
         ...form,
+        job_title: form.position_title.trim(),
+        position_title: form.position_title.trim(),
+        salary_offered_bhd: parseFloat(form.salary_bhd) || 0,
         salary_bhd: parseFloat(form.salary_bhd) || 0,
         vacancies_count: parseInt(form.vacancies_count, 10) || 1
       };

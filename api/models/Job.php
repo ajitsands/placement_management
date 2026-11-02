@@ -58,6 +58,8 @@ class Job {
             $job['placed_count'] = $placed;
             $job['vacancies_remaining'] = $remaining;
             $job['placed_candidates'] = $placedCandidates[$jobId] ?? [];
+            $job['position_title'] = $job['job_title'] ?? '';
+            $job['salary_bhd'] = (float)($job['salary_offered_bhd'] ?? 0);
             if ($remaining === 0 && ($job['status'] === 'active' || $job['status'] === 'open')) {
                 $job['computed_status'] = 'filled';
             } else {
@@ -107,11 +109,11 @@ class Job {
         $newJob = [
             'id' => $newId,
             'job_code' => $jobCode,
-            'job_title' => trim($data['job_title'] ?? 'Job Position'),
+            'job_title' => trim($data['job_title'] ?? $data['position_title'] ?? 'Job Position'),
             'company_name' => trim($data['company_name'] ?? 'Employer'),
             'employer_cr' => trim($data['employer_cr'] ?? ''),
             'department' => trim($data['department'] ?? 'General'),
-            'salary_offered_bhd' => (float)($data['salary_offered_bhd'] ?? 500.0),
+            'salary_offered_bhd' => (float)($data['salary_offered_bhd'] ?? $data['salary_bhd'] ?? 500.0),
             'vacancies_count' => max(1, (int)($data['vacancies_count'] ?? 1)),
             'status' => trim($data['status'] ?? 'active'),
             'requirements' => trim($data['requirements'] ?? ''),
@@ -135,10 +137,14 @@ class Job {
         foreach ($jobs as &$j) {
             if ($j['id'] === $id) {
                 if (isset($data['job_title'])) $j['job_title'] = trim($data['job_title']);
+                else if (isset($data['position_title'])) $j['job_title'] = trim($data['position_title']);
+
                 if (isset($data['company_name'])) $j['company_name'] = trim($data['company_name']);
                 if (isset($data['employer_cr'])) $j['employer_cr'] = trim($data['employer_cr']);
                 if (isset($data['department'])) $j['department'] = trim($data['department']);
+
                 if (isset($data['salary_offered_bhd'])) $j['salary_offered_bhd'] = (float)$data['salary_offered_bhd'];
+                else if (isset($data['salary_bhd'])) $j['salary_offered_bhd'] = (float)$data['salary_bhd'];
                 if (isset($data['vacancies_count'])) $j['vacancies_count'] = max(1, (int)$data['vacancies_count']);
                 if (isset($data['status'])) $j['status'] = trim($data['status']);
                 if (isset($data['requirements'])) $j['requirements'] = trim($data['requirements']);

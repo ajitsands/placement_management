@@ -42,11 +42,18 @@ class JobController {
 
     public function create(array $data): void {
         $user = Auth::getCurrentUser();
-        if (empty($data['job_title'])) {
+        $jobTitle = trim($data['job_title'] ?? $data['position_title'] ?? '');
+        if (empty($jobTitle)) {
             Response::error('Job Title is required', 400);
         }
-        if (empty($data['company_name'])) {
+        $companyName = trim($data['company_name'] ?? '');
+        if (empty($companyName)) {
             Response::error('Employer Company Name is required', 400);
+        }
+
+        $data['job_title'] = $jobTitle;
+        if (!isset($data['salary_offered_bhd']) && isset($data['salary_bhd'])) {
+            $data['salary_offered_bhd'] = (float)$data['salary_bhd'];
         }
 
         $job = Job::create($data, $user);
@@ -54,6 +61,13 @@ class JobController {
     }
 
     public function update(int $id, array $data): void {
+        if (isset($data['position_title']) && !isset($data['job_title'])) {
+            $data['job_title'] = trim($data['position_title']);
+        }
+        if (isset($data['salary_bhd']) && !isset($data['salary_offered_bhd'])) {
+            $data['salary_offered_bhd'] = (float)$data['salary_bhd'];
+        }
+
         $job = Job::update($id, $data);
         if (!$job) {
             Response::notFound("Job with ID {$id} not found");
