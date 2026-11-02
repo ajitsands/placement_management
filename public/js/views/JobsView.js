@@ -17,6 +17,7 @@ function JobsView({ state }) {
 
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
   const [selectedDepartment, setSelectedDepartment] = useState(() => readSaved('department'));
+  const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'all'));
 
   const persist = (setter, key) => (val) => {
@@ -26,14 +27,16 @@ function JobsView({ state }) {
 
   const handleEmployerChange = persist(setSelectedEmployer, 'employer');
   const handleDepartmentChange = persist(setSelectedDepartment, 'department');
+  const handlePositionChange = persist(setSelectedPosition, 'position');
   const handleStatusChange = persist(setStatusFilter, 'status');
   const handleResetAll = () => {
     handleEmployerChange('');
     handleDepartmentChange('');
+    handlePositionChange('');
     handleStatusChange('all');
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -65,6 +68,24 @@ function JobsView({ state }) {
     return [{ value: '', label: `All Departments (${list.length})`, subLabel: 'Filter by department' }, ...list];
   }, [jobs]);
 
+  // Position / Job Title Filter Options
+  const positionOptions = useMemo(() => {
+    const map = new Map();
+    (jobs || []).forEach(j => {
+      const pos = (j.job_title || '').trim();
+      if (pos && !map.has(pos.toLowerCase())) {
+        map.set(pos.toLowerCase(), {
+          value: pos,
+          label: pos,
+          subLabel: j.job_code ? `Code: ${j.job_code}` : 'Job Position',
+          searchKeywords: `${pos} ${j.job_code || ''} ${j.department || ''}`
+        });
+      }
+    });
+    const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    return [{ value: '', label: `All Positions (${list.length})`, subLabel: 'Filter by job position' }, ...list];
+  }, [jobs]);
+
   // Status Filter Options
   const statusOptions = [
     { id: 'all', label: 'All Jobs' },
@@ -78,6 +99,7 @@ function JobsView({ state }) {
     return (jobs || []).filter(j => {
       if (selectedEmployer && strcasecmp(j.company_name, selectedEmployer) !== 0) return false;
       if (selectedDepartment && strcasecmp(j.department, selectedDepartment) !== 0) return false;
+      if (selectedPosition && strcasecmp(j.job_title, selectedPosition) !== 0) return false;
       if (statusFilter !== 'all') {
         const compStatus = (j.computed_status || j.status || 'active').toLowerCase();
         if (statusFilter === 'active' && compStatus !== 'active' && compStatus !== 'open') return false;
@@ -86,7 +108,7 @@ function JobsView({ state }) {
       }
       return true;
     });
-  }, [jobs, selectedEmployer, selectedDepartment, statusFilter]);
+  }, [jobs, selectedEmployer, selectedDepartment, selectedPosition, statusFilter]);
 
   function strcasecmp(a, b) {
     return String(a || '').toLowerCase().localeCompare(String(b || '').toLowerCase());
@@ -432,137 +454,6 @@ function JobsView({ state }) {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div
-        className="kpi-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-          gap: '1.25rem',
-          marginBottom: '1.25rem'
-        }}
-      >
-        <div
-          className="kpi-card"
-          style={{
-            background: 'var(--bg-card, #ffffff)',
-            border: '1px solid var(--border-light, #e2e8f0)',
-            borderTop: '4px solid var(--primary, #006a94)',
-            borderRadius: 'var(--radius-lg, 12px)',
-            padding: '1.25rem 1.4rem',
-            boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Job Openings
-            </span>
-            <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md, 8px)', background: 'var(--primary-glow, rgba(0, 106, 148, 0.12))', color: 'var(--primary, #006a94)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-              💼
-            </div>
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary, #0f172a)', lineHeight: 1.1, fontFamily: 'var(--font-sans)' }}>
-            {kpis.totalJobs}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.45rem' }}>
-            Registered job positions across employers
-          </div>
-        </div>
-
-        <div
-          className="kpi-card success"
-          style={{
-            background: 'var(--bg-card, #ffffff)',
-            border: '1px solid var(--border-light, #e2e8f0)',
-            borderTop: '4px solid var(--success, #059669)',
-            borderRadius: 'var(--radius-lg, 12px)',
-            padding: '1.25rem 1.4rem',
-            boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Open Vacancies
-            </span>
-            <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md, 8px)', background: 'rgba(5, 150, 105, 0.12)', color: 'var(--success, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>
-              🎯
-            </div>
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--success, #059669)', lineHeight: 1.1, fontFamily: 'var(--font-sans)' }}>
-            {kpis.totalOpen}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.45rem' }}>
-            Available positions ready for placement
-          </div>
-        </div>
-
-        <div
-          className="kpi-card info"
-          style={{
-            background: 'var(--bg-card, #ffffff)',
-            border: '1px solid var(--border-light, #e2e8f0)',
-            borderTop: '4px solid var(--info, #0284c7)',
-            borderRadius: 'var(--radius-lg, 12px)',
-            padding: '1.25rem 1.4rem',
-            boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Placed Candidates
-            </span>
-            <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md, 8px)', background: 'rgba(2, 132, 199, 0.12)', color: 'var(--info, #0284c7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-              👥
-            </div>
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--info, #0284c7)', lineHeight: 1.1, fontFamily: 'var(--font-sans)' }}>
-            {kpis.totalPlaced}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.45rem' }}>
-            Assigned to active employer contracts
-          </div>
-        </div>
-
-        <div
-          className="kpi-card"
-          style={{
-            background: 'var(--bg-card, #ffffff)',
-            border: '1px solid var(--border-light, #e2e8f0)',
-            borderTop: '4px solid #6366f1',
-            borderRadius: 'var(--radius-lg, 12px)',
-            padding: '1.25rem 1.4rem',
-            boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Capacity
-            </span>
-            <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md, 8px)', background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-              🏢
-            </div>
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary, #0f172a)', lineHeight: 1.1, fontFamily: 'var(--font-sans)' }}>
-            {kpis.totalVacancies}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.45rem' }}>
-            Combined quota across registered jobs
-          </div>
-        </div>
-      </div>
-
       {/* Filter Card */}
       <div
         className="card"
@@ -599,9 +490,9 @@ function JobsView({ state }) {
           </div>
 
           {/* Department Filter */}
-          <div style={filterBox('1 1 230px', '200px')}>
+          <div style={filterBox('1 1 220px', '190px')}>
             <label style={labelStyle}><span>🏷️</span> Department:</label>
-            <div style={{ flex: 1, minWidth: '140px' }}>
+            <div style={{ flex: 1, minWidth: '130px' }}>
               {SearchableSelect ? (
                 <SearchableSelect
                   options={departmentOptions}
@@ -613,6 +504,26 @@ function JobsView({ state }) {
               ) : (
                 <select className="select-control" value={selectedDepartment} onChange={e => handleDepartmentChange(e.target.value)}>
                   {departmentOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Position Filter */}
+          <div style={filterBox('1 1 230px', '200px')}>
+            <label style={labelStyle}><span>💼</span> Position:</label>
+            <div style={{ flex: 1, minWidth: '140px' }}>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={positionOptions}
+                  value={selectedPosition}
+                  onChange={handlePositionChange}
+                  placeholder="All Positions"
+                  searchPlaceholder="Search job position..."
+                />
+              ) : (
+                <select className="select-control" value={selectedPosition} onChange={e => handlePositionChange(e.target.value)}>
+                  {positionOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               )}
             </div>
