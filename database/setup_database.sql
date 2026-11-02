@@ -116,6 +116,23 @@ CREATE TABLE IF NOT EXISTS `checklist_masters` (
     INDEX `idx_checklist_order` (`display_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 5b. Candidate Document Category Master Table
+CREATE TABLE IF NOT EXISTS `document_categories` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(64) NOT NULL UNIQUE,
+    `name` VARCHAR(191) NOT NULL,
+    `icon` VARCHAR(32) NOT NULL DEFAULT '📄',
+    `description` TEXT NULL,
+    `is_mandatory` TINYINT(1) NOT NULL DEFAULT 0,
+    `display_order` INT NOT NULL DEFAULT 1,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_doc_cat_code` (`code`),
+    INDEX `idx_doc_cat_order` (`display_order`),
+    INDEX `idx_doc_cat_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 6. Milestone Triggers Table
 CREATE TABLE IF NOT EXISTS `milestones` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -247,6 +264,20 @@ INSERT INTO `checklist_masters` (`id`, `code`, `title`, `description`, `category
 (5, 'GOSI_RECORD', 'GOSI Employment History / Status Record', 'Social insurance contribution clearance confirming candidate eligibility under Tamkeen subsidy guidelines.', 'Compliance & Verification', 10, 0, 5, 1),
 (6, 'MOL_AGREE', 'MOL & Placement Retention Consent', 'Signed candidate acknowledgment of Ministry of Labour employment terms and Tamkeen retention milestones.', 'Compliance & Verification', 10, 1, 6, 1)
 ON DUPLICATE KEY UPDATE `title` = VALUES(`title`), `weight` = VALUES(`weight`), `is_mandatory` = VALUES(`is_mandatory`);
+
+-- 3b. Default Candidate Document Categories
+INSERT INTO `document_categories` (`id`, `code`, `name`, `icon`, `description`, `is_mandatory`, `display_order`, `is_active`) VALUES
+(1, 'CPR', 'CPR / Smart Card Copy', '🆔', 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.', 1, 1, 1),
+(2, 'RESUME', 'Resume / CV', '📄', 'Current professional curriculum vitae detailing education and employment background.', 1, 2, 1),
+(3, 'DEGREE', 'Educational Degree / Certificate', '🎓', 'Graduation diploma or accredited academic qualification certificate.', 1, 3, 1),
+(4, 'IBAN', 'Bank Account IBAN Certificate', '🏦', 'Official bank letter or statement confirming candidate IBAN for wage disbursement.', 1, 4, 1),
+(5, 'GOSI', 'GOSI Employment History / Certificate', '📑', 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.', 0, 5, 1),
+(6, 'MOL_CONSENT', 'MOL & Tamkeen Consent Form', '⚖️', 'Signed agreement acknowledging national employment and wage subsidy terms.', 1, 6, 1),
+(7, 'CONTRACT', 'Employment Offer / Contract', '📝', 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.', 0, 7, 1),
+(8, 'EXIT_LETTER', 'Resignation / Exit Clearance Letter', '📜', 'Official release or resignation acceptance letter from previous employer.', 0, 8, 1),
+(9, 'PHOTO', 'Passport Size Photo', '🖼️', 'Recent biometric passport photograph with clear white background.', 0, 9, 1),
+(10, 'OTHER', 'Other Supporting Document', '📎', 'Supplementary certificates, licenses, or professional credentials.', 0, 10, 1)
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `icon` = VALUES(`icon`), `is_mandatory` = VALUES(`is_mandatory`);
 
 -- 4. Default Jobs / Vacancies
 INSERT INTO `jobs` (`id`, `job_code`, `job_title`, `company_name`, `employer_cr`, `department`, `salary_offered_bhd`, `vacancies_count`, `status`, `requirements`, `description`) VALUES

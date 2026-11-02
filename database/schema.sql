@@ -119,6 +119,23 @@ CREATE TABLE IF NOT EXISTS `checklist_masters` (
     INDEX `idx_checklist_order` (`display_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 6. Candidate Document Category Master Table
+CREATE TABLE IF NOT EXISTS `document_categories` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(64) NOT NULL UNIQUE,
+    `name` VARCHAR(191) NOT NULL,
+    `icon` VARCHAR(32) NOT NULL DEFAULT '📄',
+    `description` TEXT NULL,
+    `is_mandatory` TINYINT(1) NOT NULL DEFAULT 0,
+    `display_order` INT NOT NULL DEFAULT 1,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_doc_cat_code` (`code`),
+    INDEX `idx_doc_cat_order` (`display_order`),
+    INDEX `idx_doc_cat_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 4. Milestone Triggers Table (Placement, 180-Day, 365-Day)
 CREATE TABLE IF NOT EXISTS `milestones` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,

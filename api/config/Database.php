@@ -40,6 +40,7 @@ class Database {
                         self::ensureCandidateJobColumn(self::$pdo);
                         self::ensureChecklistTables(self::$pdo);
                         self::ensureCandidateChecklistColumns(self::$pdo);
+                        self::ensureDocumentCategoriesTable(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -130,6 +131,26 @@ class Database {
                 `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX `idx_checklist_code` (`code`),
                 INDEX `idx_checklist_order` (`display_order`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
+    private static function ensureDocumentCategoriesTable(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `document_categories` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `code` VARCHAR(64) NOT NULL UNIQUE,
+                `name` VARCHAR(191) NOT NULL,
+                `icon` VARCHAR(32) NOT NULL DEFAULT '📄',
+                `description` TEXT NULL,
+                `is_mandatory` TINYINT(1) NOT NULL DEFAULT 0,
+                `display_order` INT NOT NULL DEFAULT 1,
+                `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_doc_cat_code` (`code`),
+                INDEX `idx_doc_cat_order` (`display_order`),
+                INDEX `idx_doc_cat_active` (`is_active`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
     }
@@ -371,17 +392,43 @@ class Database {
             self::saveChecklistMastersToMySQL($pdo, $checklistMasters);
         }
 
+        // Document Categories
+        try {
+            $docCategories = array_map(function($c) {
+                $c['id'] = (int)$c['id'];
+                $c['is_mandatory'] = (int)$c['is_mandatory'];
+                $c['display_order'] = (int)$c['display_order'];
+                $c['is_active'] = (int)$c['is_active'];
+                return $c;
+            }, $pdo->query("SELECT * FROM document_categories ORDER BY display_order ASC, id ASC")->fetchAll());
+        } catch (Exception $e) {
+            $docCategories = [];
+        }
+
+        if (empty($docCategories) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['document_categories'])) {
+                $docCategories = $jsonRaw['document_categories'];
+                self::saveDocumentCategoriesToMySQL($pdo, $docCategories);
+            }
+        }
+        if (empty($docCategories)) {
+            $docCategories = \App\Models\DocumentCategory::getDefaultCategories();
+            self::saveDocumentCategoriesToMySQL($pdo, $docCategories);
+        }
+
         return [
-            'settings'          => $settings,
-            'users'             => $users,
-            'candidates'        => $candidates,
-            'jobs'              => $jobs,
-            'checklist_masters' => $checklistMasters,
-            'milestones'        => $milestones,
-            'claims'            => $claims,
-            'disputes'          => $disputes,
-            'payments'          => $payments,
-            'audit_logs'        => $auditLogs
+            'settings'            => $settings,
+            'users'               => $users,
+            'candidates'          => $candidates,
+            'jobs'                => $jobs,
+            'checklist_masters'   => $checklistMasters,
+            'document_categories' => $docCategories,
+            'milestones'          => $milestones,
+            'claims'              => $claims,
+            'disputes'            => $disputes,
+            'payments'            => $payments,
+            'audit_logs'          => $auditLogs
         ];
     }
 
@@ -444,6 +491,37 @@ class Database {
                     ':description'   => $item['description'] ?? '',
                     ':category'      => $item['category'] ?? 'Identity & Legal',
                     ':weight'        => (int)($item['weight'] ?? 10),
+                    ':is_mandatory'  => !empty($item['is_mandatory']) ? 1 : 0,
+                    ':display_order' => (int)($item['display_order'] ?? 1),
+                    ':is_active'     => !empty($item['is_active']) ? 1 : 0,
+                    ':created_at'    => $item['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Ignore error
+        }
+    }
+
+    private static function saveDocumentCategoriesToMySQL(PDO $pdo, array $items): void {
+        try {
+            self::ensureDocumentCategoriesTable($pdo);
+            $stmt = $pdo->prepare("INSERT INTO document_categories (id, code, name, icon, description, is_mandatory, display_order, is_active, created_at)
+                VALUES (:id, :code, :name, :icon, :description, :is_mandatory, :display_order, :is_active, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    icon = VALUES(icon),
+                    description = VALUES(description),
+                    is_mandatory = VALUES(is_mandatory),
+                    display_order = VALUES(display_order),
+                    is_active = VALUES(is_active)");
+
+            foreach ($items as $item) {
+                $stmt->execute([
+                    ':id'            => (int)$item['id'],
+                    ':code'          => $item['code'],
+                    ':name'          => $item['name'],
+                    ':icon'          => $item['icon'] ?? '📄',
+                    ':description'   => $item['description'] ?? '',
                     ':is_mandatory'  => !empty($item['is_mandatory']) ? 1 : 0,
                     ':display_order' => (int)($item['display_order'] ?? 1),
                     ':is_active'     => !empty($item['is_active']) ? 1 : 0,
@@ -712,6 +790,11 @@ class Database {
             // 7. Checklist Masters
             if (!empty($data['checklist_masters']) && is_array($data['checklist_masters'])) {
                 self::saveChecklistMastersToMySQL($pdo, $data['checklist_masters']);
+            }
+
+            // 8. Document Categories
+            if (!empty($data['document_categories']) && is_array($data['document_categories'])) {
+                self::saveDocumentCategoriesToMySQL($pdo, $data['document_categories']);
             }
 
             $pdo->commit();

@@ -173,6 +173,17 @@ class ApiService {
     evaluate: (checked) => this.request('/checklist-master/evaluate', { method: 'POST', body: { checked } })
   };
 
+  documentCategories = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/document-categories${qs ? '?' + qs : ''}`);
+    },
+    getOne: (id) => this.request(`/document-categories/${id}`),
+    create: (data) => this.request('/document-categories', { method: 'POST', body: data }),
+    update: (id, data) => this.request(`/document-categories/${id}`, { method: 'PUT', body: data }),
+    delete: (id) => this.request(`/document-categories/${id}`, { method: 'DELETE' })
+  };
+
   settings = {
     get: () => this.request('/settings'),
     update: (newSettings) => this.request('/settings', { method: 'PUT', body: newSettings })

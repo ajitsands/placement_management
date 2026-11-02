@@ -128,6 +128,19 @@ function NewCandidateModal({ state }) {
 
   // Candidate Registration Checklist Master & Real-Time Percentage
   const checklistMasters = state?.checklistMasters || [];
+  const documentCategories = state?.documentCategories || [];
+  const activeDocCategories = useMemo(() => {
+    const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
+    if (list.length > 0) return list;
+    return [
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+    ];
+  }, [documentCategories]);
   const [checkedItems, setCheckedItems] = useState(() => new Set());
 
   const activeChecklistMasters = useMemo(() => {
@@ -665,12 +678,11 @@ function NewCandidateModal({ state }) {
                   value={uploadDocType}
                   onChange={e => setUploadDocType(e.target.value)}
                 >
-                  <option value="CPR / Smart Card Copy">CPR / Smart Card Copy</option>
-                  <option value="Resume / CV">Resume / CV</option>
-                  <option value="Educational Degree / Certificate">Educational Degree / Certificate</option>
-                  <option value="Employment Offer / Contract">Employment Offer / Contract</option>
-                  <option value="GOSI Certificate">GOSI Certificate</option>
-                  <option value="Other Supporting Document">Other Supporting Document</option>
+                  {activeDocCategories.map(cat => (
+                    <option key={cat.code || cat.id} value={cat.name}>
+                      {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1537,6 +1549,19 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
   if (!initialCandidate) return null;
   const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
   const [docs, setDocs] = useState(liveCandidate.documents || []);
+  const documentCategories = state?.documentCategories || [];
+  const activeDocCategories = useMemo(() => {
+    const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
+    if (list.length > 0) return list;
+    return [
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+    ];
+  }, [documentCategories]);
   const [uploadDocType, setUploadDocType] = useState('🆔 CPR / Smart Card Copy');
   const [uploadDocName, setUploadDocName] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -1688,12 +1713,11 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                 value={uploadDocType}
                 onChange={e => setUploadDocType(e.target.value)}
               >
-                <option value="🆔 CPR / Smart Card Copy">🆔 CPR / Smart Card Copy</option>
-                <option value="📄 Resume / CV">📄 Resume / CV</option>
-                <option value="🎓 Educational Degree / Certificate">🎓 Educational Degree</option>
-                <option value="📝 Employment Offer / Contract">📝 Employment Contract</option>
-                <option value="📑 GOSI Certificate">📑 GOSI Certificate</option>
-                <option value="📎 Other Supporting Document">📎 Other Document</option>
+                {activeDocCategories.map(cat => (
+                  <option key={cat.code || cat.id} value={cat.name}>
+                    {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -5119,6 +5143,19 @@ function EditClaimAmountModal({ state, milestone, claim }) {
 // permits updating contact, education, case manager & attaching renewal documents.
 // =========================================================================
 function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: initialFromPlaced }) {
+  const documentCategories = state?.documentCategories || [];
+  const activeDocCategories = useMemo(() => {
+    const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
+    if (list.length > 0) return list;
+    return [
+      { id: 1, code: 'CPR', name: 'Renewed CPR / Smart Card', icon: '🪪' },
+      { id: 2, code: 'RESUME', name: 'Updated CV / Resume', icon: '📄' },
+      { id: 3, code: 'DEGREE', name: 'Degree / Graduation Certificate', icon: '🎓' },
+      { id: 4, code: 'CONTRACT', name: 'Resignation Letter / Exit Settlement', icon: '📝' },
+      { id: 5, code: 'CONSENT', name: 'Renewal Consent Form', icon: '📑' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎' }
+    ];
+  }, [documentCategories]);
   if (!initialCandidate) return null;
   const { currentUser, caseManagers = [], settings = {} } = state;
   const liveCandidate = state.candidates?.find(c => c.id === initialCandidate.id || c.ref_no === initialCandidate.ref_no) || initialCandidate;
@@ -5523,12 +5560,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                   value={uploadDocType}
                   onChange={e => setUploadDocType(e.target.value)}
                 >
-                  <option value="🪪 Renewed CPR / Smart Card">🪪 Renewed CPR / Smart Card Copy</option>
-                  <option value="📄 Updated CV / Resume">📄 Updated CV / Resume</option>
-                  <option value="🎓 Degree / Graduation Certificate">🎓 Degree / Graduation Certificate</option>
-                  <option value="📜 Experience / Training Certificate">📜 Experience / Training Certificate</option>
-                  <option value="📑 Renewal Consent Form">📑 Renewal Consent Form</option>
-                  <option value="📎 Other Supporting Document">📎 Other Supporting Document</option>
+                  {activeDocCategories.map(cat => (
+                    <option key={cat.code || cat.id} value={cat.name}>
+                      {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

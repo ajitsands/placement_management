@@ -14,12 +14,17 @@ function SettingsView({ state }) {
   const currentUser = state?.currentUser || {};
   const databaseStatus = state?.databaseStatus || null;
   const checklistMasters = state?.checklistMasters || [];
+  const documentCategories = state?.documentCategories || [];
 
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
 
   // Checklist Master Management State
   const [editingCriterion, setEditingCriterion] = useState(null);
   const [criterionSaving, setCriterionSaving] = useState(false);
+
+  // Document Category Master Management State
+  const [editingDocCategory, setEditingDocCategory] = useState(null);
+  const [docCategorySaving, setDocCategorySaving] = useState(false);
 
   // Compute Total Checklist Weight & Status Summary
   const { totalActiveWeight, activeCriteriaCount, mandatoryCriteriaCount } = useMemo(() => {
@@ -35,6 +40,18 @@ function SettingsView({ state }) {
     });
     return { totalActiveWeight: totWeight, activeCriteriaCount: activeCount, mandatoryCriteriaCount: mandCount };
   }, [checklistMasters]);
+
+  // Compute Document Category Master Summary
+  const { totalDocCategoriesCount, activeDocCatCount, mandatoryDocCatCount } = useMemo(() => {
+    let tot = (documentCategories || []).length;
+    let active = 0;
+    let mand = 0;
+    (documentCategories || []).forEach(cat => {
+      if (cat.is_active !== 0 && cat.is_active !== false) active++;
+      if (cat.is_mandatory) mand++;
+    });
+    return { totalDocCategoriesCount: tot, activeDocCatCount: active, mandatoryDocCatCount: mand };
+  }, [documentCategories]);
 
   // Normalize Timezones list
   const tzList = useMemo(() => {
@@ -278,6 +295,117 @@ function SettingsView({ state }) {
       await window.AppStore.refreshData();
     } catch (err) {
       window.AppStore.showNotification('Failed to delete criterion: ' + err.message, 'error');
+    }
+  };
+
+  // Document Category Handlers
+  const handleOpenAddDocCategory = () => {
+    const nextOrder = (documentCategories || []).length + 1;
+    setEditingDocCategory({
+      isNew: true,
+      code: '',
+      name: '',
+      icon: '📄',
+      description: '',
+      is_mandatory: 0,
+      display_order: nextOrder,
+      is_active: 1
+    });
+  };
+
+  const handleOpenEditDocCategory = (item) => {
+    setEditingDocCategory({
+      isNew: false,
+      id: item.id,
+      code: item.code || '',
+      name: item.name || '',
+      icon: item.icon || '📄',
+      description: item.description || '',
+      is_mandatory: item.is_mandatory ? 1 : 0,
+      display_order: item.display_order || 1,
+      is_active: (item.is_active !== 0 && item.is_active !== false) ? 1 : 0
+    });
+  };
+
+  const handleSaveDocCategory = async (e) => {
+    e.preventDefault();
+    if (!isAdminOrSuper) {
+      window.AppStore.showNotification('Only Administrators can modify document categories', 'error');
+      return;
+    }
+    if (!editingDocCategory?.name?.trim()) {
+      window.AppStore.showNotification('Category Name is required', 'warning');
+      return;
+    }
+    setDocCategorySaving(true);
+    try {
+      const generatedCode = editingDocCategory.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      const payload = {
+        code: (editingDocCategory.code && editingDocCategory.code.trim()) ? editingDocCategory.code.trim().toUpperCase() : generatedCode,
+        name: editingDocCategory.name.trim(),
+        icon: editingDocCategory.icon?.trim() || '📄',
+        description: editingDocCategory.description?.trim() || '',
+        is_mandatory: parseInt(editingDocCategory.is_mandatory, 10) ? 1 : 0,
+        display_order: parseInt(editingDocCategory.display_order, 10) || 1,
+        is_active: parseInt(editingDocCategory.is_active, 10) ? 1 : 0
+      };
+
+      if (editingDocCategory.isNew) {
+        await window.api.documentCategories.create(payload);
+        window.AppStore.showNotification(`Document category "${payload.name}" created successfully`, 'success');
+      } else {
+        await window.api.documentCategories.update(editingDocCategory.id, payload);
+        window.AppStore.showNotification(`Document category "${payload.name}" updated successfully`, 'success');
+      }
+
+      await window.AppStore.refreshData();
+      setEditingDocCategory(null);
+    } catch (err) {
+      console.error('Error saving document category:', err);
+      window.AppStore.showNotification(err?.message || 'Failed to save document category', 'error');
+    } finally {
+      setDocCategorySaving(false);
+    }
+  };
+
+  const handleToggleDocCategoryStatus = async (item) => {
+    if (!isAdminOrSuper) return;
+    const currentActive = item.is_active !== 0 && item.is_active !== false;
+    const newActive = currentActive ? 0 : 1;
+    try {
+      await window.api.documentCategories.update(item.id, {
+        is_active: newActive
+      });
+      window.AppStore.showNotification(`Category "${item.name}" is now ${newActive ? 'Active' : 'Inactive'}`, 'info');
+      await window.AppStore.refreshData();
+    } catch (err) {
+      console.error('Error toggling document category status:', err);
+      window.AppStore.showNotification('Failed to update category status', 'error');
+    }
+  };
+
+  const handleDeleteDocCategory = async (item) => {
+    if (!isAdminOrSuper) {
+      window.AppStore.showNotification('Only Administrators can remove document categories', 'error');
+      return;
+    }
+    const confirmed = await window.AppStore.confirm({
+      title: 'Remove Document Category?',
+      text: `Are you sure you want to permanently delete category "${item.name}" (${item.code})? Documents already filed under this category will retain their history.`,
+      icon: 'warning',
+      confirmButtonText: 'Yes, Delete',
+      confirmButtonColor: '#ef4444'
+    });
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      await window.api.documentCategories.delete(item.id);
+      window.AppStore.showNotification(`Document category "${item.name}" deleted successfully`, 'success');
+      await window.AppStore.refreshData();
+    } catch (err) {
+      console.error('Error deleting document category:', err);
+      window.AppStore.showNotification(err?.message || 'Failed to delete category', 'error');
+    }
     }
   };
 
@@ -732,6 +860,171 @@ function SettingsView({ state }) {
         </div>
       </div>
 
+      {/* SECTION: CANDIDATE DOCUMENT CATEGORY MASTER */}
+      <div className="card" style={{ marginTop: '1.75rem' }}>
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>📁</span>
+              <span className="card-title" style={{ fontSize: '1.05rem', fontWeight: 800 }}>Candidate Document Category Master</span>
+            </div>
+            <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              Manage standard document types, compliance categories, mandatory upload flags, and sorting order for candidate dossiers.
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span className="badge badge-success" style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem', fontWeight: 700 }}>
+              ✓ {activeDocCatCount} Active Categories
+            </span>
+            {isAdminOrSuper && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={handleOpenAddDocCategory}
+              >
+                <span>➕</span> Add Document Category
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="card-body" style={{ padding: 0 }}>
+          {/* Quick Metrics Bar */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            padding: '1rem 1.25rem',
+            background: 'var(--bg-subtle, #f8fafc)',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Total Master Categories</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalDocCategoriesCount} Registered</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Active in Upload Forms</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--success, #10b981)' }}>{activeDocCatCount} Active</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Mandatory Uploads</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger, #ef4444)' }}>
+                {mandatoryDocCatCount} Mandatory Required
+              </div>
+            </div>
+          </div>
+
+          {/* Categories Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1.5px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', fontSize: '0.74rem', fontWeight: 700, width: '50px' }}>#</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '60px' }}>Icon</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', fontSize: '0.74rem', fontWeight: 700, width: '140px' }}>Code</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', fontSize: '0.74rem', fontWeight: 700 }}>Category Name & Description</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '130px' }}>Obligation</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', fontSize: '0.74rem', fontWeight: 700, width: '110px' }}>Status</th>
+                  <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontSize: '0.74rem', fontWeight: 700, width: '120px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documentCategories && documentCategories.length > 0 ? (
+                  documentCategories.map((item, idx) => {
+                    const isActive = item.is_active !== 0 && item.is_active !== false;
+                    return (
+                      <tr key={item.id || idx} style={{ borderBottom: '1px solid var(--border-light)', opacity: isActive ? 1 : 0.6 }}>
+                        <td style={{ padding: '0.75rem 0.85rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {item.display_order || (idx + 1)}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center', fontSize: '1.25rem' }}>
+                          {item.icon || '📄'}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <span className="mono-pill neutral-pill" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                            {item.code}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                            {item.name}
+                          </div>
+                          {item.description && (
+                            <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: 1.35 }}>
+                              {item.description}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          {item.is_mandatory ? (
+                            <span className="badge badge-danger" style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem' }}>
+                              ⭐ Mandatory
+                            </span>
+                          ) : (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}>
+                              Optional
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className={`badge ${isActive ? 'badge-success' : 'badge-neutral'}`}
+                            style={{
+                              border: 'none',
+                              cursor: isAdminOrSuper ? 'pointer' : 'default',
+                              fontSize: '0.74rem',
+                              padding: '0.25rem 0.6rem'
+                            }}
+                            title={isAdminOrSuper ? 'Click to toggle status' : 'Status'}
+                            onClick={() => handleToggleDocCategoryStatus(item)}
+                          >
+                            {isActive ? '● Active' : '○ Inactive'}
+                          </button>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                          {isAdminOrSuper ? (
+                            <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
+                                title="Edit Document Category"
+                                onClick={() => handleOpenEditDocCategory(item)}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem', color: 'var(--danger)' }}
+                                title="Delete Document Category"
+                                onClick={() => handleDeleteDocCategory(item)}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Read-only</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No document categories defined yet. Click "Add Document Category" to configure.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* MODAL: ADD / EDIT CHECKLIST CRITERION */}
       {editingCriterion && (
         <div className="modal-backdrop" style={{
@@ -918,6 +1211,198 @@ function SettingsView({ state }) {
           </div>
         </div>
       )}
+
+      {/* MODAL: ADD / EDIT DOCUMENT CATEGORY */}
+      {editingDocCategory && (
+        <div className="modal-backdrop" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div className="modal-content" style={{
+            maxWidth: '560px',
+            width: '100%',
+            background: 'var(--bg-card, #ffffff)',
+            borderRadius: '10px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            overflow: 'hidden'
+          }}>
+            <div className="modal-header" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid var(--border-color)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>{editingDocCategory.icon || (editingDocCategory.isNew ? '➕' : '✏️')}</span>
+                <h3 className="modal-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
+                  {editingDocCategory.isNew ? 'Add Candidate Document Category' : 'Edit Document Category'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: 'var(--text-muted)' }}
+                onClick={() => setEditingDocCategory(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDocCategory}>
+              <div className="modal-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Category Name */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Category Name *</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    placeholder="e.g. CPR / Smart Card Copy, GOSI Certificate..."
+                    value={editingDocCategory.name}
+                    onChange={e => setEditingDocCategory({ ...editingDocCategory, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {/* Code & Icon */}
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '0.75rem', margin: 0 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Unique Code (Uppercase)</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      placeholder="e.g. CPR, RESUME, DEGREE..."
+                      value={editingDocCategory.code}
+                      onChange={e => setEditingDocCategory({ ...editingDocCategory, code: e.target.value.toUpperCase() })}
+                    />
+                    <span className="form-help" style={{ fontSize: '0.7rem' }}>Leave blank to auto-generate from name</span>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Icon / Emoji</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      style={{ textAlign: 'center', fontSize: '1.1rem' }}
+                      value={editingDocCategory.icon}
+                      onChange={e => setEditingDocCategory({ ...editingDocCategory, icon: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Emoji Selection Pills */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '-0.35rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Icons:</span>
+                  {['🆔', '📄', '🎓', '🏦', '📑', '📝', '📎', '🖼️', '📜', '⚖️'].map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      style={{
+                        background: editingDocCategory.icon === emoji ? 'var(--primary-subtle, #e0e7ff)' : 'var(--bg-subtle, #f1f5f9)',
+                        border: '1px solid ' + (editingDocCategory.icon === emoji ? 'var(--primary, #6366f1)' : 'var(--border-color, #e2e8f0)'),
+                        borderRadius: '4px',
+                        padding: '0.2rem 0.45rem',
+                        fontSize: '0.95rem',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setEditingDocCategory({ ...editingDocCategory, icon: emoji })}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Display Order & Obligation */}
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: 0 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Display Order</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-control"
+                      value={editingDocCategory.display_order}
+                      onChange={e => setEditingDocCategory({ ...editingDocCategory, display_order: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Obligation</label>
+                    <select
+                      className="select-control"
+                      value={editingDocCategory.is_mandatory ? '1' : '0'}
+                      onChange={e => setEditingDocCategory({ ...editingDocCategory, is_mandatory: parseInt(e.target.value, 10) })}
+                    >
+                      <option value="1">Mandatory (* Required)</option>
+                      <option value="0">Optional</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-tertiary)', padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
+                  <input
+                    type="checkbox"
+                    id="docCatActiveCheck"
+                    checked={editingDocCategory.is_active === 1 || editingDocCategory.is_active === true}
+                    onChange={e => setEditingDocCategory({ ...editingDocCategory, is_active: e.target.checked ? 1 : 0 })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="docCatActiveCheck" style={{ fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', margin: 0 }}>
+                    Active Category (Available across candidate registration and upload forms)
+                  </label>
+                </div>
+
+                {/* Description */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Operational Guidance & Description</label>
+                  <textarea
+                    className="input-control"
+                    rows="3"
+                    placeholder="Instructions for case manager when requesting or uploading this document..."
+                    value={editingDocCategory.description}
+                    onChange={e => setEditingDocCategory({ ...editingDocCategory, description: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{
+                padding: '0.85rem 1.25rem',
+                borderTop: '1px solid var(--border-color)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.65rem',
+                background: 'var(--bg-subtle, #f8fafc)'
+              }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setEditingDocCategory(null)}
+                  disabled={docCategorySaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={docCategorySaving}
+                >
+                  {docCategorySaving ? 'Saving...' : (editingDocCategory.isNew ? '➕ Create Category' : '💾 Save Changes')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

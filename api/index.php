@@ -61,6 +61,7 @@ require_once __DIR__ . '/models/Dispute.php';
 require_once __DIR__ . '/models/Payment.php';
 require_once __DIR__ . '/models/Setting.php';
 require_once __DIR__ . '/models/Report.php';
+require_once __DIR__ . '/models/DocumentCategory.php';
 
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UserController.php';
@@ -72,6 +73,8 @@ require_once __DIR__ . '/controllers/DisputeController.php';
 require_once __DIR__ . '/controllers/PaymentController.php';
 require_once __DIR__ . '/controllers/SettingController.php';
 require_once __DIR__ . '/controllers/ReportController.php';
+require_once __DIR__ . '/controllers/ChecklistMasterController.php';
+require_once __DIR__ . '/controllers/DocumentCategoryController.php';
 
 use App\Core\Router;
 use App\Controllers\AuthController;
@@ -85,6 +88,7 @@ use App\Controllers\PaymentController;
 use App\Controllers\SettingController;
 use App\Controllers\ReportController;
 use App\Controllers\ChecklistMasterController;
+use App\Controllers\DocumentCategoryController;
 
 $router = new Router();
 
@@ -175,6 +179,14 @@ $router->post('/checklist-master', [ChecklistMasterController::class, 'create'])
 $router->put('/checklist-master/{id}', [ChecklistMasterController::class, 'update']);
 $router->post('/checklist-master/{id}', [ChecklistMasterController::class, 'update']);
 $router->delete('/checklist-master/{id}', [ChecklistMasterController::class, 'delete']);
+
+// ==================== CANDIDATE DOCUMENT CATEGORY MASTER ====================
+$router->get('/document-categories', [DocumentCategoryController::class, 'index']);
+$router->get('/document-categories/{id}', [DocumentCategoryController::class, 'show']);
+$router->post('/document-categories', [DocumentCategoryController::class, 'create']);
+$router->put('/document-categories/{id}', [DocumentCategoryController::class, 'update']);
+$router->post('/document-categories/{id}', [DocumentCategoryController::class, 'update']);
+$router->delete('/document-categories/{id}', [DocumentCategoryController::class, 'delete']);
 
 // ==================== EXECUTIVE REPORTS & KPI MICRO ROUTES ====================
 $router->get('/reports/kpis', [ReportController::class, 'kpis']);

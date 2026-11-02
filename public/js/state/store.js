@@ -148,6 +148,7 @@ class AppStoreClass {
       candidates: [],
       jobs: [],
       checklistMasters: [],
+      documentCategories: [],
       milestones: [],
       claims: [],
       disputes: [],
@@ -366,11 +367,12 @@ class AppStoreClass {
 
   async refreshData() {
     try {
-      const [kpisRes, candRes, jobsRes, chkRes, msRes, claimsRes, dispRes, payRes] = await Promise.all([
+      const [kpisRes, candRes, jobsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes] = await Promise.all([
         window.api.reports.getKPIs(),
         window.api.candidates.getAll(),
         window.api.jobs.getAll().catch(() => ({ jobs: [] })),
         window.api.checklistMaster.getAll().catch(() => ({ items: [] })),
+        window.api.documentCategories.getAll().catch(() => ({ items: [] })),
         window.api.milestones.getAll(),
         window.api.claims.getAll(),
         window.api.disputes.getAll(),
@@ -387,6 +389,7 @@ class AppStoreClass {
         candidates: candRes?.candidates || [],
         jobs: jobsRes?.jobs || [],
         checklistMasters: chkRes?.items || [],
+        documentCategories: docCatsRes?.items || [],
         milestones: msRes?.milestones || [],
         claims: claimsRes?.claims || [],
         disputes: dispRes?.disputes || [],
