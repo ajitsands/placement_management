@@ -751,38 +751,6 @@ function PlacementsView({ state }) {
         </div>
       </div>
 
-      {/* Callout Quick Action Banner for Talent Pool Allocation */}
-      {availablePoolCandidates.length > 0 && (
-        <div style={{
-          marginBottom: '1.25rem',
-          padding: '0.75rem 1.15rem',
-          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
-          border: '1px solid rgba(14, 165, 233, 0.25)',
-          borderRadius: 'var(--radius-md, 8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '0.75rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <span style={{ fontSize: '1.25rem' }}>⚡</span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-              <strong>{availablePoolCandidates.length}</strong> candidate(s) in the available pool ready for placement across <strong>{openJobsList.length}</strong> open employer job vacancies.
-            </span>
-          </div>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 2px 6px rgba(14, 165, 233, 0.25)' }}
-            onClick={() => window.AppStore.openModal('BATCH_PLACEMENT')}
-          >
-            <span>Open Placement Allocation Studio</span>
-            <span>&rarr;</span>
-          </button>
-        </div>
-      )}
-
       {/* Lifecycle Status Navigation Tabs: Active Placements (Default) -> Completed 12 Months -> All */}
       <div className="placement-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
