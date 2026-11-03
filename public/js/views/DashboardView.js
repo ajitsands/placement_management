@@ -23,9 +23,14 @@ function DashboardView({ state }) {
     claims = [],
     disputes = [],
     payments = [],
+    jobs = [],
     settings = {},
     currentUser = {}
   } = state;
+
+  const userRole = (currentUser.role || '').toLowerCase();
+  const isCaseManager = userRole === 'case_manager';
+  const isAdminOrSuper = ['superadmin', 'admin'].includes(userRole);
 
   const currency = settings.currency || 'BHD';
   const standardTier = (settings?.standard_tier_amount_bhd !== undefined && settings?.standard_tier_amount_bhd !== null && !isNaN(Number(settings.standard_tier_amount_bhd)))
@@ -208,6 +213,165 @@ function DashboardView({ state }) {
       };
     });
   }, [milestones, claims, candidateMap, claimByMilestoneId, todayMidnight, standardTier]);
+
+  // Helper to test if a candidate profile is incomplete
+  const isCandidateIncomplete = (c) => {
+    if (!c) return false;
+    const st = (c.status || '').toLowerCase();
+    if (st === 'incomplete' || st === 'pending_registration' || st === 'registration_incomplete' || st === 'registration_not_completed') {
+      return true;
+    }
+    if (Array.isArray(c.checklist_items) && c.checklist_items.length > 0) {
+      const hasMissingMandatory = c.checklist_items.some(item => (item.is_mandatory || item.mandatory) && !item.completed && !item.is_completed);
+      if (hasMissingMandatory) return true;
+    } else if (c.checklist_completion_pct !== undefined && c.checklist_completion_pct !== null) {
+      if (Number(c.checklist_completion_pct) < 100 && st !== 'placed' && st !== 'active' && st !== 'completed' && st !== 'resigned') {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // ---------------------------------------------------------------------------
+  // GLOBAL ACTION QUEUES (IRRESPECTIVE OF WHO HANDLED THEM)
+  // ---------------------------------------------------------------------------
+  // 1. Retention Milestone Claims Needing Attention (Due & Overdue across all candidates)
+  const globalRetentionNeedingAttention = useMemo(() => {
+    return processedMilestones.filter(m => m.computedStatus === 'overdue' || m.computedStatus === 'due');
+  }, [processedMilestones]);
+
+  const globalOverdueMilestones = useMemo(() => {
+    return globalRetentionNeedingAttention.filter(m => m.computedStatus === 'overdue');
+  }, [globalRetentionNeedingAttention]);
+
+  const globalDueMilestones = useMemo(() => {
+    return globalRetentionNeedingAttention.filter(m => m.computedStatus === 'due');
+  }, [globalRetentionNeedingAttention]);
+
+  const globalOverdueCount = globalOverdueMilestones.length;
+  const globalDueCount = globalDueMilestones.length;
+  const globalNeedingAttentionCount = globalOverdueCount + globalDueCount;
+  const globalNeedingAttentionValue = globalRetentionNeedingAttention.reduce((sum, m) => sum + (m.claimAmount || 0), 0);
+
+  // 2. Overdue Candidates Awaiting Renewal (12m in pool or 12m placement completed / resigned)
+  const candidatesAwaitingRenewal = useMemo(() => {
+    const nowTime = new Date().setHours(0, 0, 0, 0);
+    return (candidates || []).map(c => {
+      const st = (c.status || 'registered').toLowerCase();
+      const isPlaced = st === 'placed' || st === 'active' || Boolean(c.is_placed);
+
+      const baselineStr = c.last_renewal_date || c.registration_date || (c.created_at ? c.created_at.substring(0, 10) : null);
+      let daysElapsed = 0;
+      if (baselineStr) {
+        const baselineTime = new Date(baselineStr).getTime();
+        daysElapsed = Math.max(0, Math.floor((nowTime - baselineTime) / (1000 * 60 * 60 * 24)));
+      }
+      const isPast12m = daysElapsed > 365;
+      const daysOverdue = isPast12m ? (daysElapsed - 365) : 0;
+
+      let placedDays = 0;
+      let placedPast12m = false;
+      if (isPlaced && c.joining_date) {
+        const joinTime = new Date(c.joining_date).getTime();
+        placedDays = Math.max(0, Math.floor((nowTime - joinTime) / (1000 * 60 * 60 * 24)));
+        placedPast12m = placedDays >= 365;
+      }
+
+      const isAwaiting = (!isPlaced && isPast12m) || st === 'awaiting_renewal' || st === 'resigned' || (isPlaced && placedPast12m);
+
+      return {
+        candidate: c,
+        isPlaced,
+        daysElapsed: isPlaced ? placedDays : daysElapsed,
+        daysOverdue: isPlaced ? Math.max(0, placedDays - 365) : daysOverdue,
+        isAwaiting,
+        type: isPlaced ? 'placement_12m' : 'pool_registration'
+      };
+    }).filter(item => item.isAwaiting);
+  }, [candidates]);
+
+  // 3. Urgent Workflows for Case Managers
+  const totalOpenVacancies = useMemo(() => {
+    return (jobs || []).reduce((sum, j) => {
+      const st = (j.status || 'active').toLowerCase();
+      if (st === 'closed') return sum;
+      const remaining = typeof j.vacancies_remaining !== 'undefined'
+        ? parseInt(j.vacancies_remaining, 10)
+        : Math.max(0, (parseInt(j.vacancies_count, 10) || 1) - (parseInt(j.placed_count, 10) || 0));
+      return sum + (remaining > 0 ? remaining : 0);
+    }, 0);
+  }, [jobs]);
+
+  const availablePoolCandidates = useMemo(() => {
+    return (candidates || []).filter(c => {
+      const st = (c.status || 'registered').toLowerCase();
+      const isPlaced = st === 'placed' || st === 'active' || Boolean(c.is_placed);
+      return !isPlaced && !isCandidateIncomplete(c);
+    });
+  }, [candidates]);
+
+  const incompleteProfileCandidates = useMemo(() => {
+    return (candidates || []).filter(c => isCandidateIncomplete(c));
+  }, [candidates]);
+
+  const activeDisputedClaims = useMemo(() => {
+    return (claims || []).filter(cl => cl.status === 'disputed');
+  }, [claims]);
+
+  const approvedUnpaidClaims = useMemo(() => {
+    return (claims || []).filter(cl => cl.status === 'approved' && parseFloat(cl.balance_bhd || cl.claim_amount_bhd || 0) > 0.01);
+  }, [claims]);
+
+  // ---------------------------------------------------------------------------
+  // INTERACTIVE DASHBOARD REDIRECTION HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleGoToMilestones = (filter = 'due_or_overdue') => {
+    try {
+      sessionStorage.setItem('sands_claims_ms_status', filter);
+    } catch (e) {}
+    window.AppStore.setActiveTab('milestones');
+  };
+
+  const handleGoToMilestoneItem = (m) => {
+    try {
+      sessionStorage.setItem('sands_claims_ms_status', m.computedStatus || 'due_or_overdue');
+    } catch (e) {}
+    window.AppStore.setActiveTab('milestones');
+  };
+
+  const handleGoToRenewals = () => {
+    try {
+      sessionStorage.setItem('sands_claims_cand_status_v2', 'awaiting_renewal');
+      sessionStorage.setItem('sands_claims_cand_status', 'awaiting_renewal');
+    } catch (e) {}
+    window.AppStore.setActiveTab('candidates');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'awaiting_renewal' }));
+    }, 60);
+  };
+
+  const handleOpenPlacementStudio = () => {
+    window.AppStore.openModal('BATCH_PLACEMENT');
+  };
+
+  const handleGoToIncompleteProfiles = () => {
+    try {
+      sessionStorage.setItem('sands_claims_cand_status_v2', 'registration_incomplete');
+      sessionStorage.setItem('sands_claims_cand_status', 'registration_incomplete');
+    } catch (e) {}
+    window.AppStore.setActiveTab('candidates');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registration_incomplete' }));
+    }, 60);
+  };
+
+  const handleGoToDisputes = () => {
+    window.AppStore.setActiveTab('disputes');
+  };
+
+  const handleGoToPayments = () => {
+    window.AppStore.setActiveTab('payments');
+  };
 
   // ---------------------------------------------------------------------------
   // 5. FILTERED DATASETS
@@ -567,10 +731,12 @@ function DashboardView({ state }) {
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Executive Placement & Claims Intelligence
+              {isCaseManager ? 'Case Manager Operational Action Center' : 'Executive Placement & Claims Intelligence'}
             </h2>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Real-time Tamkeen retention gates, liquidity realization, and case manager operational analytics
+              {isCaseManager
+                ? 'Shared talent pool — all candidates and placements managed collaboratively across all Case Managers'
+                : 'National governance, cross-case manager audit stream, retention gates & treasury liquidity'}
             </div>
           </div>
         </div>
@@ -678,48 +844,511 @@ function DashboardView({ state }) {
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 2. URGENT ACTIONS REQUIRED ALERT STRIP (IF ANY PENDING)               */}
+      {/* 2. OPERATIONAL ACTION CENTER: RETENTION, RENEWALS & URGENT WORKFLOWS */}
+      {/* Global pools: evaluated across all candidates irrespective of handler */}
       {/* -------------------------------------------------------------------- */}
-      {actionRequiredCount > 0 ? (
-        <div className="dash-alert-strip">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ fontSize: '1.4rem' }}>⚡</span>
-            <div>
-              <strong style={{ fontSize: '0.92rem', color: 'var(--danger)', display: 'block' }}>
-                Action Required: {actionRequiredCount} Retention Milestone Claims Need Attention
-              </strong>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                {overdueUnclaimedCount > 0 && <span style={{ fontWeight: 700, color: 'var(--danger)' }}>🚨 {overdueUnclaimedCount} Overdue Claims (Past Deadline)&nbsp;&bull;&nbsp;</span>}
-                {dueUnclaimedCount > 0 && <span style={{ fontWeight: 600, color: 'var(--warning)' }}>⏱️ {dueUnclaimedCount} Due Claims (Ready for Submission)</span>}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn btn-danger btn-sm"
-            onClick={() => window.AppStore.setActiveTab('milestones')}
-            style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: 700 }}
-            title="Open Milestones retention tracker"
-          >
-            Review in Milestones Tracker →
-          </button>
-        </div>
-      ) : (
+      <div style={{ marginBottom: '1.75rem' }}>
+        {/* Action Center Header Bar */}
         <div style={{
-          background: 'rgba(16, 185, 129, 0.08)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '0.7rem 1.25rem',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '0.85rem',
+          flexWrap: 'wrap',
           gap: '0.65rem',
-          fontSize: '0.82rem',
-          color: 'var(--success)'
+          background: 'var(--bg-primary)',
+          padding: '0.75rem 1rem',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-light)'
         }}>
-          <span>✓</span>
-          <span><strong>All Caught Up:</strong> No pending overdue or due claims in the current scope. All milestone claims have been submitted or are on schedule.</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-md)',
+              background: 'linear-gradient(135deg, #ef4444, #f97316)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)'
+            }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                  {isCaseManager ? 'Action Required: Operational Priority Center' : 'System Priority Actions & Operational Queue'}
+                </h3>
+                <span className="badge badge-info" style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem' }}>
+                  Shared National Pool (All Handlers)
+                </span>
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                Urgent actions needing execution across retention milestone claims, candidate renewals, and placement allocations
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {isAdminOrSuper && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => window.AppStore.setActiveTab('reports')}
+                style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="View Case Managers Operational Audit Report"
+              >
+                <span>Case Managers Audit Report</span>
+                <span>→</span>
+              </button>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* 3 Interactive Action Modules Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1rem'
+        }}>
+
+          {/* CARD 1: RETENTION MILESTONE CLAIMS NEED ATTENTION */}
+          <div
+            className="card"
+            style={{
+              border: globalNeedingAttentionCount > 0 ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-light)',
+              boxShadow: globalNeedingAttentionCount > 0 ? '0 4px 16px rgba(239, 68, 68, 0.08)' : 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
+            <div style={{ padding: '1.15rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Retention Milestone Claims
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Action Required: Retention claims needing attention
+                    </div>
+                  </div>
+                </div>
+                <span className="badge" style={{
+                  background: globalNeedingAttentionCount > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  color: globalNeedingAttentionCount > 0 ? 'var(--danger)' : 'var(--success)',
+                  fontWeight: 800,
+                  fontSize: '0.74rem'
+                }}>
+                  {globalNeedingAttentionCount > 0 ? `${globalNeedingAttentionCount} Needs Attention` : 'All Submitted'}
+                </span>
+              </div>
+
+              {/* Counts & Value summary */}
+              <div style={{ display: 'flex', gap: '0.55rem', margin: '0.85rem 0' }}>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Overdue (Past Deadline)</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)' }}>{globalOverdueCount}</div>
+                </div>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Due (Ready to Submit)</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--warning)' }}>{globalDueCount}</div>
+                </div>
+                <div style={{ flex: 1.2, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Pending Claim Value</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
+                    {currency} {Number(globalNeedingAttentionValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Top 3 pending milestones preview */}
+              {globalRetentionNeedingAttention.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {globalRetentionNeedingAttention.slice(0, 3).map(m => (
+                    <div
+                      key={m.id}
+                      onClick={() => handleGoToMilestoneItem(m)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.45rem 0.65rem',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.76rem',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)'
+                      }}
+                      title="Click to redirect to milestone in retention tracker"
+                    >
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
+                        <strong>{m.candidateName}</strong>
+                        <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>• {m.companyName}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span className={`badge ${m.computedStatus === 'overdue' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.66rem', padding: '0.1rem 0.4rem' }}>
+                          {m.computedStatus === 'overdue' ? 'Overdue' : 'Due'}
+                        </span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{currency} {m.claimAmount}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.78rem', color: 'var(--success)', padding: '0.5rem 0' }}>
+                  ✓ All milestone claims have been submitted or are on schedule.
+                </div>
+              )}
+            </div>
+
+            {/* Redirection Button */}
+            <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-tertiary)', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => handleGoToMilestones('due_or_overdue')}
+                style={{ width: '100%', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Redirect to Milestones Tracker"
+              >
+                <span>Review Retention Milestone Claims ({globalNeedingAttentionCount})</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+
+          {/* CARD 2: OVERDUE CANDIDATES AWAITING RENEWAL */}
+          <div
+            className="card"
+            style={{
+              border: candidatesAwaitingRenewal.length > 0 ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid var(--border-light)',
+              boxShadow: candidatesAwaitingRenewal.length > 0 ? '0 4px 16px rgba(245, 158, 11, 0.08)' : 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
+            <div style={{ padding: '1.15rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Candidates Awaiting Renewal
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Overdue candidates awaiting renewal
+                    </div>
+                  </div>
+                </div>
+                <span className="badge" style={{
+                  background: candidatesAwaitingRenewal.length > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  color: candidatesAwaitingRenewal.length > 0 ? '#b45309' : 'var(--success)',
+                  fontWeight: 800,
+                  fontSize: '0.74rem'
+                }}>
+                  {candidatesAwaitingRenewal.length > 0 ? `${candidatesAwaitingRenewal.length} Overdue` : 'All Current'}
+                </span>
+              </div>
+
+              {/* Renewal Status Summary */}
+              <div style={{ display: 'flex', gap: '0.55rem', margin: '0.85rem 0' }}>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Pool Reg Overdue</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--warning)' }}>
+                    {candidatesAwaitingRenewal.filter(c => !c.isPlaced).length}
+                  </div>
+                </div>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Placement 12m+</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0ea5e9' }}>
+                    {candidatesAwaitingRenewal.filter(c => c.isPlaced).length}
+                  </div>
+                </div>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Actionable</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {candidatesAwaitingRenewal.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Top 3 renewal candidates preview */}
+              {candidatesAwaitingRenewal.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {candidatesAwaitingRenewal.slice(0, 3).map(item => (
+                    <div
+                      key={item.candidate.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.45rem 0.65rem',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.76rem'
+                      }}
+                    >
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                        <strong>{item.candidate.full_name}</strong>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          CPR: {item.candidate.cpr_no} • {item.isPlaced ? 'Completed 12m' : `${item.daysElapsed}d in pool`}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-warning btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.AppStore.openModal('RENEW_CANDIDATE', { candidate: item.candidate, fromPlaced: item.isPlaced });
+                        }}
+                        style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: 800 }}
+                        title="Open candidate renewal modal"
+                      >
+                        Renew Now
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.78rem', color: 'var(--success)', padding: '0.5rem 0' }}>
+                  ✓ All registered and placed candidates have active validity.
+                </div>
+              )}
+            </div>
+
+            {/* Redirection Button */}
+            <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-tertiary)', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleGoToRenewals}
+                style={{ width: '100%', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#b45309', borderColor: '#f59e0b' }}
+                title="Redirect to Candidates view awaiting renewal"
+              >
+                <span>Go to Candidates Awaiting Renewal ({candidatesAwaitingRenewal.length})</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+
+          {/* CARD 3: URGENT ACTIONS TO BE DONE BY CASE MANAGERS */}
+          <div
+            className="card"
+            style={{
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
+            <div style={{ padding: '1.15rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Urgent Case Manager Actions
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Urgent actions that need to be done by case managers
+                    </div>
+                  </div>
+                </div>
+                <span className="badge badge-info" style={{ fontWeight: 800, fontSize: '0.74rem' }}>
+                  Action Center
+                </span>
+              </div>
+
+              {/* Action List with Direct Redirection */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {/* 1. Placement Allocation Studio */}
+                <div
+                  onClick={handleOpenPlacementStudio}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Open Placement Allocation Studio"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#0ea5e9' }}>
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Placement Allocation Studio
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {availablePoolCandidates.length} in pool ready • {totalOpenVacancies} job openings available
+                      </div>
+                    </div>
+                  </div>
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                    Allocate →
+                  </span>
+                </div>
+
+                {/* 2. Incomplete Profiles */}
+                <div
+                  onClick={handleGoToIncompleteProfiles}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Review incomplete candidate profiles"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#f59e0b' }}>
+                      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Incomplete Profiles Pending
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {incompleteProfileCandidates.length} candidate(s) missing mandatory checklist items
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${incompleteProfileCandidates.length > 0 ? 'badge-danger' : 'badge-neutral'}`} style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                    {incompleteProfileCandidates.length} Pending
+                  </span>
+                </div>
+
+                {/* 3. Active Disputes */}
+                <div
+                  onClick={handleGoToDisputes}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Investigate disputed claims"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#ef4444' }}>
+                      <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                      <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                      <path d="M7 21h10" />
+                      <path d="M12 3v18" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Active Disputed Claims
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {activeDisputedClaims.length} claim(s) in dispute • {currency} {Number(disputedFrozenValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${activeDisputedClaims.length > 0 ? 'badge-danger' : 'badge-neutral'}`} style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                    {activeDisputedClaims.length} Active
+                  </span>
+                </div>
+
+                {/* 4. Payment Receipts */}
+                <div
+                  onClick={handleGoToPayments}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Record payment receipts"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#10b981' }}>
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Treasury Receipts Collection
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {approvedUnpaidClaims.length} approved claim(s) awaiting payment collection
+                      </div>
+                    </div>
+                  </div>
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                    Collect →
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Redirection Button */}
+            <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-tertiary)', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => window.AppStore.setActiveTab('placements')}
+                style={{ width: '100%', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Redirect to Placements Module"
+              >
+                <span>Go to Placements & Employment Contracts</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       {/* -------------------------------------------------------------------- */}
       {/* 3. CORE STATISTICS GRID (9 REQUESTED KPIS IN HARMONIOUS TILES)       */}
