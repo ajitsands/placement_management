@@ -45,20 +45,6 @@ function DashboardView({ state }) {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [chartMetricMode, setChartMetricMode] = useState('count'); // 'count' | 'value'
   const [activeHoverTooltip, setActiveHoverTooltip] = useState(null);
-  const [gridColumns, setGridColumns] = useState(() => {
-    try {
-      return sessionStorage.getItem('sands_dash_cols') || '2';
-    } catch (e) {
-      return '2';
-    }
-  });
-
-  const handleSetGridColumns = (cols) => {
-    setGridColumns(cols);
-    try {
-      sessionStorage.setItem('sands_dash_cols', cols);
-    } catch (e) {}
-  };
 
   // ---------------------------------------------------------------------------
   // 2. EXTRACT DYNAMIC FILTER LISTS
@@ -721,138 +707,113 @@ function DashboardView({ state }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 1. FILTER TOOLBAR & EXECUTIVE CONTROL BAR                            */}
+      {/* 1. FILTER TOOLBAR & EXECUTIVE CONTROL BAR (ADMIN & SUPERADMIN ONLY)   */}
       {/* -------------------------------------------------------------------- */}
-      <div className="dash-filter-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, var(--primary), #3b82f6)',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.25rem',
-            fontWeight: 800,
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
-          }}>
-            📊
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              {isCaseManager ? 'Case Manager Operational Action Center' : 'Executive Placement & Claims Intelligence'}
-            </h2>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {isCaseManager
-                ? 'Shared talent pool — all candidates and placements managed collaboratively across all Case Managers'
-                : 'National governance, cross-case manager audit stream, retention gates & treasury liquidity'}
+      {!isCaseManager && (
+        <div className="dash-filter-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: 'var(--radius-md)',
+              background: 'linear-gradient(135deg, var(--primary), #3b82f6)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+            }}>
+              📊
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                Executive Placement & Claims Intelligence
+              </h2>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                National governance, cross-case manager audit stream, retention gates & treasury liquidity
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Dynamic Filters Group */}
-        <div className="dash-filter-group">
-          {/* Case Manager / Scope Selector */}
-          <div className="dash-filter-item">
-            <span className="dash-filter-label">Perspective / Scope</span>
-            <select
-              className="dash-select"
-              value={selectedCM}
-              onChange={e => setSelectedCM(e.target.value)}
-              title="Select consolidated view or filter by individual case manager"
-            >
-              <option value="all">🌐 Consolidated (All Managers)</option>
-              {caseManagersList.map(cm => (
-                <option key={cm} value={cm}>👤 {cm}</option>
-              ))}
-            </select>
-          </div>
+          {/* Dynamic Filters Group */}
+          <div className="dash-filter-group">
+            {/* Case Manager / Scope Selector */}
+            <div className="dash-filter-item">
+              <span className="dash-filter-label">Perspective / Scope</span>
+              <select
+                className="dash-select"
+                value={selectedCM}
+                onChange={e => setSelectedCM(e.target.value)}
+                title="Select consolidated view or filter by individual case manager"
+              >
+                <option value="all">🌐 Consolidated (All Managers)</option>
+                {caseManagersList.map(cm => (
+                  <option key={cm} value={cm}>👤 {cm}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Year Filter */}
-          <div className="dash-filter-item">
-            <span className="dash-filter-label">Year</span>
-            <select
-              className="dash-select"
-              style={{ minWidth: '110px' }}
-              value={selectedYear}
-              onChange={e => setSelectedYear(e.target.value)}
-              title="Filter statistics and graphs by year"
-            >
-              <option value="all">📅 All Years</option>
-              {yearsList.map(yr => (
-                <option key={yr} value={yr}>{yr}</option>
-              ))}
-            </select>
-          </div>
+            {/* Year Filter */}
+            <div className="dash-filter-item">
+              <span className="dash-filter-label">Year</span>
+              <select
+                className="dash-select"
+                style={{ minWidth: '110px' }}
+                value={selectedYear}
+                onChange={e => setSelectedYear(e.target.value)}
+                title="Filter statistics and graphs by year"
+              >
+                <option value="all">📅 All Years</option>
+                {yearsList.map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Month Filter */}
-          <div className="dash-filter-item">
-            <span className="dash-filter-label">Month</span>
-            <select
-              className="dash-select"
-              style={{ minWidth: '120px' }}
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              title="Filter statistics and graphs by month"
-            >
-              {MONTHS.map(m => (
-                <option key={m.val} value={m.val}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+            {/* Month Filter */}
+            <div className="dash-filter-item">
+              <span className="dash-filter-label">Month</span>
+              <select
+                className="dash-select"
+                style={{ minWidth: '120px' }}
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                title="Filter statistics and graphs by month"
+              >
+                {MONTHS.map(m => (
+                  <option key={m.val} value={m.val}>{m.label}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Reset Filters Button */}
-          {(selectedCM !== 'all' || selectedYear !== 'all' || selectedMonth !== 'all') && (
+            {/* Reset Filters Button */}
+            {(selectedCM !== 'all' || selectedYear !== 'all' || selectedMonth !== 'all') && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleResetFilters}
+                style={{ marginTop: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderColor: 'var(--border-medium)' }}
+                title="Reset all filters back to consolidated view"
+              >
+                ✕ Reset
+              </button>
+            )}
+
+            {/* Refresh Data */}
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              onClick={handleResetFilters}
-              style={{ marginTop: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderColor: 'var(--border-medium)' }}
-              title="Reset all filters back to consolidated view"
+              onClick={() => window.AppStore.refreshData()}
+              style={{ marginTop: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.78rem' }}
+              title="Reload latest records from database"
             >
-              ✕ Reset
+              🔄 Refresh
             </button>
-          )}
-
-          {/* Refresh Data */}
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => window.AppStore.refreshData()}
-            style={{ marginTop: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.78rem' }}
-            title="Reload latest records from database"
-          >
-            🔄 Refresh
-          </button>
-
-          {/* Grid Layout Switcher (2-Columns vs 3-Columns) */}
-          <div className="dash-filter-item" style={{ marginLeft: 'auto' }}>
-            <span className="dash-filter-label">Layout</span>
-            <div style={{ display: 'inline-flex', background: 'var(--bg-tertiary)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-md)', padding: '2px', gap: '2px' }}>
-              <button
-                type="button"
-                className={`btn btn-sm ${gridColumns === '2' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ padding: '0.35rem 0.65rem', fontSize: '0.76rem', borderRadius: 'calc(var(--radius-md) - 2px)' }}
-                onClick={() => handleSetGridColumns('2')}
-                title="Balanced 2-Column layout (Recommended - completely fills screen with 0 blank spaces)"
-              >
-                ▦ 2 Columns
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${gridColumns === '3' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ padding: '0.35rem 0.65rem', fontSize: '0.76rem', borderRadius: 'calc(var(--radius-md) - 2px)' }}
-                onClick={() => handleSetGridColumns('3')}
-                title="Compact 3-Column layout (High density across ultra-wide monitors)"
-              >
-                ☷ 3 Columns
-              </button>
-            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* -------------------------------------------------------------------- */}
       {/* 2. OPERATIONAL ACTION CENTER: RETENTION, RENEWALS & URGENT WORKFLOWS */}
@@ -1616,7 +1577,7 @@ function DashboardView({ state }) {
       {/* -------------------------------------------------------------------- */}
       {/* 4. EXECUTIVE ANALYTICAL GRAPHS (ALL 6 GRAPHS IN ONE HARMONIOUS GRID)  */}
       {/* -------------------------------------------------------------------- */}
-      <div className={`dash-charts-grid ${gridColumns === '3' ? 'cols-3' : ''}`}>
+      <div className="dash-charts-grid">
 
         {/* ------------------------------------------------------------------ */}
         {/* GRAPH 1: LIFECYCLE & RETENTION PIPELINE (DONUT & SEGMENT BARS)      */}
