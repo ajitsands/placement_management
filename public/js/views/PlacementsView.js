@@ -16,12 +16,15 @@ function PlacementsView({ state }) {
     return v !== null ? v : d;
   };
 
-  const [selectedCandidate, setSelectedCandidate] = useState(() => readSaved('candidate'));
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
-  const [selectedJob, setSelectedJob] = useState(() => readSaved('job'));
+  const [selectedCandidate, setSelectedCandidate] = useState(() => readSaved('candidate'));
+  const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
+  const [selectedDepartment, setSelectedDepartment] = useState(() => readSaved('department'));
   const [selectedCaseManager, setSelectedCaseManager] = useState(() => readSaved('case_manager'));
   const [joinDateFrom, setJoinDateFrom] = useState(() => readSaved('join_from'));
   const [joinDateTo, setJoinDateTo] = useState(() => readSaved('join_to'));
+  const [filingDateFrom, setFilingDateFrom] = useState(() => readSaved('filing_from'));
+  const [filingDateTo, setFilingDateTo] = useState(() => readSaved('filing_to'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'all'));
 
   const persist = (setter, key) => (val) => {
@@ -29,30 +32,46 @@ function PlacementsView({ state }) {
     sessionStorage.setItem('sands_placements_filter_' + key, val);
   };
 
-  const handleCandidateChange = persist(setSelectedCandidate, 'candidate');
   const handleEmployerChange = persist(setSelectedEmployer, 'employer');
-  const handleJobChange = persist(setSelectedJob, 'job');
+  const handleCandidateChange = persist(setSelectedCandidate, 'candidate');
+  const handlePositionChange = persist(setSelectedPosition, 'position');
+  const handleDepartmentChange = persist(setSelectedDepartment, 'department');
   const handleCaseManagerChange = persist(setSelectedCaseManager, 'case_manager');
   const handleJoinDateFrom = persist(setJoinDateFrom, 'join_from');
   const handleJoinDateTo = persist(setJoinDateTo, 'join_to');
+  const handleFilingDateFrom = persist(setFilingDateFrom, 'filing_from');
+  const handleFilingDateTo = persist(setFilingDateTo, 'filing_to');
   const handleStatusChange = persist(setStatusFilter, 'status');
 
-  const handleClearDates = () => {
+  const handleClearJoinDates = () => {
     handleJoinDateFrom('');
     handleJoinDateTo('');
   };
 
+  const handleClearFilingDates = () => {
+    handleFilingDateFrom('');
+    handleFilingDateTo('');
+  };
+
   const handleResetAll = () => {
-    handleCandidateChange('');
     handleEmployerChange('');
-    handleJobChange('');
+    handleCandidateChange('');
+    handlePositionChange('');
+    handleDepartmentChange('');
     handleCaseManagerChange('');
-    handleClearDates();
+    handleClearJoinDates();
+    handleClearFilingDates();
     handleStatusChange('all');
   };
 
-  const activeFiltersCount = (selectedCandidate ? 1 : 0) + (selectedEmployer ? 1 : 0) + (selectedJob ? 1 : 0) +
-    (selectedCaseManager ? 1 : 0) + ((joinDateFrom || joinDateTo) ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) +
+    (selectedCandidate ? 1 : 0) +
+    (selectedPosition ? 1 : 0) +
+    (selectedDepartment ? 1 : 0) +
+    (selectedCaseManager ? 1 : 0) +
+    ((joinDateFrom || joinDateTo) ? 1 : 0) +
+    ((filingDateFrom || filingDateTo) ? 1 : 0) +
+    (statusFilter !== 'all' ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Helper date parsing
@@ -135,6 +154,10 @@ function PlacementsView({ state }) {
         }
       }
 
+      const positionTitle = (c.position_title || linkedJob?.position_title || linkedJob?.job_title || 'Placed Specialist').trim();
+      const departmentName = (c.department || linkedJob?.department || 'Operations').trim();
+      const filingDate = c.registration_date || c.created_at || '';
+
       return {
         ...c,
         linked_job: linkedJob,
@@ -142,8 +165,9 @@ function PlacementsView({ state }) {
         claims_list: cClaims,
         days_elapsed: daysElapsed,
         job_display_code: c.job_code || linkedJob?.job_code || null,
-        job_display_title: c.position_title || linkedJob?.position_title || 'Placed Specialist',
-        department_display: linkedJob?.department || 'Operations'
+        job_display_title: positionTitle,
+        department_display: departmentName,
+        filing_date: filingDate
       };
     });
   }, [candidates, jobsMap, candidateMilestonesMap, candidateClaimsMap]);
@@ -176,30 +200,52 @@ function PlacementsView({ state }) {
     return [{ value: '', label: `All Employers (${list.length})`, subLabel: 'Filter by employer company' }, ...list];
   }, [placementsList]);
 
-  const jobOptions = useMemo(() => {
+  const positionOptions = useMemo(() => {
     const map = new Map();
-    (jobs || []).forEach(j => {
-      const key = j.job_code || String(j.id);
-      map.set(key, {
-        value: key,
-        label: `${j.job_code ? j.job_code + ' - ' : ''}${j.position_title}`,
-        subLabel: `${j.company_name} • ${j.vacancies_remaining ?? j.vacancies_count} Open Vacancies`,
-        searchKeywords: `${j.job_code} ${j.position_title} ${j.company_name}`
-      });
+    placementsList.forEach(p => {
+      const pos = (p.job_display_title || p.position_title || '').trim();
+      if (pos && !map.has(pos.toLowerCase())) {
+        map.set(pos.toLowerCase(), {
+          value: pos,
+          label: pos,
+          subLabel: 'Filter by job position',
+          searchKeywords: pos
+        });
+      }
     });
     const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-    return [{ value: '', label: `All Jobs & Vacancies (${list.length})`, subLabel: 'Filter by linked job position' }, ...list];
-  }, [jobs]);
+    return [{ value: '', label: `All Positions (${list.length})`, subLabel: 'Filter by job position' }, ...list];
+  }, [placementsList]);
+
+  const departmentOptions = useMemo(() => {
+    const map = new Map();
+    placementsList.forEach(p => {
+      const dept = (p.department_display || p.department || '').trim();
+      if (dept && !map.has(dept.toLowerCase())) {
+        map.set(dept.toLowerCase(), {
+          value: dept,
+          label: dept,
+          subLabel: 'Filter by department',
+          searchKeywords: dept
+        });
+      }
+    });
+    const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    return [{ value: '', label: `All Departments (${list.length})`, subLabel: 'Filter by department' }, ...list];
+  }, [placementsList]);
 
   // Filter display dataset
   const displayData = useMemo(() => {
     return placementsList.filter(p => {
-      if (selectedCandidate && String(p.id) !== String(selectedCandidate)) return false;
       if (selectedEmployer && (p.company_name || '').toLowerCase() !== selectedEmployer.toLowerCase()) return false;
-      if (selectedJob) {
-        const matchesCode = p.job_display_code && p.job_display_code.toLowerCase() === selectedJob.toLowerCase();
-        const matchesId = p.job_id && String(p.job_id) === String(selectedJob);
-        if (!matchesCode && !matchesId) return false;
+      if (selectedCandidate && String(p.id) !== String(selectedCandidate)) return false;
+      if (selectedPosition) {
+        const pos = (p.job_display_title || p.position_title || '').toLowerCase();
+        if (pos !== selectedPosition.toLowerCase()) return false;
+      }
+      if (selectedDepartment) {
+        const dept = (p.department_display || p.department || '').toLowerCase();
+        if (dept !== selectedDepartment.toLowerCase()) return false;
       }
       if (selectedCaseManager && p.case_manager_name !== selectedCaseManager) return false;
 
@@ -222,9 +268,19 @@ function PlacementsView({ state }) {
         if (!d || d > joinDateTo) return false;
       }
 
+      // Filing / Registration Date range filtering
+      if (filingDateFrom) {
+        const d = parseDateStr(p.filing_date || p.registration_date || p.created_at);
+        if (!d || d < filingDateFrom) return false;
+      }
+      if (filingDateTo) {
+        const d = parseDateStr(p.filing_date || p.registration_date || p.created_at);
+        if (!d || d > filingDateTo) return false;
+      }
+
       return true;
     });
-  }, [placementsList, selectedCandidate, selectedEmployer, selectedJob, selectedCaseManager, statusFilter, joinDateFrom, joinDateTo]);
+  }, [placementsList, selectedEmployer, selectedCandidate, selectedPosition, selectedDepartment, selectedCaseManager, statusFilter, joinDateFrom, joinDateTo, filingDateFrom, filingDateTo]);
 
   // Compute KPI summary
   const kpis = useMemo(() => {
@@ -717,28 +773,9 @@ function PlacementsView({ state }) {
           zIndex: 20
         }}
       >
-        {/* Row 1: Candidate, Employer, and Job Opening Filters */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem 1rem', alignItems: 'center' }}>
+        {/* Row 1: Employer, Candidate, Position, and Department Filters */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.85rem 1rem', alignItems: 'center' }}>
           
-          {/* Candidate Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-            <span style={labelStyle}><span>👤</span> Candidate:</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={candidateOptions}
-                  value={selectedCandidate}
-                  onChange={handleCandidateChange}
-                  placeholder="All Candidates..."
-                />
-              ) : (
-                <select className="select-control" value={selectedCandidate} onChange={e => handleCandidateChange(e.target.value)}>
-                  {candidateOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              )}
-            </div>
-          </div>
-
           {/* Employer Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
             <span style={labelStyle}><span>🏢</span> Employer:</span>
@@ -758,49 +795,68 @@ function PlacementsView({ state }) {
             </div>
           </div>
 
-          {/* Job Filter */}
+          {/* Candidate Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-            <span style={labelStyle}><span>💼</span> Job:</span>
+            <span style={labelStyle}><span>👤</span> Candidate:</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               {SearchableSelect ? (
                 <SearchableSelect
-                  options={jobOptions}
-                  value={selectedJob}
-                  onChange={handleJobChange}
-                  placeholder="All Jobs..."
+                  options={candidateOptions}
+                  value={selectedCandidate}
+                  onChange={handleCandidateChange}
+                  placeholder="All Candidates..."
                 />
               ) : (
-                <select className="select-control" value={selectedJob} onChange={e => handleJobChange(e.target.value)}>
-                  {jobOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <select className="select-control" value={selectedCandidate} onChange={e => handleCandidateChange(e.target.value)}>
+                  {candidateOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Position Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+            <span style={labelStyle}><span>💼</span> Position:</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={positionOptions}
+                  value={selectedPosition}
+                  onChange={handlePositionChange}
+                  placeholder="All Positions..."
+                />
+              ) : (
+                <select className="select-control" value={selectedPosition} onChange={e => handlePositionChange(e.target.value)}>
+                  {positionOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Department Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+            <span style={labelStyle}><span>🏬</span> Department:</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={departmentOptions}
+                  value={selectedDepartment}
+                  onChange={handleDepartmentChange}
+                  placeholder="All Departments..."
+                />
+              ) : (
+                <select className="select-control" value={selectedDepartment} onChange={e => handleDepartmentChange(e.target.value)}>
+                  {departmentOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               )}
             </div>
           </div>
         </div>
 
-        {/* Row 2: Case Manager, Joining Date Range, and Clear Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            {/* Case Manager Filter */}
-            {isAdminOrSuper && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span style={labelStyle}><span>🛡️</span> Case Manager:</span>
-                <select
-                  className="select-control"
-                  value={selectedCaseManager}
-                  onChange={e => handleCaseManagerChange(e.target.value)}
-                  style={{ minWidth: '150px', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                >
-                  <option value="">All Managers</option>
-                  {caseManagers.map(cm => (
-                    <option key={cm.id || cm.username} value={cm.case_manager_code || cm.full_name}>
-                      {cm.case_manager_code || cm.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
+        {/* Row 2: Joining Date Range, Filing Date Range, Case Manager, and Clear Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+            
             {/* Joining Date Range */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={labelStyle}><span>📅</span> Joining Date:</span>
@@ -825,14 +881,67 @@ function PlacementsView({ state }) {
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  onClick={handleClearDates}
-                  title="Clear date range"
+                  onClick={handleClearJoinDates}
+                  title="Clear Joining Date range"
                   style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', lineHeight: 1 }}
                 >
                   ✕
                 </button>
               )}
             </div>
+
+            {/* Filing / Registration Date Range */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={labelStyle}><span>🗓️</span> Filing Date:</span>
+              <input
+                type="date"
+                className="input-control"
+                style={{ width: '135px', padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                value={filingDateFrom}
+                onChange={e => handleFilingDateFrom(e.target.value)}
+                title="Filing / Registration Date From"
+              />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>to</span>
+              <input
+                type="date"
+                className="input-control"
+                style={{ width: '135px', padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                value={filingDateTo}
+                onChange={e => handleFilingDateTo(e.target.value)}
+                title="Filing / Registration Date To"
+              />
+              {(filingDateFrom || filingDateTo) && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={handleClearFilingDates}
+                  title="Clear Filing Date range"
+                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', lineHeight: 1 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Case Manager Filter */}
+            {isAdminOrSuper && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={labelStyle}><span>🛡️</span> Case Manager:</span>
+                <select
+                  className="select-control"
+                  value={selectedCaseManager}
+                  onChange={e => handleCaseManagerChange(e.target.value)}
+                  style={{ minWidth: '140px', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                >
+                  <option value="">All Managers</option>
+                  {caseManagers.map(cm => (
+                    <option key={cm.id || cm.username} value={cm.case_manager_code || cm.full_name}>
+                      {cm.case_manager_code || cm.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Reset All Filters Button */}
@@ -840,10 +949,10 @@ function PlacementsView({ state }) {
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.78rem', color: 'var(--danger)', borderColor: 'var(--danger)', padding: '0.3rem 0.65rem' }}
+              style={{ fontSize: '0.78rem', color: 'var(--danger)', borderColor: 'var(--danger)', padding: '0.3rem 0.75rem' }}
               onClick={handleResetAll}
             >
-              ✕ Reset Filters ({activeFiltersCount})
+              ✕ Reset All Filters ({activeFiltersCount})
             </button>
           )}
         </div>
@@ -883,6 +992,8 @@ function PlacementsView({ state }) {
             'employer_cr',
             'position_title',
             'job_code',
+            'department',
+            'department_display',
             'case_manager_name'
           ]}
           exportFilename="Candidate_Placements_Ledger_SaNDS.csv"
