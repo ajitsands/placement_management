@@ -184,11 +184,13 @@ class Payment {
             'id' => count($store['audit_logs']) + 1,
             'user_id' => $currentUser['id'],
             'username' => $currentUser['username'],
+            'user_full_name' => $currentUser['full_name'] ?? $currentUser['username'],
             'role' => $currentUser['role'],
             'action' => 'PAYMENT_RECORDED',
             'entity_type' => 'payment',
             'entity_id' => $id,
-            'details' => "Recorded payment {$receiptNo} for BHD {$amountPaid} against Claim ID {$claimId}",
+            'entity_ref' => $receiptNo,
+            'details' => "Recorded payment {$receiptNo} for BHD {$amountPaid} against Claim ID {$claimId} by {$currentUser['full_name']}",
             'created_at' => date('Y-m-d H:i:s')
         ];
 

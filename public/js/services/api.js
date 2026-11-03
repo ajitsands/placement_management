@@ -200,6 +200,17 @@ class ApiService {
       return this.request(`/reports${qs ? '?' + qs : ''}`);
     }
   };
+
+  activities = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/activities${qs ? '?' + qs : ''}`);
+    },
+    getByCaseManager: (caseManager, params = {}) => {
+      const qs = new URLSearchParams({ case_manager: caseManager, ...params }).toString();
+      return this.request(`/activities?${qs}`);
+    }
+  };
 }
 
 window.api = new ApiService();

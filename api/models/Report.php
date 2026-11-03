@@ -39,8 +39,13 @@ class Report {
         ];
     }
 
-    public static function generate(string $type, ?string $caseManagerScope = null): array {
+    public static function generate(string $type, ?string $caseManagerScope = null, ?string $dateFrom = null, ?string $dateTo = null): array {
         switch ($type) {
+            case 'case_manager_audit_log':
+                return [
+                    'title' => 'Case Managers Operational Audit Log Report',
+                    'data'  => AuditLog::getAuditReport($caseManagerScope, $dateFrom, $dateTo)
+                ];
             case 'candidate_placement':
                 return [
                     'title' => 'Candidate Placement Report',

@@ -41,6 +41,7 @@ class Database {
                         self::ensureChecklistTables(self::$pdo);
                         self::ensureCandidateChecklistColumns(self::$pdo);
                         self::ensureDocumentCategoriesTable(self::$pdo);
+                        self::ensureAuditLogsTable(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -141,7 +142,7 @@ class Database {
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `code` VARCHAR(64) NOT NULL UNIQUE,
                 `name` VARCHAR(191) NOT NULL,
-                `icon` VARCHAR(32) NOT NULL DEFAULT '📄',
+                `icon` VARCHAR(32) NOT NULL DEFAULT 'ðŸ“„',
                 `description` TEXT NULL,
                 `is_mandatory` TINYINT(1) NOT NULL DEFAULT 0,
                 `display_order` INT NOT NULL DEFAULT 1,
@@ -520,7 +521,7 @@ class Database {
                     ':id'            => (int)$item['id'],
                     ':code'          => $item['code'],
                     ':name'          => $item['name'],
-                    ':icon'          => $item['icon'] ?? '📄',
+                    ':icon'          => $item['icon'] ?? 'ðŸ“„',
                     ':description'   => $item['description'] ?? '',
                     ':is_mandatory'  => !empty($item['is_mandatory']) ? 1 : 0,
                     ':display_order' => (int)($item['display_order'] ?? 1),
@@ -530,6 +531,69 @@ class Database {
             }
         } catch (Exception $e) {
             // Ignore error
+        }
+    }
+
+    private static function ensureAuditLogsTable(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `audit_logs` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `user_id` INT NULL,
+                `username` VARCHAR(64) NOT NULL,
+                `user_full_name` VARCHAR(128) NULL,
+                `role` VARCHAR(32) NOT NULL,
+                `action` VARCHAR(64) NOT NULL,
+                `entity_type` VARCHAR(64) NOT NULL,
+                `entity_id` INT NULL,
+                `entity_ref` VARCHAR(64) NULL,
+                `details` TEXT NULL,
+                `ip_address` VARCHAR(45) NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_audit_action` (`action`),
+                INDEX `idx_audit_user` (`user_id`),
+                INDEX `idx_audit_created` (`created_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+        try {
+            $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_logs'");
+            $cols = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+            if (!in_array('user_full_name', $cols, true)) {
+                $pdo->exec("ALTER TABLE audit_logs ADD COLUMN user_full_name VARCHAR(128) NULL AFTER username");
+            }
+            if (!in_array('entity_ref', $cols, true)) {
+                $pdo->exec("ALTER TABLE audit_logs ADD COLUMN entity_ref VARCHAR(64) NULL AFTER entity_id");
+            }
+        } catch (Exception $e) {
+            // Ignore
+        }
+    }
+
+    private static function saveAuditLogsToMySQL(PDO $pdo, array $logs): void {
+        try {
+            self::ensureAuditLogsTable($pdo);
+            $stmt = $pdo->prepare("INSERT INTO audit_logs (id, user_id, username, user_full_name, role, action, entity_type, entity_id, entity_ref, details, ip_address, created_at)
+                VALUES (:id, :user_id, :username, :user_full_name, :role, :action, :entity_type, :entity_id, :entity_ref, :details, :ip_address, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    details = VALUES(details)");
+
+            foreach ($logs as $l) {
+                $stmt->execute([
+                    ':id'             => (int)$l['id'],
+                    ':user_id'        => !empty($l['user_id']) ? (int)$l['user_id'] : null,
+                    ':username'       => $l['username'] ?? 'system',
+                    ':user_full_name' => $l['user_full_name'] ?? ($l['username'] ?? 'System'),
+                    ':role'           => $l['role'] ?? 'case_manager',
+                    ':action'         => $l['action'] ?? 'AUDIT_LOG',
+                    ':entity_type'    => $l['entity_type'] ?? 'system',
+                    ':entity_id'      => !empty($l['entity_id']) ? (int)$l['entity_id'] : null,
+                    ':entity_ref'     => $l['entity_ref'] ?? null,
+                    ':details'        => $l['details'] ?? '',
+                    ':ip_address'     => $l['ip_address'] ?? '127.0.0.1',
+                    ':created_at'     => $l['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Non-fatal
         }
     }
 
@@ -795,6 +859,11 @@ class Database {
             // 8. Document Categories
             if (!empty($data['document_categories']) && is_array($data['document_categories'])) {
                 self::saveDocumentCategoriesToMySQL($pdo, $data['document_categories']);
+            }
+
+            // 9. Audit Logs
+            if (!empty($data['audit_logs']) && is_array($data['audit_logs'])) {
+                self::saveAuditLogsToMySQL($pdo, $data['audit_logs']);
             }
 
             $pdo->commit();

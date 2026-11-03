@@ -183,11 +183,13 @@ class Claim {
             'id' => count($store['audit_logs']) + 1,
             'user_id' => $currentUser['id'],
             'username' => $currentUser['username'],
+            'user_full_name' => $currentUser['full_name'] ?? $currentUser['username'],
             'role' => $currentUser['role'],
             'action' => 'CLAIM_CREATED',
             'entity_type' => 'claim',
             'entity_id' => $id,
-            'details' => "Claim {$claimRef} created with manual amount {$manualAmount} BHD for candidate {$cand['full_name']}",
+            'entity_ref' => $claimRef,
+            'details' => "Claim {$claimRef} created with manual amount {$manualAmount} BHD for candidate {$cand['full_name']} by {$currentUser['full_name']}",
             'created_at' => date('Y-m-d H:i:s')
         ];
 

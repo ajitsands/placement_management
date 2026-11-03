@@ -155,6 +155,7 @@ class AppStoreClass {
       payments: [],
       users: [],
       caseManagers: [],
+      caseManagerActivities: [],
       loading: false,
       notifications: [],
       modal: null // { type, props }
@@ -367,7 +368,12 @@ class AppStoreClass {
 
   async refreshData() {
     try {
-      const [kpisRes, candRes, jobsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes] = await Promise.all([
+      const activeUser = this.state.currentUser;
+      const targetCM = activeUser?.role === 'case_manager'
+        ? (activeUser.case_manager_code || activeUser.full_name)
+        : null;
+
+      const [kpisRes, candRes, jobsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes, actRes] = await Promise.all([
         window.api.reports.getKPIs(),
         window.api.candidates.getAll(),
         window.api.jobs.getAll().catch(() => ({ jobs: [] })),
@@ -376,7 +382,8 @@ class AppStoreClass {
         window.api.milestones.getAll(),
         window.api.claims.getAll(),
         window.api.disputes.getAll(),
-        window.api.payments.getAll()
+        window.api.payments.getAll(),
+        targetCM ? window.api.activities.getByCaseManager(targetCM).catch(() => ({ activities: [] })) : Promise.resolve({ activities: [] })
       ]);
 
       let usersList = this.state.users;
@@ -394,7 +401,8 @@ class AppStoreClass {
         claims: claimsRes?.claims || [],
         disputes: dispRes?.disputes || [],
         payments: payRes?.payments || [],
-        users: usersList || []
+        users: usersList || [],
+        caseManagerActivities: actRes?.activities || []
       });
     } catch (err) {
       console.error('Data refresh error:', err);
@@ -406,14 +414,21 @@ class AppStoreClass {
     try {
       const res = await window.api.auth.switchRole({ user_id: userId });
       this.state.currentUser = res.user;
-      this.showNotification(`Switched identity to ${res.user.full_name} (${res.user.role})`, 'info');
-      
-      // If user switched to case_manager, and was on users tab, move to dashboard
-      if (res.user.role === 'case_manager' && this.state.activeTab === 'users') {
+
+      // When acting as a Case Manager, immediately land on Dashboard where their activities are featured
+      if (res.user.role === 'case_manager') {
         this.state.activeTab = 'dashboard';
+        window.location.hash = '#dashboard';
       }
 
       await this.refreshData();
+
+      const actCount = this.state.caseManagerActivities?.length || 0;
+      if (res.user.role === 'case_manager') {
+        this.showNotification(`Acting as Case Manager: ${res.user.full_name} (${actCount} associated activities listed)`, 'info');
+      } else {
+        this.showNotification(`Switched identity to ${res.user.full_name} (${res.user.role})`, 'info');
+      }
     } catch (err) {
       this.showNotification('Failed to switch role: ' + err.message, 'error');
     } finally {

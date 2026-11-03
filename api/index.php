@@ -62,6 +62,7 @@ require_once __DIR__ . '/models/Payment.php';
 require_once __DIR__ . '/models/Setting.php';
 require_once __DIR__ . '/models/Report.php';
 require_once __DIR__ . '/models/DocumentCategory.php';
+require_once __DIR__ . '/models/AuditLog.php';
 
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UserController.php';
@@ -75,6 +76,7 @@ require_once __DIR__ . '/controllers/SettingController.php';
 require_once __DIR__ . '/controllers/ReportController.php';
 require_once __DIR__ . '/controllers/ChecklistMasterController.php';
 require_once __DIR__ . '/controllers/DocumentCategoryController.php';
+require_once __DIR__ . '/controllers/ActivityController.php';
 
 use App\Core\Router;
 use App\Controllers\AuthController;
@@ -89,6 +91,7 @@ use App\Controllers\SettingController;
 use App\Controllers\ReportController;
 use App\Controllers\ChecklistMasterController;
 use App\Controllers\DocumentCategoryController;
+use App\Controllers\ActivityController;
 
 $router = new Router();
 
@@ -193,6 +196,10 @@ $router->delete('/document-categories/{id}', [DocumentCategoryController::class,
 // ==================== EXECUTIVE REPORTS & KPI MICRO ROUTES ====================
 $router->get('/reports/kpis', [ReportController::class, 'kpis']);
 $router->get('/reports', [ReportController::class, 'generate']);
+
+// ==================== REAL-TIME ACTIVITIES & AUDIT LOGS ====================
+$router->get('/activities', [ActivityController::class, 'index']);
+$router->get('/audit-logs', [ActivityController::class, 'index']);
 
 // Dispatch incoming request
 $router->dispatch();

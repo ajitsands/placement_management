@@ -107,6 +107,27 @@ class CandidateController {
         $newCandidate = Candidate::create($data, $defaultCaseManager);
         $hasPlacement = !empty($newCandidate['company_name']);
 
+        // Log candidate registration action
+        \App\Models\AuditLog::log(
+            'CANDIDATE_REGISTERED',
+            'candidate',
+            (int)$newCandidate['id'],
+            $newCandidate['ref_no'],
+            "Candidate {$newCandidate['full_name']} (CPR: {$newCandidate['cpr_no']}) registered in talent pool with education {$newCandidate['education']}.",
+            $user
+        );
+
+        if ($hasPlacement) {
+            \App\Models\AuditLog::log(
+                'CANDIDATE_PLACED',
+                'candidate',
+                (int)$newCandidate['id'],
+                $newCandidate['ref_no'],
+                "Candidate {$newCandidate['full_name']} placed at {$newCandidate['company_name']} as {$newCandidate['position_title']} (Salary: BHD " . number_format($newCandidate['salary_bhd'] ?? 0, 3) . ").",
+                $user
+            );
+        }
+
         if ($checklistPending || ($newCandidate['status'] ?? '') === 'registration_incomplete') {
             $pct = $newCandidate['checklist_completion_pct'] ?? 0;
             $message = "Candidate saved in Incomplete Profile list ({$pct}% checklist completed)";
@@ -152,6 +173,16 @@ class CandidateController {
         if (!$updated) {
             Response::notFound("Candidate not found or unauthorized to link placement");
         }
+
+        $user = Auth::getCurrentUser();
+        \App\Models\AuditLog::log(
+            'CANDIDATE_PLACED',
+            'candidate',
+            $id,
+            $updated['ref_no'],
+            "Candidate {$updated['full_name']} placed at {$companyName} as {$updated['position_title']} (Salary: BHD " . number_format($updated['salary_bhd'] ?? 0, 3) . ") by {$user['full_name']}.",
+            $user
+        );
 
         Response::json($updated, 200, "Candidate successfully linked to {$companyName} with Day 0, Day 180, and Day 365 milestones created!");
     }
@@ -206,6 +237,16 @@ class CandidateController {
         }
 
         $company = $data['company_name'] ?? ($job['company_name'] ?? 'Employer');
+        $user = Auth::getCurrentUser();
+        \App\Models\AuditLog::log(
+            'BATCH_PLACED',
+            'job',
+            $jobId ?: null,
+            $data['job_code'] ?? ($job['job_code'] ?? 'BATCH'),
+            "Batch placement of " . count($results) . " candidate(s) allocated to {$company} by {$user['full_name']}.",
+            $user
+        );
+
         Response::json([
             'count' => count($results),
             'candidates' => $results
@@ -226,6 +267,16 @@ class CandidateController {
         if (!$updated) {
             Response::error("Invalid status or candidate access unauthorized", 400);
         }
+
+        $user = Auth::getCurrentUser();
+        \App\Models\AuditLog::log(
+            'CANDIDATE_STATUS_UPDATED',
+            'candidate',
+            $id,
+            $updated['ref_no'] ?? null,
+            "Candidate status updated to '{$status}' by {$user['full_name']}." . ($remarks ? " Remarks: {$remarks}" : ''),
+            $user
+        );
 
         Response::json($updated, 200, "Candidate status updated to '{$status}' successfully");
     }
@@ -329,6 +380,16 @@ class CandidateController {
         if (!$updated) {
             Response::notFound("Candidate not found or access unauthorized");
         }
+
+        $user = Auth::getCurrentUser();
+        \App\Models\AuditLog::log(
+            'DOCUMENT_UPLOADED',
+            'candidate',
+            $id,
+            $data['file_name'] ?? 'DOC',
+            "Document '{$data['name']}' uploaded to candidate {$updated['full_name']} vault by {$user['full_name']}.",
+            $user
+        );
 
         Response::json($updated, 200, 'Document attached to candidate successfully');
     }

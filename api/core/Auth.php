@@ -82,13 +82,22 @@ class Auth {
 
     /**
      * Determines whether transaction queries should be filtered to a specific Case Manager.
-     * Returns the case manager name string if scoped, or null if Admin/Superadmin (global access).
+     * All Case Managers have full cross-collaboration access: they can register, place,
+     * claim, collect payments, and see details of all others.
+     * Query scoping returns null by default to allow universal visibility.
      */
     public static function getScopedCaseManagerName(): ?string {
+        return null;
+    }
+
+    /**
+     * Returns the active Case Manager name/code if the current logged-in identity is a case manager.
+     */
+    public static function getActiveCaseManagerName(): ?string {
         $user = self::getCurrentUser();
         if ($user['role'] === 'case_manager') {
             return $user['case_manager_code'] ?? $user['full_name'];
         }
-        return null; // Admins and Superadmins handle ALL transactions by default
+        return null;
     }
 }

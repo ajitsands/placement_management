@@ -47,11 +47,6 @@ class PaymentController {
             Response::notFound("Claim record with ID {$claimId} not found");
         }
 
-        $scope = Auth::getScopedCaseManagerName();
-        if ($scope !== null && strcasecmp($claim['case_manager_name'] ?? '', $scope) !== 0) {
-            Response::forbidden("Access restricted: Claim belongs to Case Manager '{$claim['case_manager_name']}'");
-        }
-
         $payment = Payment::recordPayment($data, $user);
         Response::json($payment, 201, "Payment of BHD {$amount} recorded with receipt {$payment['receipt_no']}");
     }

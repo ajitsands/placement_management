@@ -143,11 +143,6 @@ function Navbar({ state }) {
     setMobileOpen(false);
   };
 
-  const handleRoleChange = (e) => {
-    const selectedUserId = parseInt(e.target.value);
-    window.AppStore.switchRole(selectedUserId);
-  };
-
   const handleLogout = async () => {
     const swal = window.Swal || window.swal;
     if (swal) {
@@ -197,52 +192,12 @@ function Navbar({ state }) {
             </div>
 
             <span className="top-header-country-badge">
-              🇧🇭 {settings.default_country || 'BAHRAIN'}
+              ðŸ‡§ðŸ‡­ {settings.default_country || 'BAHRAIN'}
             </span>
           </div>
 
-          {/* Right: ACT AS Switcher, Theme Toggle, Settings Icon, Profile Icon, Sign Out */}
+          {/* Right: Theme Toggle, Settings Icon, Profile Icon, Sign Out */}
           <div className="top-header-right">
-
-            {/* Quick ACT AS Role Switcher */}
-            <div className="top-role-switcher-group hide-mobile">
-              <span className="top-role-label">ACT AS:</span>
-              <select
-                className="top-role-select"
-                value={currentUser.id}
-                onChange={handleRoleChange}
-                title="Switch active user to test RBAC and Case Manager transaction scoping"
-              >
-                <optgroup label="Administrators (Global All Placements)">
-                  {(state.users && state.users.length > 0
-                    ? state.users.filter(u => u.role === 'superadmin' || u.role === 'admin')
-                    : [
-                        { id: 1, full_name: 'Super Administrator', role: 'superadmin', is_active: 1 },
-                        { id: 2, full_name: 'Administrator', role: 'admin', is_active: 1 }
-                      ]
-                  ).map(u => (
-                    <option key={u.id} value={u.id} disabled={(u.is_active ?? 1) === 0}>
-                      {u.full_name} ({u.role === 'superadmin' ? 'Super Admin' : 'Admin'}){(u.is_active ?? 1) === 0 ? ' [Deactivated]' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Case Managers (Strictly Scoped Placements)">
-                  {(state.users && state.users.length > 0
-                    ? state.users.filter(u => u.role === 'case_manager')
-                    : [
-                        { id: 3, full_name: 'Husain Al-Mulla', role: 'case_manager', is_active: 1 },
-                        { id: 4, full_name: 'Meaad Al-Alawi', role: 'case_manager', is_active: 1 },
-                        { id: 5, full_name: 'Dina Aldoseri', role: 'case_manager', is_active: 1 },
-                        { id: 6, full_name: 'Malak Al-Sayed', role: 'case_manager', is_active: 1 }
-                      ]
-                  ).map(u => (
-                    <option key={u.id} value={u.id} disabled={(u.is_active ?? 1) === 0}>
-                      {u.full_name} (Case Manager){(u.is_active ?? 1) === 0 ? ' [Deactivated]' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
 
             {/* Dark/Light Mode Toggle */}
             <button
@@ -321,7 +276,7 @@ function Navbar({ state }) {
               onClick={() => setMobileOpen(!mobileOpen)}
               title="Toggle Navigation Menu"
             >
-              {mobileOpen ? '✕' : '☰'}
+              {mobileOpen ? 'âœ•' : 'â˜°'}
             </button>
           </div>
         </div>

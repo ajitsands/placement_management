@@ -35,11 +35,6 @@ class ClaimController {
             Response::notFound("Claim record with ID {$id} not found");
         }
 
-        $scope = Auth::getScopedCaseManagerName();
-        if ($scope !== null && strcasecmp($claim['case_manager_name'] ?? '', $scope) !== 0) {
-            Response::forbidden("Access restricted: Claim is assigned to Case Manager '{$claim['case_manager_name']}'");
-        }
-
         Response::json($claim);
     }
 
@@ -85,24 +80,30 @@ class ClaimController {
         }
 
         // If claim still does not exist, create it for this milestone
+        $currentUser = Auth::getCurrentUser();
         if (!$claim) {
-            $currentUser = Auth::user();
             $newClaim = Claim::create($data, $currentUser);
             Response::json($newClaim, 200, 'Claim registered and updated successfully');
             return;
         }
 
-        $scope = Auth::getScopedCaseManagerName();
-        if ($scope !== null && !empty($claim['case_manager_name']) && strcasecmp($claim['case_manager_name'], $scope) !== 0) {
-            Response::forbidden("Access restricted to assigned Case Manager");
-        }
-
         $updated = Claim::update($id, $data);
+        if ($updated) {
+            \App\Models\AuditLog::log(
+                'CLAIM_UPDATED',
+                'claim',
+                $id,
+                $updated['claim_ref'] ?? ('CLM-' . $id),
+                "Claim {$updated['claim_ref']} updated to status '{$updated['status']}' with amount BHD " . number_format($updated['claim_amount_bhd'] ?? 0, 3) . " by {$currentUser['full_name']}.",
+                $currentUser
+            );
+        }
         Response::json($updated, 200, 'Claim updated successfully');
     }
 
     public function approve(array $data, array $params): void {
         Auth::requireAdminOrSuperadmin();
+        $currentUser = Auth::getCurrentUser();
 
         $id = (int)($params['id'] ?? 0);
         $updated = Claim::update($id, [
@@ -113,6 +114,15 @@ class ClaimController {
         if (!$updated) {
             Response::notFound("Claim not found");
         }
+
+        \App\Models\AuditLog::log(
+            'CLAIM_APPROVED',
+            'claim',
+            $id,
+            $updated['claim_ref'] ?? ('CLM-' . $id),
+            "Claim {$updated['claim_ref']} approved for disbursement by {$currentUser['full_name']}.",
+            $currentUser
+        );
 
         Response::json($updated, 200, 'Claim approved for disbursement');
     }
