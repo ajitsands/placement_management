@@ -119,9 +119,48 @@ function NavIcon({ type }) {
   }
 }
 
+function getUserRoleLabel(role) {
+  switch ((role || '').toLowerCase()) {
+    case 'superadmin':
+      return 'Super Admin';
+    case 'admin':
+      return 'Administrator';
+    case 'case_manager':
+      return 'Case Manager';
+    case 'finance':
+      return 'Finance Officer';
+    case 'auditor':
+      return 'Auditor';
+    default:
+      return role ? role.replace(/_/g, ' ') : 'User';
+  }
+}
+
+function getRoleBadgeStyle(role) {
+  switch ((role || '').toLowerCase()) {
+    case 'superadmin':
+      return { background: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' };
+    case 'admin':
+      return { background: 'rgba(37, 99, 235, 0.12)', color: '#2563eb' };
+    case 'case_manager':
+      return { background: 'rgba(5, 150, 105, 0.12)', color: '#059669' };
+    case 'finance':
+      return { background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' };
+    default:
+      return { background: 'rgba(100, 116, 139, 0.12)', color: '#64748b' };
+  }
+}
+
+function getUserInitials(name) {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function Navbar({ state }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { currentUser, activeTab, theme, settings, databaseStatus } = state;
+  const { currentUser = {}, activeTab, theme, settings = {}, databaseStatus, language = 'en' } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
 
   // Dedicated horizontal menu items (operational modules only)
@@ -191,13 +230,35 @@ function Navbar({ state }) {
               </span>
             </div>
 
-            <span className="top-header-country-badge">
-              ðŸ‡§ðŸ‡­ {settings.default_country || 'BAHRAIN'}
+            <span className="top-header-country-badge" title="Kingdom of Bahrain - National Portal">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" style={{ borderRadius: '2px', display: 'inline-block', verticalAlign: 'middle', boxShadow: '0 0 1px rgba(0,0,0,0.3)' }} aria-hidden="true">
+                <rect width="16" height="11" fill="#ce1126" />
+                <polygon points="0,0 4.8,0 6.4,1.1 4.8,2.2 6.4,3.3 4.8,4.4 6.4,5.5 4.8,6.6 6.4,7.7 4.8,8.8 6.4,9.9 4.8,11 0,11" fill="#ffffff" />
+              </svg>
+              <span>{settings.default_country || 'BAHRAIN'}</span>
             </span>
           </div>
 
-          {/* Right: Theme Toggle, Settings Icon, Profile Icon, Sign Out */}
+          {/* Right: Language Switcher, Theme Toggle, Settings, User Capsule, Sign Out */}
           <div className="top-header-right">
+
+            {/* Language Switcher Link (English | العربية) */}
+            <button
+              type="button"
+              className="top-lang-btn"
+              onClick={() => window.AppStore.toggleLanguage()}
+              title={language === 'en' ? 'التحويل إلى العربية (Switch to Arabic)' : 'Switch to English'}
+              aria-label="Switch Language"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px' }}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              <span className="top-lang-text">
+                {language === 'en' ? 'العربية' : 'English'}
+              </span>
+            </button>
 
             {/* Dark/Light Mode Toggle */}
             <button
@@ -240,19 +301,26 @@ function Navbar({ state }) {
               </svg>
             </button>
 
-            {/* Profile (Icon Only with Tooltip, No Text) */}
-            <button
-              type="button"
-              className={`top-icon-btn ${activeTab === 'profile' ? 'active' : ''}`}
+            {/* Logged in User Capsule with Name and User Type */}
+            <div
+              className={`top-user-capsule ${activeTab === 'profile' ? 'active' : ''}`}
               onClick={() => handleNavClick('profile')}
-              title={`My Profile (${currentUser.full_name || 'User'})`}
-              aria-label="My Profile"
+              title={`Logged in as ${currentUser.full_name || currentUser.username || 'User'} (${getUserRoleLabel(currentUser.role)}) — Click to view Profile`}
+              role="button"
+              tabIndex={0}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </button>
+              <div className="top-user-avatar">
+                {getUserInitials(currentUser.full_name || currentUser.username)}
+              </div>
+              <div className="top-user-details">
+                <span className="top-user-name">
+                  {currentUser.full_name || currentUser.username || 'User'}
+                </span>
+                <span className="top-user-role-badge" style={getRoleBadgeStyle(currentUser.role)}>
+                  {getUserRoleLabel(currentUser.role)}
+                </span>
+              </div>
+            </div>
 
             {/* Sign Out Button */}
             <button
@@ -275,8 +343,20 @@ function Navbar({ state }) {
               className="top-mobile-toggle-btn"
               onClick={() => setMobileOpen(!mobileOpen)}
               title="Toggle Navigation Menu"
+              aria-label="Toggle Menu"
             >
-              {mobileOpen ? 'âœ•' : 'â˜°'}
+              {mobileOpen ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              )}
             </button>
           </div>
         </div>

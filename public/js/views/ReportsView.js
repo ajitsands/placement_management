@@ -37,7 +37,7 @@ function ReportsView({ state }) {
   }, [caseManagers, users]);
 
   const reportOptions = [
-    { id: 'case_manager_audit_log', title: '📋 Case Managers Audit Log Report (Who, When & All Activities)' },
+    { id: 'case_manager_audit_log', title: 'Case Managers Audit Log Report (Who, When & All Activities)' },
     { id: 'candidate_placement', title: '1. Candidate Placement Master Report' },
     { id: 'claim_milestones', title: '2. Claim Milestones (+0d, +180d, +365d) Retention Gates' },
     { id: 'unclaimed_milestones', title: '3. Unclaimed Milestones Overdue Report' },
@@ -171,7 +171,12 @@ function ReportsView({ state }) {
       <div className="page-header" style={{ marginBottom: '1.25rem' }}>
         <div className="page-title-group">
           <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>📊</span> Enterprise Reports & Audit Center
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '22px', height: '22px', color: 'var(--primary)' }}>
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            <span>Enterprise Reports & Audit Center</span>
           </h1>
           <p className="page-subtitle">
             Regulatory, financial, and case manager operational audit trail reports compliant with Ministry and Tamkeen verification
@@ -185,7 +190,12 @@ function ReportsView({ state }) {
             title="Download report data as Excel CSV file"
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
           >
-            <span>📥</span> Export to Excel (CSV)
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Export to Excel (CSV)</span>
           </button>
           <button
             type="button"
@@ -193,7 +203,12 @@ function ReportsView({ state }) {
             onClick={handlePrint}
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
           >
-            <span>🖨️</span> Print / PDF
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}>
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            <span>Print / PDF</span>
           </button>
         </div>
       </div>
@@ -229,10 +244,10 @@ function ReportsView({ state }) {
               onChange={e => setSelectedCaseManager(e.target.value)}
               style={{ fontSize: '0.82rem' }}
             >
-              <option value="all">🌐 All Case Managers</option>
+              <option value="all">All Case Managers</option>
               {cmList.map(cm => (
                 <option key={cm.id || cm.name} value={cm.name}>
-                  👤 {cm.name} ({cm.code})
+                  {cm.name} ({cm.code})
                 </option>
               ))}
             </select>
@@ -276,7 +291,7 @@ function ReportsView({ state }) {
                 style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
                 title="Reset filters back to defaults"
               >
-                ✕ Reset
+                Reset
               </button>
             )}
             <button
@@ -284,9 +299,13 @@ function ReportsView({ state }) {
               className="btn btn-primary btn-sm"
               onClick={() => loadReport(reportType)}
               disabled={loading}
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              <span>{loading ? '⏳' : '🔄'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '13px', height: '13px' }} className={loading ? 'spin-icon' : ''}>
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
               <span>{loading ? 'Generating...' : 'Refresh'}</span>
             </button>
           </div>
@@ -344,7 +363,11 @@ function ReportsView({ state }) {
         <div className="table-responsive">
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3.5rem' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>⏳</div>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '32px', height: '32px', color: 'var(--primary)' }} className="spin-icon">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              </div>
               <p style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Aggregating report records from audit log repository...</p>
             </div>
           ) : (

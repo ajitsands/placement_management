@@ -102,6 +102,7 @@ class AppStoreClass {
   constructor() {
     this.formatDate = formatAppDate;
     const savedTheme = localStorage.getItem('sands_claims_theme') || 'light';
+    const savedLanguage = localStorage.getItem('sands_claims_lang') || 'en';
     const savedAuth = localStorage.getItem('sands_claims_auth') === 'true';
 
     // Resolve initial active tab from URL hash, fallback to localStorage, fallback to 'dashboard'
@@ -129,6 +130,7 @@ class AppStoreClass {
       },
       activeTab: initialTab,
       theme: savedTheme,
+      language: savedLanguage,
       settings: {
         app_name: 'Candidate Placement & Claims Management System',
         timezone: 'Asia/Bahrain',
@@ -177,6 +179,7 @@ class AppStoreClass {
 
     this.listeners = new Set();
     this.applyTheme(this.state.theme);
+    this.applyLanguage(this.state.language);
   }
 
   getState() {
@@ -208,6 +211,23 @@ class AppStoreClass {
     const newTheme = this.state.theme === 'light' ? 'dark' : 'light';
     this.applyTheme(newTheme);
     this.setState({ theme: newTheme });
+  }
+
+  applyLanguage(lang) {
+    const safeLang = lang === 'ar' ? 'ar' : 'en';
+    document.documentElement.setAttribute('lang', safeLang);
+    document.documentElement.setAttribute('dir', safeLang === 'ar' ? 'rtl' : 'ltr');
+    localStorage.setItem('sands_claims_lang', safeLang);
+  }
+
+  toggleLanguage() {
+    const newLang = (this.state.language || 'en') === 'en' ? 'ar' : 'en';
+    this.applyLanguage(newLang);
+    this.setState({ language: newLang });
+    this.showNotification(
+      newLang === 'ar' ? 'تم تحويل لغة النظام إلى العربية' : 'System language switched to English',
+      'info'
+    );
   }
 
   showNotification(message, type = 'success') {
