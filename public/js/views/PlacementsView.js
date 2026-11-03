@@ -732,10 +732,10 @@ function PlacementsView({ state }) {
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', fontWeight: 700 }}
             onClick={() => window.AppStore.openModal('BATCH_PLACEMENT')}
-            title="Open Talent Pool & Placement Studio to place candidates into open employer job vacancies"
+            title="Open Placement Allocation Studio to allocate candidates into open employer job vacancies"
           >
             <span>⚡</span>
-            <span>Allocate Pool to Jobs</span>
+            <span>Open Placement Allocation Studio</span>
             {availablePoolCandidates.length > 0 && (
               <span style={{
                 background: 'rgba(255, 255, 255, 0.25)',
@@ -747,22 +747,6 @@ function PlacementsView({ state }) {
                 {availablePoolCandidates.length} in Pool
               </span>
             )}
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
-            onClick={() => window.AppStore.setTab('jobs')}
-          >
-            <span>🏢</span> View Jobs & Vacancies
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
-            onClick={() => window.AppStore.openModal('LINK_PLACEMENT')}
-          >
-            <span>➕</span> Link New Placement
           </button>
         </div>
       </div>
