@@ -9,6 +9,7 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Response;
 use App\Models\Candidate;
+use App\Models\Job;
 
 class CandidateController {
     public function index(array $data): void {
@@ -153,6 +154,61 @@ class CandidateController {
         }
 
         Response::json($updated, 200, "Candidate successfully linked to {$companyName} with Day 0, Day 180, and Day 365 milestones created!");
+    }
+
+    public function batchPlacement(array $data): void {
+        $scope = Auth::getScopedCaseManagerName();
+        $jobId = (int)($data['job_id'] ?? 0);
+        $placements = $data['placements'] ?? [];
+
+        if (empty($placements) || !is_array($placements)) {
+            Response::error('No candidates selected for placement allocation', 400);
+        }
+
+        $job = null;
+        if ($jobId > 0) {
+            $job = Job::find($jobId);
+            if (!$job) {
+                Response::error("Job vacancy with ID {$jobId} not found", 400);
+            }
+            $remaining = (int)($job['vacancies_remaining'] ?? $job['vacancies_count'] ?? 1);
+            if (count($placements) > $remaining) {
+                Response::error("Cannot allocate " . count($placements) . " candidates. Job opening only has {$remaining} available vacancy opening(s).", 400);
+            }
+        }
+
+        $results = [];
+        foreach ($placements as $p) {
+            $candId = (int)($p['candidate_id'] ?? $p['id'] ?? 0);
+            if ($candId <= 0) continue;
+
+            $placementData = [
+                'job_id'            => $jobId ?: null,
+                'job_code'          => $data['job_code'] ?? ($job['job_code'] ?? null),
+                'company_name'      => $data['company_name'] ?? ($job['company_name'] ?? 'Employer'),
+                'employer_cr'       => $data['employer_cr'] ?? ($job['employer_cr'] ?? ''),
+                'position_title'    => $p['position_title'] ?? ($data['position_title'] ?? ($job['position_title'] ?? 'Specialist')),
+                'department'        => $data['department'] ?? ($job['department'] ?? 'Operations'),
+                'salary_bhd'        => (float)($p['salary_bhd'] ?? ($data['salary_bhd'] ?? ($job['salary_offered_bhd'] ?? 450.0))),
+                'joining_date'      => !empty($p['joining_date']) ? $p['joining_date'] : (!empty($data['joining_date']) ? $data['joining_date'] : date('Y-m-d')),
+                'employee_type'     => $p['employee_type'] ?? 'Full-Time',
+                'mol_certified'     => $p['mol_certified'] ?? 'Yes',
+                'comments'          => !empty($p['comments']) ? $p['comments'] : ($data['comments'] ?? ''),
+                'case_manager_name' => $p['case_manager_name'] ?? ($data['case_manager_name'] ?? null),
+                'case_manager_id'   => $p['case_manager_id'] ?? ($data['case_manager_id'] ?? null)
+            ];
+
+            $updated = Candidate::linkPlacement($candId, $placementData, $scope);
+            if ($updated) {
+                $results[] = $updated;
+            }
+        }
+
+        $company = $data['company_name'] ?? ($job['company_name'] ?? 'Employer');
+        Response::json([
+            'count' => count($results),
+            'candidates' => $results
+        ], 200, "Successfully allocated " . count($results) . " candidate(s) to {$company} with automated milestones!");
     }
 
     public function updateStatus(array $data, array $params): void {

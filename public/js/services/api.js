@@ -86,6 +86,7 @@ class ApiService {
     create: (data) => this.request('/candidates', { method: 'POST', body: data }),
     update: (id, data) => this.request(`/candidates/${id}`, { method: 'PUT', body: data }),
     linkPlacement: (id, data) => this.request(`/candidates/${id}/placement`, { method: 'POST', body: data }),
+    batchPlacement: (data) => this.request('/candidates/batch-placement', { method: 'POST', body: data }),
     updateStatus: (id, status, remarks) => this.request(`/candidates/${id}/status`, { method: 'POST', body: { status, remarks } }),
     uploadDocument: (data) => this.request('/candidates/upload', { method: 'POST', body: data }),
     addDocument: (id, doc) => this.request(`/candidates/${id}/documents`, { method: 'POST', body: doc }),

@@ -116,6 +116,8 @@ $router->get('/candidates', [CandidateController::class, 'index']);
 $router->get('/candidates/next-ref', [CandidateController::class, 'nextRef']);
 $router->get('/candidates/{id}', [CandidateController::class, 'show']);
 $router->post('/candidates/upload', [CandidateController::class, 'uploadDocument']);
+$router->post('/candidates/batch-placement', [CandidateController::class, 'batchPlacement']);
+$router->post('/placements/batch', [CandidateController::class, 'batchPlacement']);
 $router->post('/candidates/{id}/placement', [CandidateController::class, 'linkPlacement']);
 $router->post('/candidates/{id}/status', [CandidateController::class, 'updateStatus']);
 $router->post('/candidates/{id}/checklist', [CandidateController::class, 'updateChecklist']);
