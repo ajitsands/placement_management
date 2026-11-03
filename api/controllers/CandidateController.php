@@ -193,6 +193,7 @@ class CandidateController {
                 'joining_date'      => !empty($p['joining_date']) ? $p['joining_date'] : (!empty($data['joining_date']) ? $data['joining_date'] : date('Y-m-d')),
                 'employee_type'     => $p['employee_type'] ?? 'Full-Time',
                 'mol_certified'     => $p['mol_certified'] ?? 'Yes',
+                'long_mol'          => $p['long_mol'] ?? ($data['long_mol'] ?? 'No'),
                 'comments'          => !empty($p['comments']) ? $p['comments'] : ($data['comments'] ?? ''),
                 'case_manager_name' => $p['case_manager_name'] ?? ($data['case_manager_name'] ?? null),
                 'case_manager_id'   => $p['case_manager_id'] ?? ($data['case_manager_id'] ?? null)

@@ -1268,6 +1268,7 @@ function BatchPlacementModal({ state, initialJobId }) {
         joining_date: batchJoiningDate || new Date().toISOString().split('T')[0],
         employee_type: 'Full-Time',
         mol_certified: 'Yes',
+        long_mol: 'No',
         comments: batchNotes || ''
       };
       setAllocations(prev => [...prev, newAllocation]);
@@ -1379,6 +1380,7 @@ function BatchPlacementModal({ state, initialJobId }) {
           joining_date: a.joining_date,
           employee_type: a.employee_type || 'Full-Time',
           mol_certified: a.mol_certified || 'Yes',
+          long_mol: a.long_mol || 'No',
           comments: a.comments || ''
         }))
       };
@@ -1398,6 +1400,7 @@ function BatchPlacementModal({ state, initialJobId }) {
             joining_date: p.joining_date,
             employee_type: p.employee_type,
             mol_certified: p.mol_certified,
+            long_mol: p.long_mol,
             comments: p.comments
           });
         }
@@ -1968,7 +1971,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                       <input
                         type="text"
                         className="input-control"
-                        placeholder="Uniform remarks for all candidates..."
+                        placeholder="Global Placement notes"
                         style={{ fontSize: '0.78rem', padding: '0.3rem 0.5rem', flex: 1 }}
                         value={batchNotes}
                         onChange={e => setBatchNotes(e.target.value)}
@@ -1986,7 +1989,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                   </div>
                 </div>
 
-                {/* Scrollable Allocations List with Editable Salary, Date, and Notes */}
+                {/* Scrollable Allocations List with All Placement Fields */}
                 <div
                   style={{
                     flex: 1,
@@ -1994,7 +1997,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                     padding: '0.75rem 1rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.65rem',
+                    gap: '0.75rem',
                     minHeight: 0
                   }}
                 >
@@ -2004,31 +2007,36 @@ function BatchPlacementModal({ state, initialJobId }) {
                       style={{
                         border: '1px solid var(--border-color, #e2e8f0)',
                         borderRadius: 'var(--radius-md, 8px)',
-                        padding: '0.65rem 0.85rem',
+                        padding: '0.85rem 1rem',
                         background: 'var(--bg-card, #ffffff)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '0.5rem',
+                        gap: '0.65rem',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
                       }}
                     >
                       {/* Row 1: Candidate Header + Remove Button */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light, #f1f5f9)', paddingBottom: '0.45rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                          <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.74rem', fontWeight: 800 }}>
                             {idx + 1}
                           </span>
-                          <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
                             {item.full_name}
                           </strong>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '1px 6px', borderRadius: '4px' }}>
                             CPR: {item.cpr_no || 'N/A'}
                           </span>
+                          {item.ref_no && (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontFamily: 'var(--font-mono)', background: 'rgba(14, 165, 233, 0.1)', padding: '1px 6px', borderRadius: '4px' }}>
+                              {item.ref_no}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"
                           className="btn btn-outline btn-sm"
-                          style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', padding: '0.15rem 0.45rem', fontSize: '0.72rem' }}
+                          style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 600 }}
                           onClick={() => handleRemoveAllocation(item.candidate_id)}
                           title="Remove from allocation"
                         >
@@ -2036,49 +2044,117 @@ function BatchPlacementModal({ state, initialJobId }) {
                         </button>
                       </div>
 
-                      {/* Row 2: Salary, Joining Date, and Remarks */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '130px 145px 1fr', gap: '0.6rem', alignItems: 'center' }}>
+                      {/* Row 2: Employee Type & Position / Job Title */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '2px' }}>
-                            Salary ({currency}) *
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            Employee Type *
+                          </label>
+                          <select
+                            className="input-control"
+                            style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', width: '100%' }}
+                            value={item.employee_type || 'Full-Time'}
+                            onChange={e => handleUpdateAllocation(item.candidate_id, 'employee_type', e.target.value)}
+                          >
+                            <option value="Full-Time">Full-Time</option>
+                            <option value="Part-Time">Part-Time</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Internship">Internship</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            Position / Job Title *
+                          </label>
+                          <input
+                            type="text"
+                            className="input-control"
+                            style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', width: '100%' }}
+                            value={item.position_title || ''}
+                            placeholder="e.g. Specialist"
+                            onChange={e => handleUpdateAllocation(item.candidate_id, 'position_title', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Row 3: Monthly Salary (BHD) & Joining / Placement Date */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            Monthly Salary ({currency}) *
                           </label>
                           <input
                             type="number"
                             step="0.001"
                             min="1"
                             className="input-control"
-                            style={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: 'var(--font-mono)', padding: '0.3rem 0.45rem' }}
+                            style={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: 'var(--font-mono)', padding: '0.35rem 0.5rem', width: '100%' }}
                             value={item.salary_bhd}
                             onChange={e => handleUpdateAllocation(item.candidate_id, 'salary_bhd', e.target.value)}
                           />
                         </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '2px' }}>
-                            Joining Date *
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            Joining / Placement Date *
                           </label>
                           <input
                             type="date"
                             className="input-control"
-                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.45rem' }}
+                            style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', width: '100%' }}
                             value={item.joining_date}
                             onChange={e => handleUpdateAllocation(item.candidate_id, 'joining_date', e.target.value)}
                           />
                         </div>
+                      </div>
+
+                      {/* Row 4: MOL Certified & Long MOL */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            MOL Certified
+                          </label>
+                          <select
+                            className="input-control"
+                            style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', width: '100%' }}
+                            value={item.mol_certified || 'Yes'}
+                            onChange={e => handleUpdateAllocation(item.candidate_id, 'mol_certified', e.target.value)}
+                          >
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                          </select>
+                        </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '2px' }}>
-                            Individual Remarks / Notes
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                            Long MOL
                           </label>
-                          <input
-                            type="text"
-                            placeholder="Individual placement terms or notes..."
+                          <select
                             className="input-control"
-                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem' }}
-                            value={item.comments}
-                            onChange={e => handleUpdateAllocation(item.candidate_id, 'comments', e.target.value)}
-                          />
+                            style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', width: '100%' }}
+                            value={item.long_mol || 'No'}
+                            onChange={e => handleUpdateAllocation(item.candidate_id, 'long_mol', e.target.value)}
+                          >
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                          </select>
                         </div>
+                      </div>
+
+                      {/* Row 5: Placement Notes */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                          Placement Notes
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Specific placement notes / terms for this candidate..."
+                          className="input-control"
+                          style={{ fontSize: '0.82rem', padding: '0.35rem 0.55rem', width: '100%' }}
+                          value={item.comments || ''}
+                          onChange={e => handleUpdateAllocation(item.candidate_id, 'comments', e.target.value)}
+                        />
                       </div>
                     </div>
                   ))}
