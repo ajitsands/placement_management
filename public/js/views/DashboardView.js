@@ -1389,10 +1389,12 @@ function DashboardView({ state }) {
       {/* -------------------------------------------------------------------- */}
       {/* 3. CORE STATISTICS GRID (10 REQUESTED KPIS IN HARMONIOUS TILES)      */}
       {/* -------------------------------------------------------------------- */}
-      <div>
-        <div style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>
-          Operational Placement & Retention Drivers
-        </div>
+      {!isCaseManager && (
+        <>
+          <div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>
+              Operational Placement & Retention Drivers
+            </div>
         <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
 
           {/* 1. Total Candidates */}
@@ -2411,8 +2413,10 @@ function DashboardView({ state }) {
         </div>
 
       </div>
+    </>
+  )}
 
-    </div>
+</div>
   );
 }
 
