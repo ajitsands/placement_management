@@ -322,6 +322,13 @@ function DashboardView({ state }) {
     return (claims || []).filter(cl => cl.status === 'approved' && parseFloat(cl.balance_bhd || cl.claim_amount_bhd || 0) > 0.01);
   }, [claims]);
 
+  const approvedUnpaidAmount = useMemo(() => {
+    return approvedUnpaidClaims.reduce((sum, cl) => {
+      const bal = parseFloat(cl.balance_bhd !== undefined && cl.balance_bhd !== null ? cl.balance_bhd : cl.claim_amount_bhd) || 0;
+      return sum + bal;
+    }, 0);
+  }, [approvedUnpaidClaims]);
+
   // ---------------------------------------------------------------------------
   // INTERACTIVE DASHBOARD REDIRECTION HANDLERS
   // ---------------------------------------------------------------------------
@@ -371,6 +378,10 @@ function DashboardView({ state }) {
 
   const handleGoToPayments = () => {
     window.AppStore.setActiveTab('payments');
+  };
+
+  const handleGoToClaims = () => {
+    window.AppStore.setActiveTab('claims');
   };
 
   // ---------------------------------------------------------------------------
@@ -909,10 +920,10 @@ function DashboardView({ state }) {
           </div>
         </div>
 
-        {/* 3 Interactive Action Modules Grid */}
+        {/* 4 Interactive Action Modules Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: '1rem'
         }}>
 
@@ -942,7 +953,7 @@ function DashboardView({ state }) {
                       Retention Milestone Claims
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Action Required: Retention claims needing attention
+                      Milestone claims needing attention
                     </div>
                   </div>
                 </div>
@@ -959,63 +970,47 @@ function DashboardView({ state }) {
               {/* Counts & Value summary */}
               <div style={{ display: 'flex', gap: '0.55rem', margin: '0.85rem 0' }}>
                 <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Overdue (Past Deadline)</div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Overdue</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)' }}>{globalOverdueCount}</div>
                 </div>
                 <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Due (Ready to Submit)</div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Due Ready</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--warning)' }}>{globalDueCount}</div>
                 </div>
                 <div style={{ flex: 1.2, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Pending Claim Value</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary)' }}>
                     {currency} {Number(globalNeedingAttentionValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
                   </div>
                 </div>
               </div>
 
-              {/* Top 3 pending milestones preview */}
-              {globalRetentionNeedingAttention.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {globalRetentionNeedingAttention.slice(0, 3).map(m => (
-                    <div
-                      key={m.id}
-                      onClick={() => handleGoToMilestoneItem(m)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.45rem 0.65rem',
-                        background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.76rem',
-                        cursor: 'pointer',
-                        transition: 'var(--transition)'
-                      }}
-                      title="Click to redirect to milestone in retention tracker"
-                    >
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
-                        <strong>{m.candidateName}</strong>
-                        <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>• {m.companyName}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span className={`badge ${m.computedStatus === 'overdue' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.66rem', padding: '0.1rem 0.4rem' }}>
-                          {m.computedStatus === 'overdue' ? 'Overdue' : 'Due'}
-                        </span>
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{currency} {m.claimAmount}</span>
-                      </div>
-                    </div>
-                  ))}
+              {/* Milestone Gate Distribution (Summary breakdown, no item list) */}
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Day 0 Placement Gate</span>
+                  <span className="badge badge-neutral" style={{ fontWeight: 700, fontSize: '0.72rem' }}>{retentionGateCounts.day0} milestone(s)</span>
                 </div>
-              ) : (
-                <div style={{ fontSize: '0.78rem', color: 'var(--success)', padding: '0.5rem 0' }}>
-                  ✓ All milestone claims have been submitted or are on schedule.
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Day 180 (6-Month Gate)</span>
+                  <span className="badge badge-warning" style={{ fontWeight: 700, fontSize: '0.72rem' }}>{retentionGateCounts.day180} milestone(s)</span>
                 </div>
-              )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Day 365 (12-Month Gate)</span>
+                  <span className="badge badge-info" style={{ fontWeight: 700, fontSize: '0.72rem' }}>{retentionGateCounts.day365} milestone(s)</span>
+                </div>
+              </div>
             </div>
 
-            {/* Redirection Button */}
+            {/* Direct Link Button */}
             <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-tertiary)', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}>
               <button
                 type="button"
@@ -1056,7 +1051,7 @@ function DashboardView({ state }) {
                       Candidates Awaiting Renewal
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Overdue candidates awaiting renewal
+                      Candidates with overdue 12m validity
                     </div>
                   </div>
                 </div>
@@ -1092,59 +1087,40 @@ function DashboardView({ state }) {
                 </div>
               </div>
 
-              {/* Top 3 renewal candidates preview */}
-              {candidatesAwaitingRenewal.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {candidatesAwaitingRenewal.slice(0, 3).map(item => (
-                    <div
-                      key={item.candidate.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.45rem 0.65rem',
-                        background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.76rem'
-                      }}
-                    >
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                        <strong>{item.candidate.full_name}</strong>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          CPR: {item.candidate.cpr_no} • {item.isPlaced ? 'Completed 12m' : `${item.daysElapsed}d in pool`}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-warning btn-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.AppStore.openModal('RENEW_CANDIDATE', { candidate: item.candidate, fromPlaced: item.isPlaced });
-                        }}
-                        style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: 800 }}
-                        title="Open candidate renewal modal"
-                      >
-                        Renew Now
-                      </button>
-                    </div>
-                  ))}
+              {/* Renewal Lifecycle Guidance Box (No candidate list, no inline renew buttons) */}
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem',
+                fontSize: '0.76rem',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.5
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px', color: '#f59e0b' }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>12-Month Validity Lifecycle</span>
                 </div>
-              ) : (
-                <div style={{ fontSize: '0.78rem', color: 'var(--success)', padding: '0.5rem 0' }}>
-                  ✓ All registered and placed candidates have active validity.
+                <div>
+                  {candidatesAwaitingRenewal.length > 0
+                    ? `${candidatesAwaitingRenewal.length} candidate(s) exceed 12 months in the talent pool or completed 12 months in placement. Click below to review and renew in the Candidates session.`
+                    : 'All registered and placed candidates have active validity.'}
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Redirection Button */}
+            {/* Direct Link Button */}
             <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-tertiary)', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}>
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
                 onClick={handleGoToRenewals}
                 style={{ width: '100%', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#b45309', borderColor: '#f59e0b' }}
-                title="Redirect to Candidates view awaiting renewal"
+                title="Redirect to Candidates view awaiting renewal session"
               >
                 <span>Go to Candidates Awaiting Renewal ({candidatesAwaitingRenewal.length})</span>
                 <span>→</span>
@@ -1153,7 +1129,143 @@ function DashboardView({ state }) {
           </div>
 
 
-          {/* CARD 3: URGENT ACTIONS TO BE DONE BY CASE MANAGERS */}
+          {/* CARD 3: PAYMENTS PENDING & OUTSTANDING BALANCES */}
+          <div
+            className="card"
+            style={{
+              border: approvedUnpaidClaims.length > 0 ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--border-light)',
+              boxShadow: approvedUnpaidClaims.length > 0 ? '0 4px 16px rgba(16, 185, 129, 0.08)' : 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
+            <div style={{ padding: '1.15rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Payments Pending & Balances
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Approved claims awaiting payment & balances
+                    </div>
+                  </div>
+                </div>
+                <span className="badge" style={{
+                  background: approvedUnpaidClaims.length > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-tertiary)',
+                  color: approvedUnpaidClaims.length > 0 ? 'var(--success)' : 'var(--text-muted)',
+                  fontWeight: 800,
+                  fontSize: '0.74rem'
+                }}>
+                  {approvedUnpaidClaims.length} Pending Collection
+                </span>
+              </div>
+
+              {/* Financial Summary Counts & Balances */}
+              <div style={{ display: 'flex', gap: '0.55rem', margin: '0.85rem 0' }}>
+                <div style={{ flex: 1.1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Approved Unpaid</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--success)' }}>
+                    {currency} {Number(approvedUnpaidAmount).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {approvedUnpaidClaims.length} claim(s) ready
+                  </div>
+                </div>
+                <div style={{ flex: 1.1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Balance</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--warning)' }}>
+                    {currency} {Number(balanceAmount).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Across all claims
+                  </div>
+                </div>
+                <div style={{ flex: 1, background: 'var(--bg-tertiary)', padding: '0.55rem 0.65rem', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Settled Paid</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary)' }}>
+                    {currency} {Number(settledClaimsValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {collectionRate}% Realized
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Collection Breakdown */}
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Approved Awaiting Collection</span>
+                  <span style={{ fontWeight: 800, color: 'var(--success)' }}>
+                    {approvedUnpaidClaims.length} claims • {currency} {Number(approvedUnpaidAmount).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Disputed Frozen Balance</span>
+                  <span style={{ fontWeight: 800, color: 'var(--danger)' }}>
+                    {activeDisputedClaims.length} claims • {currency} {Number(disputedFrozenValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Treasury Realization Rate</span>
+                  <span className="badge badge-success" style={{ fontWeight: 800, fontSize: '0.72rem' }}>
+                    {collectionRate}% Collected
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Direct Link Buttons */}
+            <div style={{
+              padding: '0.75rem 1.25rem',
+              borderTop: '1px solid var(--border-light)',
+              background: 'var(--bg-tertiary)',
+              borderBottomLeftRadius: 'var(--radius-lg)',
+              borderBottomRightRadius: 'var(--radius-lg)',
+              display: 'flex',
+              gap: '0.5rem'
+            }}>
+              <button
+                type="button"
+                className="btn btn-success btn-sm"
+                onClick={handleGoToPayments}
+                style={{ flex: 1, justifyContent: 'center', fontWeight: 700, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Redirect to Payments Receipts module"
+              >
+                <span>Collect Payments ({approvedUnpaidClaims.length})</span>
+                <span>→</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleGoToClaims}
+                style={{ flex: 1, justifyContent: 'center', fontWeight: 700, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Redirect to Claims Ledger"
+              >
+                <span>Claims Ledger</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+
+          {/* CARD 4: URGENT ACTIONS TO BE DONE BY CASE MANAGERS */}
           <div
             className="card"
             style={{
@@ -1169,8 +1281,7 @@ function DashboardView({ state }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
-                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
                   </div>
                   <div>
@@ -1178,7 +1289,7 @@ function DashboardView({ state }) {
                       Urgent Case Manager Actions
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Urgent actions that need to be done by case managers
+                      Key operational workflows needing action
                     </div>
                   </div>
                 </div>
@@ -1188,7 +1299,7 @@ function DashboardView({ state }) {
               </div>
 
               {/* Action List with Direct Redirection */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.5rem' }}>
                 {/* 1. Placement Allocation Studio */}
                 <div
                   onClick={handleOpenPlacementStudio}
@@ -1214,7 +1325,7 @@ function DashboardView({ state }) {
                         Placement Allocation Studio
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                        {availablePoolCandidates.length} in pool ready • {totalOpenVacancies} job openings available
+                        {availablePoolCandidates.length} in pool ready • {totalOpenVacancies} job openings
                       </div>
                     </div>
                   </div>
@@ -1249,7 +1360,7 @@ function DashboardView({ state }) {
                         Incomplete Profiles Pending
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                        {incompleteProfileCandidates.length} candidate(s) missing mandatory checklist items
+                        {incompleteProfileCandidates.length} candidate(s) missing mandatory items
                       </div>
                     </div>
                   </div>
@@ -1276,57 +1387,21 @@ function DashboardView({ state }) {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#ef4444' }}>
-                      <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
-                      <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
-                      <path d="M7 21h10" />
-                      <path d="M12 3v18" />
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
                     <div>
                       <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         Active Disputed Claims
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                        {activeDisputedClaims.length} claim(s) in dispute • {currency} {Number(disputedFrozenValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
+                        {activeDisputedClaims.length} claim(s) • {currency} {Number(disputedFrozenValue).toLocaleString('en-US', { minimumFractionDigits: 1 })}
                       </div>
                     </div>
                   </div>
                   <span className={`badge ${activeDisputedClaims.length > 0 ? 'badge-danger' : 'badge-neutral'}`} style={{ fontSize: '0.7rem', fontWeight: 700 }}>
                     {activeDisputedClaims.length} Active
-                  </span>
-                </div>
-
-                {/* 4. Payment Receipts */}
-                <div
-                  onClick={handleGoToPayments}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.45rem 0.65rem',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    transition: 'var(--transition)'
-                  }}
-                  title="Record payment receipts"
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px', color: '#10b981' }}>
-                      <rect x="2" y="5" width="20" height="14" rx="2" />
-                      <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
-                    <div>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        Treasury Receipts Collection
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                        {approvedUnpaidClaims.length} approved claim(s) awaiting payment collection
-                      </div>
-                    </div>
-                  </div>
-                  <span className="badge badge-success" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
-                    Collect →
                   </span>
                 </div>
               </div>
@@ -1351,7 +1426,7 @@ function DashboardView({ state }) {
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 3. CORE STATISTICS GRID (9 REQUESTED KPIS IN HARMONIOUS TILES)       */}
+      {/* 3. CORE STATISTICS GRID (10 REQUESTED KPIS IN HARMONIOUS TILES)      */}
       {/* -------------------------------------------------------------------- */}
       <div>
         <div style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>
@@ -1475,7 +1550,34 @@ function DashboardView({ state }) {
             </div>
           </div>
 
-          {/* 8. Balance Amount */}
+          {/* 8. Pending Collection (Approved Unpaid Claims) */}
+          <div
+            className="kpi-card"
+            style={{
+              padding: '1.15rem 1.25rem',
+              cursor: 'pointer',
+              border: approvedUnpaidClaims.length > 0 ? '1px solid rgba(16, 185, 129, 0.4)' : undefined
+            }}
+            onClick={handleGoToPayments}
+            title="Click to redirect to Payment Receipts collection"
+          >
+            <div className="kpi-header">
+              <span className="kpi-title" style={{ color: 'var(--success)' }}>Pending Collection</span>
+              <div className="kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)' }}>💳</div>
+            </div>
+            <div className="kpi-value" style={{ color: 'var(--success)', fontSize: '1.65rem' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)', marginRight: '4px' }}>{currency}</span>
+              {Number(approvedUnpaidAmount).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+            </div>
+            <div className="dash-kpi-subtext">
+              <span>{approvedUnpaidClaims.length} approved claims</span>
+              <span className="dash-kpi-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                Collect →
+              </span>
+            </div>
+          </div>
+
+          {/* 9. Balance Amount */}
           <div className="kpi-card warning" style={{ padding: '1.15rem 1.25rem' }}>
             <div className="kpi-header">
               <span className="kpi-title">Balance Amount</span>
@@ -1493,7 +1595,7 @@ function DashboardView({ state }) {
             </div>
           </div>
 
-          {/* 9. Disputes Count */}
+          {/* 10. Disputes Flagged Count */}
           <div className="kpi-card danger" style={{ padding: '1.15rem 1.25rem' }}>
             <div className="kpi-header">
               <span className="kpi-title">Disputes Flagged</span>
