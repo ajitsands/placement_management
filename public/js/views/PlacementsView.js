@@ -25,7 +25,7 @@ function PlacementsView({ state }) {
   const [joinDateTo, setJoinDateTo] = useState(() => readSaved('join_to'));
   const [filingDateFrom, setFilingDateFrom] = useState(() => readSaved('filing_from'));
   const [filingDateTo, setFilingDateTo] = useState(() => readSaved('filing_to'));
-  const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'all'));
+  const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
 
   const persist = (setter, key) => (val) => {
     setter(val);
@@ -61,7 +61,7 @@ function PlacementsView({ state }) {
     handleCaseManagerChange('');
     handleClearJoinDates();
     handleClearFilingDates();
-    handleStatusChange('all');
+    handleStatusChange('active');
   };
 
   const activeFiltersCount = (selectedEmployer ? 1 : 0) +
@@ -71,7 +71,7 @@ function PlacementsView({ state }) {
     (selectedCaseManager ? 1 : 0) +
     ((joinDateFrom || joinDateTo) ? 1 : 0) +
     ((filingDateFrom || filingDateTo) ? 1 : 0) +
-    (statusFilter !== 'all' ? 1 : 0);
+    (statusFilter !== 'active' ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Helper date parsing
@@ -249,13 +249,18 @@ function PlacementsView({ state }) {
       }
       if (selectedCaseManager && p.case_manager_name !== selectedCaseManager) return false;
 
-      // Status filtering
+      // Status filtering: 'active' (Active Placements), 'completed' (Completed 12 Months), 'all'
       if (statusFilter !== 'all') {
         const st = (p.status || 'placed').toLowerCase();
-        if (statusFilter === 'placed' && st !== 'placed' && st !== 'active') return false;
-        if (statusFilter === 'completed' && st !== 'completed') return false;
-        if (statusFilter === 'resigned' && st !== 'resigned') return false;
-        if (statusFilter === 'on_hold' && st !== 'on_hold') return false;
+        const isCompleted12m = st === 'completed' || (p.days_elapsed !== null && p.days_elapsed >= 365);
+
+        if (statusFilter === 'active' || statusFilter === 'placed') {
+          // Active placements: currently employed in active cycle and not yet 12 months completed
+          if (isCompleted12m || st === 'resigned' || st === 'completed') return false;
+        } else if (statusFilter === 'completed') {
+          // Completed 12 months after placement
+          if (!isCompleted12m) return false;
+        }
       }
 
       // Joining Date range filtering
@@ -304,23 +309,23 @@ function PlacementsView({ state }) {
     };
   }, [placementsList]);
 
-  // Status breakdown counts across all placements
+  // Status breakdown counts across all placements: Active Placements, Completed 12 Months, All
   const statusCounts = useMemo(() => {
-    let all = placementsList.length;
-    let placed = 0;
+    let active = 0;
     let completed = 0;
-    let resigned = 0;
-    let on_hold = 0;
+    const all = placementsList.length;
 
     placementsList.forEach(p => {
       const st = (p.status || 'placed').toLowerCase();
-      if (st === 'placed' || st === 'active') placed++;
-      else if (st === 'completed') completed++;
-      else if (st === 'resigned') resigned++;
-      else if (st === 'on_hold') on_hold++;
+      const isCompleted12m = st === 'completed' || (p.days_elapsed !== null && p.days_elapsed >= 365);
+      if (isCompleted12m) {
+        completed++;
+      } else if (st !== 'resigned') {
+        active++;
+      }
     });
 
-    return { all, placed, completed, resigned, on_hold };
+    return { all, active, completed };
   }, [placementsList]);
 
   // Real-time filtered metrics
@@ -720,14 +725,12 @@ function PlacementsView({ state }) {
         </div>
       </div>
 
-      {/* Lifecycle Status Navigation Tabs */}
+      {/* Lifecycle Status Navigation Tabs: Active Placements (Default) -> Completed 12 Months -> All */}
       <div className="placement-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
-          { key: 'all', label: 'All Placements', count: statusCounts.all },
-          { key: 'placed', label: '💼 Active Contracts', count: statusCounts.placed },
-          { key: 'completed', label: '🎓 Completed Program', count: statusCounts.completed },
-          { key: 'resigned', label: '⚠️ Resigned / Exited', count: statusCounts.resigned },
-          { key: 'on_hold', label: '⏸️ On Hold', count: statusCounts.on_hold },
+          { key: 'active', label: '💼 Active Placements', count: statusCounts.active },
+          { key: 'completed', label: '🎓 Completed 12 Months', count: statusCounts.completed },
+          { key: 'all', label: 'All', count: statusCounts.all },
         ].map(tab => {
           const isSelected = statusFilter === tab.key;
           return (
@@ -969,8 +972,8 @@ function PlacementsView({ state }) {
             </span>
           </div>
           {statusFilter !== 'all' && (
-            <span className="badge badge-info" style={{ fontSize: '0.72rem', textTransform: 'capitalize' }}>
-              Filtered by: {statusFilter.replace('_', ' ')}
+            <span className="badge badge-info" style={{ fontSize: '0.72rem' }}>
+              Filtered by: {statusFilter === 'active' ? 'Active Placements' : (statusFilter === 'completed' ? 'Completed 12 Months' : statusFilter)}
             </span>
           )}
         </div>
