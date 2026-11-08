@@ -128,12 +128,12 @@ function NewCandidateModal({ state }) {
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: 'ðŸ†”', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
-      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: 'ðŸ“„', description: 'Current professional curriculum vitae detailing education and employment background.' },
-      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: 'ðŸŽ“', description: 'Graduation diploma or accredited academic qualification certificate.' },
-      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: 'ðŸ“', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
-      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: 'ðŸ“‘', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: 'ðŸ“Ž', description: 'Supplementary certificates, licenses, or professional credentials.' }
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄', description: 'Current professional curriculum vitae detailing education and employment background.' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓', description: 'Graduation diploma or accredited academic qualification certificate.' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Supplementary certificates, licenses, or professional credentials.' }
     ];
   }, [documentCategories]);
 
@@ -320,12 +320,12 @@ function NewCandidateModal({ state }) {
     <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">âž• Candidate Registration Module</h2>
+          <h2 className="modal-title">➕ Candidate Registration Module</h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Register candidate personal profile, attach verification documents & verify compliance checklist
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -334,7 +334,7 @@ function NewCandidateModal({ state }) {
           {/* SECTION 1: CANDIDATE PERSONAL PARAMETERS (BALANCED 2-COLUMN GRID) */}
           <div style={{ background: 'var(--bg-tertiary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span>ðŸ‘¤</span> Candidate Personal Parameters
+              <span>👤</span> Candidate Personal Parameters
             </h3>
 
             {/* Row 1: Full Name & CPR Number */}
@@ -395,7 +395,7 @@ function NewCandidateModal({ state }) {
                   <label className="form-label" style={{ margin: 0 }}>Date of Birth</label>
                   {form.date_of_birth && window.calculateAge && window.calculateAge(form.date_of_birth) !== null && (
                     <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700 }}>
-                      ðŸŽ‚ {window.calculateAge(form.date_of_birth)} yrs old
+                      🎂 {window.calculateAge(form.date_of_birth)} yrs old
                     </span>
                   )}
                 </div>
@@ -489,7 +489,7 @@ function NewCandidateModal({ state }) {
                     }}
                     title="Mandatory checklist items not satisfied. Candidate will be saved under Incomplete Profile list."
                   >
-                    <span>âš ï¸</span>
+                    <span>⚠️</span>
                     <span>Incomplete Profile ({checklistEval.percentage}%)</span>
                   </div>
                 )}
@@ -499,18 +499,26 @@ function NewCandidateModal({ state }) {
             {/* Row 5: Assigned Case Manager */}
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label className="form-label">Assigned Case Manager</label>
-              <select
-                className="select-control"
-                value={form.case_manager_name}
-                onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
-                title="Assign or attribute this candidate registration to a case manager"
-              >
-                {caseManagers.map(cm => (
-                  <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
-                    {cm.full_name} ({cm.case_manager_code || 'CM'})
-                  </option>
-                ))}
-              </select>
+              {isAdminOrSuper ? (
+                <select
+                  className="select-control"
+                  value={form.case_manager_name}
+                  onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+                >
+                  {caseManagers.map(cm => (
+                    <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
+                      {cm.full_name} ({cm.case_manager_code || 'CM'})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="input-control"
+                  value={form.case_manager_name}
+                  disabled
+                />
+              )}
             </div>
 
             {/* Row 5: Remarks */}
@@ -530,7 +538,7 @@ function NewCandidateModal({ state }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.85rem' }}>
               <div>
                 <h3 style={{ fontSize: '0.94rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>ðŸ“‹</span> Candidate Registration Compliance Checklist
+                  <span>📋</span> Candidate Registration Compliance Checklist
                 </h3>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                   All mandatory criteria must be verified to complete candidate registration
@@ -577,11 +585,11 @@ function NewCandidateModal({ state }) {
               marginBottom: '1rem'
             }}>
               <div style={{ fontSize: '0.78rem', color: checklistEval.canProceed ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>{checklistEval.canProceed ? 'âœ“' : 'âš ï¸'}</span>
+                <span>{checklistEval.canProceed ? '✓' : '⚠️'}</span>
                 <span>
                   {checklistEval.canProceed
-                    ? `All Mandatory Criteria Satisfied (${checklistEval.percentage}%) â€” Candidate Profile Fully Verified`
-                    : `${checklistEval.missingMandatory.length} Mandatory Criteria Pending (${checklistEval.percentage}%) â€” Candidate will be saved under 'Incomplete Profile'`}
+                    ? `All Mandatory Criteria Satisfied (${checklistEval.percentage}%) — Candidate Profile Fully Verified`
+                    : `${checklistEval.missingMandatory.length} Mandatory Criteria Pending (${checklistEval.percentage}%) — Candidate will be saved under 'Incomplete Profile'`}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -591,7 +599,7 @@ function NewCandidateModal({ state }) {
                   style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
                   onClick={handleSelectAllChecklist}
                 >
-                  âœ“ Select All
+                  ✓ Select All
                 </button>
                 <button
                   type="button"
@@ -599,7 +607,7 @@ function NewCandidateModal({ state }) {
                   style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
                   onClick={handleClearAllChecklist}
                 >
-                  âœ• Clear All
+                  ✕ Clear All
                 </button>
               </div>
             </div>
@@ -662,7 +670,7 @@ function NewCandidateModal({ state }) {
           <div style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>ðŸ“</span> Multiple Document Upload Area ({documents.length} attached)
+                <span>📁</span> Multiple Document Upload Area ({documents.length} attached)
               </span>
               <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                 PDF, DOCX, PNG, JPG accepted
@@ -702,7 +710,7 @@ function NewCandidateModal({ state }) {
 
               <div>
                 <label className="btn btn-outline" style={{ display: 'inline-block', textAlign: 'center', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  ðŸ“¤ Select File(s)
+                  📤 Select File(s)
                   <input
                     type="file"
                     multiple
@@ -728,7 +736,7 @@ function NewCandidateModal({ state }) {
                 gap: '0.45rem',
                 lineHeight: 1.4
               }}>
-                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>ðŸ’¡</span>
+                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
                 <div>
                   <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
                   <span>{selectedDocCategory.description}</span>
@@ -756,7 +764,7 @@ function NewCandidateModal({ state }) {
                       <span className="badge badge-info">{doc.type}</span>
                       <strong>{doc.name}</strong>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        ({doc.file_name} â€¢ {(doc.file_size / 1024).toFixed(1)} KB)
+                        ({doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB)
                       </span>
                     </div>
                     <button
@@ -765,7 +773,7 @@ function NewCandidateModal({ state }) {
                       style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontWeight: 800 }}
                       title="Remove"
                     >
-                      âœ•
+                      ✕
                     </button>
                   </div>
                 ))}
@@ -781,7 +789,7 @@ function NewCandidateModal({ state }) {
         <div className="modal-footer">
           <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving Candidate...' : (checklistEval.canProceed ? 'Complete Candidate Registration' : `ðŸ’¾ Save to Incomplete Profile (${checklistEval.percentage}%)`)}
+            {saving ? 'Saving Candidate...' : (checklistEval.canProceed ? 'Complete Candidate Registration' : `💾 Save to Incomplete Profile (${checklistEval.percentage}%)`)}
           </button>
         </div>
       </form>
@@ -888,16 +896,16 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
     <div className="modal-content" style={{ maxWidth: '720px' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">ðŸ”— Link Employer Placement & Job</h2>
+          <h2 className="modal-title">🔗 Link Employer Placement & Job</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             {activeCandidate ? (
-              <>Candidate: <strong>{activeCandidate.full_name}</strong> (Ref: {activeCandidate.ref_no} â€¢ CPR: {activeCandidate.cpr_no})</>
+              <>Candidate: <strong>{activeCandidate.full_name}</strong> (Ref: {activeCandidate.ref_no} • CPR: {activeCandidate.cpr_no})</>
             ) : (
               'Link an eligible candidate to an employer job opening'
             )}
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -916,7 +924,7 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
                 <option value="">-- Choose Candidate from Registry --</option>
                 {candidates.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.ref_no} â€¢ {c.full_name} (CPR: {c.cpr_no}) {c.company_name ? `[Current: ${c.company_name}]` : '[Available]'}
+                    {c.ref_no} • {c.full_name} (CPR: {c.cpr_no}) {c.company_name ? `[Current: ${c.company_name}]` : '[Available]'}
                   </option>
                 ))}
               </select>
@@ -926,7 +934,7 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
           {/* Job Vacancy Selector Box */}
           <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', padding: '0.85rem 1rem', borderRadius: '8px' }}>
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>ðŸ¢ Select Employer Job Vacancy (Auto-fills details)</span>
+              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>🏢 Select Employer Job Vacancy (Auto-fills details)</span>
               {jobs.length > 0 && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{jobs.length} jobs available</span>}
             </label>
             <select
@@ -940,14 +948,14 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
                 const rem = j.vacancies_remaining ?? j.vacancies_count ?? 1;
                 return (
                   <option key={j.id || j.job_code} value={j.job_code || String(j.id)}>
-                    {j.job_code} â€¢ {j.position_title} at {j.company_name} ({currency} {Number(j.salary_bhd || 0).toFixed(3)} â€¢ {rem} Open)
+                    {j.job_code} • {j.position_title} at {j.company_name} ({currency} {Number(j.salary_bhd || 0).toFixed(3)} • {rem} Open)
                   </option>
                 );
               })}
             </select>
             {form.job_code && (
               <div style={{ fontSize: '0.74rem', color: 'var(--success)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span>âœ“</span> Mapped to Job Code: <strong>{form.job_code}</strong>
+                <span>✓</span> Mapped to Job Code: <strong>{form.job_code}</strong>
               </div>
             )}
           </div>
@@ -1060,21 +1068,29 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
             </div>
           </div>
 
-          {/* Row 5: Assigned Case Manager */}
+          {/* Row 5: Assigned Case Manager (if admin) */}
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Assigned Case Manager</label>
-            <select
-              className="select-control"
-              value={form.case_manager_name}
-              onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
-              title="Assign or attribute this placement contract to a case manager"
-            >
-              {caseManagers.map(cm => (
-                <option key={cm.id || cm.username} value={cm.case_manager_code || cm.full_name}>
-                  {cm.full_name} ({cm.case_manager_code || 'CM'})
-                </option>
-              ))}
-            </select>
+            {isAdminOrSuper ? (
+              <select
+                className="select-control"
+                value={form.case_manager_name}
+                onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+              >
+                {caseManagers.map(cm => (
+                  <option key={cm.id || cm.username} value={cm.case_manager_code || cm.full_name}>
+                    {cm.full_name} ({cm.case_manager_code || 'CM'})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                className="input-control"
+                value={form.case_manager_name}
+                disabled
+              />
+            )}
           </div>
 
           {/* Row 6: Comments */}
@@ -1090,7 +1106,7 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
           </div>
 
           <div style={{ background: 'var(--success-bg, rgba(16,185,129,0.1))', border: '1px solid var(--success-border, rgba(16,185,129,0.3))', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm, 6px)', fontSize: '0.78rem', color: 'var(--success, #10b981)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>âš¡</span>
+            <span>⚡</span>
             <span>Automated Day 0, Day 180, and Day 365 retention milestones will be automatically synced upon linking.</span>
           </div>
         </div>
@@ -1156,8 +1172,8 @@ function BatchPlacementModal({ state, initialJobId }) {
       const code = j.job_code || `JOB-${j.id}`;
       return {
         value: String(j.id),
-        label: `${j.company_name} â€” ${pos}`,
-        subLabel: `${code} â€¢ Dept: ${dept} â€¢ ${remaining} open of ${j.vacancies_count || 1} â€¢ ${currency} ${sal}`,
+        label: `${j.company_name} — ${pos}`,
+        subLabel: `${code} • Dept: ${dept} • ${remaining} open of ${j.vacancies_count || 1} • ${currency} ${sal}`,
         searchKeywords: `${j.company_name} ${pos} ${dept} ${code} ${j.employer_cr || ''}`,
         job: j,
         remaining
@@ -1452,7 +1468,7 @@ function BatchPlacementModal({ state, initialJobId }) {
               boxShadow: '0 2px 8px rgba(14, 165, 233, 0.3)'
             }}
           >
-            âš¡
+            ⚡
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -1499,7 +1515,7 @@ function BatchPlacementModal({ state, initialJobId }) {
           title="Close Studio Modal"
           style={{ fontSize: '1.3rem', padding: '0.25rem 0.5rem' }}
         >
-          âœ•
+          ✕
         </button>
       </div>
 
@@ -1563,7 +1579,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                       : Math.max(0, (parseInt(j.vacancies_count, 10) || 1) - (parseInt(j.placed_count, 10) || 0));
                     return (
                       <option key={j.id} value={j.id}>
-                        {j.company_name} â€” {j.position_title || j.job_title} ({j.job_code || `JOB-${j.id}`} â€¢ {rem} open / {j.vacancies_count || 1} total â€¢ {currency} {parseFloat(j.salary_offered_bhd || j.salary_bhd || 0).toFixed(3)})
+                        {j.company_name} — {j.position_title || j.job_title} ({j.job_code || `JOB-${j.id}`} • {rem} open / {j.vacancies_count || 1} total • {currency} {parseFloat(j.salary_offered_bhd || j.salary_bhd || 0).toFixed(3)})
                       </option>
                     );
                   })}
@@ -1667,7 +1683,7 @@ function BatchPlacementModal({ state, initialJobId }) {
             <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color, #e2e8f0)', flexShrink: 0 }}>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <span style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>
-                  ðŸ”
+                  🔍
                 </span>
                 <input
                   type="text"
@@ -1702,7 +1718,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                     }}
                     title="Clear candidate search"
                   >
-                    âœ•
+                    ✕
                   </button>
                 )}
               </div>
@@ -1722,7 +1738,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                     gap: '0.4rem'
                   }}
                 >
-                  <span>âš ï¸</span>
+                  <span>⚠️</span>
                   <span>Job capacity reached ({maxVacancies} max openings). Uncheck an allocated candidate to pick another.</span>
                 </div>
               )}
@@ -1803,9 +1819,9 @@ function BatchPlacementModal({ state, initialJobId }) {
                             )}
                           </div>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            {cand.skills && <span>ðŸ› ï¸ <strong>{cand.skills}</strong></span>}
-                            {cand.highest_education && <span>&bull; ðŸŽ“ {cand.highest_education}</span>}
-                            {cand.phone_number && <span>&bull; ðŸ“ž {cand.phone_number}</span>}
+                            {cand.skills && <span>🛠️ <strong>{cand.skills}</strong></span>}
+                            {cand.highest_education && <span>&bull; 🎓 {cand.highest_education}</span>}
+                            {cand.phone_number && <span>&bull; 📞 {cand.phone_number}</span>}
                           </div>
                         </div>
                       </div>
@@ -1824,7 +1840,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                         }}
                         onClick={() => handleToggleCandidate(cand)}
                       >
-                        {isAllocated ? 'âœ“ Selected' : '+ Allocate'}
+                        {isAllocated ? '✓ Selected' : '+ Allocate'}
                       </button>
                     </div>
                   );
@@ -1892,7 +1908,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                   textAlign: 'center'
                 }}
               >
-                <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>ðŸ‘¥</div>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>👥</div>
                 <div style={{ fontWeight: 800, fontSize: '0.96rem', color: 'var(--text-primary)' }}>
                   No Candidates Allocated Yet
                 </div>
@@ -1918,7 +1934,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
-                      âš¡ Batch Quick-Apply Actions
+                      ⚡ Batch Quick-Apply Actions
                     </span>
                     <button
                       type="button"
@@ -2025,7 +2041,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                           onClick={() => handleRemoveAllocation(item.candidate_id)}
                           title="Remove from allocation"
                         >
-                          âœ• Remove
+                          ✕ Remove
                         </button>
                       </div>
 
@@ -2202,7 +2218,7 @@ function BatchPlacementModal({ state, initialJobId }) {
               boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
             }}
           >
-            <span>{submitting ? 'â³ Creating Placements...' : 'âœ“ Confirm & Create Placements'}</span>
+            <span>{submitting ? '⏳ Creating Placements...' : '✓ Confirm & Create Placements'}</span>
             {!submitting && (
               <span
                 style={{
@@ -2333,12 +2349,12 @@ function JobModal({ state, job }) {
     <div className="modal-content" style={{ maxWidth: '680px' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">{isEditing ? 'âœï¸ Edit Job Vacancy' : 'âž• Post New Employer Job Vacancy'}</h2>
+          <h2 className="modal-title">{isEditing ? '✏️ Edit Job Vacancy' : '➕ Post New Employer Job Vacancy'}</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             {isEditing ? `Job Code: ${job.job_code}` : 'Define an employer job position to link with national candidates'}
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -2513,7 +2529,7 @@ function PlacementDossierModal({ state, candidate }) {
             justifyContent: 'center',
             fontSize: '1.4rem'
           }}>
-            ðŸ“œ
+            📜
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>
@@ -2524,7 +2540,7 @@ function PlacementDossierModal({ state, candidate }) {
             </div>
           </div>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -2545,7 +2561,7 @@ function PlacementDossierModal({ state, candidate }) {
             <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.85 }}>Official Employer Placement</span>
             <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{candidate.company_name || 'N/A'}</div>
             <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
-              {candidate.position_title} {candidate.job_code ? `â€¢ Job Code: ${candidate.job_code}` : ''}
+              {candidate.position_title} {candidate.job_code ? `• Job Code: ${candidate.job_code}` : ''}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -2565,7 +2581,7 @@ function PlacementDossierModal({ state, candidate }) {
           {/* Candidate Card */}
           <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
             <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>ðŸ‘¤</span> Candidate Particulars
+              <span>👤</span> Candidate Particulars
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
               <div><strong>CPR:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{candidate.cpr_no}</span></div>
@@ -2578,7 +2594,7 @@ function PlacementDossierModal({ state, candidate }) {
           {/* Employer & Compliance Card */}
           <div style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
             <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>ðŸ¢</span> Corporate & MOL Terms
+              <span>🏢</span> Corporate & MOL Terms
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
               <div><strong>Employer CR:</strong> {candidate.employer_cr || 'Not Stated'}</div>
@@ -2593,7 +2609,7 @@ function PlacementDossierModal({ state, candidate }) {
         {/* Milestone Gates Ledger */}
         <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
           <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span>ðŸŽ¯</span> Retention Milestone Gates ({cMilestones.length})
+            <span>🎯</span> Retention Milestone Gates ({cMilestones.length})
           </div>
           {cMilestones.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -2633,7 +2649,7 @@ function PlacementDossierModal({ state, candidate }) {
               window.AppStore.openModal('LINK_PLACEMENT', { candidate });
             }}
           >
-            âœï¸ Edit Placement Details
+            ✏️ Edit Placement Details
           </button>
           <button
             type="button"
@@ -2645,7 +2661,7 @@ function PlacementDossierModal({ state, candidate }) {
               setTimeout(() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate, fromPlaced: true }), 100);
             }}
           >
-            <span>ðŸ”„</span> Record Exit & Renew to Pool
+            <span>🔄</span> Record Exit & Renew to Pool
           </button>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>
@@ -2682,12 +2698,12 @@ function UpdateStatusModal({ state, candidate }) {
     <div className="modal-content" style={{ maxWidth: '520px' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">ðŸ”„ Maintain Candidate Status</h2>
+          <h2 className="modal-title">🔄 Maintain Candidate Status</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Candidate: <strong>{candidate.full_name}</strong> (CPR: {candidate.cpr_no})
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -2700,17 +2716,17 @@ function UpdateStatusModal({ state, candidate }) {
               onChange={e => setStatus(e.target.value)}
               required
             >
-              <option value="registered">ðŸ“‹ Available in Pool (Checklist Verified)</option>
-              <option value="placed">ðŸ’¼ Placed in Employment</option>
-              <option value="registration_incomplete">âš ï¸ Incomplete Profile (Checklist Pending)</option>
-              <option value="resigned">âš ï¸ Resigned / Exited (Can Renew to Pool)</option>
+              <option value="registered">📋 Available in Pool (Checklist Verified)</option>
+              <option value="placed">💼 Placed in Employment</option>
+              <option value="registration_incomplete">⚠️ Incomplete Profile (Checklist Pending)</option>
+              <option value="resigned">⚠️ Resigned / Exited (Can Renew to Pool)</option>
             </select>
           </div>
 
           {(status === 'resigned' || candidate.company_name) && (
             <div style={{ padding: '0.75rem 0.85rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               <div style={{ fontWeight: 700, color: 'var(--warning, #d97706)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>ðŸ”„</span> Need to return candidate to Talent Pool?
+                <span>🔄</span> Need to return candidate to Talent Pool?
               </div>
               <div style={{ lineHeight: 1.4 }}>
                 If candidate exited or resigned, you can directly <strong>Renew</strong> them to archive this placement and make them available in the talent pool with a fresh 12-month validity period (preserving Ref: <strong>{candidate.ref_no}</strong>).
@@ -2724,7 +2740,7 @@ function UpdateStatusModal({ state, candidate }) {
                   setTimeout(() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate, fromPlaced: true }), 120);
                 }}
               >
-                <span>ðŸ”„</span> Exit & Renew to Pool &rarr;
+                <span>🔄</span> Exit & Renew to Pool &rarr;
               </button>
             </div>
           )}
@@ -2761,12 +2777,12 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: 'ðŸ†”', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
-      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: 'ðŸ“„', description: 'Current professional curriculum vitae detailing education and employment background.' },
-      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: 'ðŸŽ“', description: 'Graduation diploma or accredited academic qualification certificate.' },
-      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: 'ðŸ“', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
-      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: 'ðŸ“‘', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: 'ðŸ“Ž', description: 'Supplementary certificates, licenses, or professional credentials.' }
+      { id: 1, code: 'CPR', name: 'CPR / Smart Card Copy', icon: '🆔', description: 'Valid Kingdom of Bahrain CPR Smart Card front/back copy or National ID proof.' },
+      { id: 2, code: 'RESUME', name: 'Resume / CV', icon: '📄', description: 'Current professional curriculum vitae detailing education and employment background.' },
+      { id: 3, code: 'DEGREE', name: 'Educational Degree / Certificate', icon: '🎓', description: 'Graduation diploma or accredited academic qualification certificate.' },
+      { id: 4, code: 'CONTRACT', name: 'Employment Offer / Contract', icon: '📝', description: 'Formal tripartite or bilateral employment agreement signed with sponsoring employer.' },
+      { id: 5, code: 'GOSI', name: 'GOSI Certificate', icon: '📑', description: 'Official Social Insurance (GOSI) record demonstrating employment and contribution history.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Supplementary certificates, licenses, or professional credentials.' }
     ];
   }, [documentCategories]);
 
@@ -2904,19 +2920,19 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
     <div className="modal-content" style={{ maxWidth: '680px' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">ðŸ“ Candidate Document Vault</h2>
+          <h2 className="modal-title">📁 Candidate Document Vault</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Candidate: <strong>{liveCandidate.full_name}</strong> | Ref: {liveCandidate.ref_no}
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body">
         {/* Upload New Document Box */}
         <div style={{ background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', border: '1px solid var(--border-light)' }}>
           <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--primary)' }}>
-            ðŸ“¤ Upload Verification Document
+            📤 Upload Verification Document
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.65rem', alignItems: 'end' }}>
             <div>
@@ -2959,7 +2975,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                   whiteSpace: 'nowrap'
                 }}
               >
-                {uploading ? 'â³ Uploading...' : 'Browse & Upload'}
+                {uploading ? '⏳ Uploading...' : 'Browse & Upload'}
                 <input
                   type="file"
                   multiple
@@ -2986,7 +3002,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
               gap: '0.45rem',
               lineHeight: 1.4
             }}>
-              <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>ðŸ’¡</span>
+              <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
               <div>
                 <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
                 <span>{selectedDocCategory.description}</span>
@@ -3021,7 +3037,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                     <strong style={{ fontSize: '0.88rem' }}>{doc.name}</strong>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {doc.file_name} â€¢ {(doc.file_size / 1024).toFixed(1)} KB â€¢ Uploaded: {window.formatAppDate(doc.uploaded_at)}
+                    {doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB • Uploaded: {window.formatAppDate(doc.uploaded_at)}
                   </div>
                 </div>
 
@@ -3036,7 +3052,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                         style={{ textDecoration: 'none' }}
                         title="View document in new tab"
                       >
-                        ðŸ‘ï¸ View
+                        👁️ View
                       </a>
                       <a
                         href={doc.file_url.startsWith('http') || doc.file_url.startsWith('/') ? doc.file_url : '/' + doc.file_url}
@@ -3045,7 +3061,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                         style={{ textDecoration: 'none' }}
                         title="Download file directly"
                       >
-                        â¬‡ï¸ Download
+                        ⬇️ Download
                       </a>
                     </>
                   ) : (
@@ -3057,7 +3073,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
                     onClick={() => handleDeleteDoc(doc.id, doc.name || doc.file_name)}
                     title="Delete document"
                   >
-                    ðŸ—‘ï¸
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -3065,7 +3081,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '2rem', border: '1px dashed var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ðŸ“‚</div>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📂</div>
             <p>No documents uploaded yet for this candidate.</p>
           </div>
         )}
@@ -3193,7 +3209,7 @@ function CandidateChecklistModal({ state, candidate: initialCandidate }) {
             justifyContent: 'center',
             fontSize: '1.4rem'
           }}>
-            ðŸ“‹
+            📋
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0 }}>Candidate Compliance & Registration Checklist</h2>
@@ -3202,7 +3218,7 @@ function CandidateChecklistModal({ state, candidate: initialCandidate }) {
             </span>
           </div>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -3246,14 +3262,14 @@ function CandidateChecklistModal({ state, candidate: initialCandidate }) {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span className={`badge ${checklistEval.canProceed ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.74rem' }}>
-              {checklistEval.canProceed ? 'âœ“ Mandatory Compliance Satisfied' : 'âš ï¸ Missing Mandatory Criteria'}
+              {checklistEval.canProceed ? '✓ Mandatory Compliance Satisfied' : '⚠️ Missing Mandatory Criteria'}
             </span>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button type="button" className="btn btn-outline btn-sm" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }} onClick={handleSelectAll}>
-                âœ“ Select All
+                ✓ Select All
               </button>
               <button type="button" className="btn btn-outline btn-sm" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }} onClick={handleClearAll}>
-                âœ• Clear All
+                ✕ Clear All
               </button>
             </div>
           </div>
@@ -3334,10 +3350,10 @@ function CandidateDetailModal({ state, candidate }) {
         <div>
           <h2 className="modal-title">{candidate.full_name}</h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no}{candidate.phone ? ` | ðŸ“ž ${candidate.phone}` : ''}{candidate.email ? ` | âœ‰ï¸ ${candidate.email}` : ''} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'placed'}</strong>
+            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no}{candidate.phone ? ` | 📞 ${candidate.phone}` : ''}{candidate.email ? ` | ✉️ ${candidate.email}` : ''} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'placed'}</strong>
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -3345,7 +3361,7 @@ function CandidateDetailModal({ state, candidate }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>GENDER & EDUCATION</div>
-            <strong style={{ fontSize: '0.85rem' }}>{candidate.gender} â€¢ {candidate.education}</strong>
+            <strong style={{ fontSize: '0.85rem' }}>{candidate.gender} • {candidate.education}</strong>
           </div>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CONTACT DETAILS</div>
@@ -3377,7 +3393,7 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ATTACHED DOCUMENTS</div>
-            <strong style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>ðŸ“Ž {docs.length} Files</strong>
+            <strong style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>📎 {docs.length} Files</strong>
           </div>
         </div>
 
@@ -3385,7 +3401,7 @@ function CandidateDetailModal({ state, candidate }) {
         <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              ðŸ¢ Linked Employer Placement
+              🏢 Linked Employer Placement
             </h3>
             <button
               className="btn btn-outline btn-sm"
@@ -3394,7 +3410,7 @@ function CandidateDetailModal({ state, candidate }) {
                 window.AppStore.openModal('LINK_PLACEMENT', { candidate });
               }}
             >
-              âœï¸ Edit / Re-link Placement
+              ✏️ Edit / Re-link Placement
             </button>
           </div>
 
@@ -3443,7 +3459,7 @@ function CandidateDetailModal({ state, candidate }) {
                   window.AppStore.openModal('LINK_PLACEMENT', { candidate });
                 }}
               >
-                ðŸ”— Link Placement Now
+                🔗 Link Placement Now
               </button>
             </div>
           )}
@@ -3461,7 +3477,7 @@ function CandidateDetailModal({ state, candidate }) {
         <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>ðŸ“‹</span> Registration Compliance Checklist
+              <span>📋</span> Registration Compliance Checklist
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className={`badge ${(candidate.checklist_completion_pct || 0) >= 100 ? 'badge-success' : ((candidate.checklist_completion_pct || 0) >= 70 ? 'badge-info' : 'badge-warning')}`} style={{ fontSize: '0.78rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
@@ -3475,7 +3491,7 @@ function CandidateDetailModal({ state, candidate }) {
                   window.AppStore.openModal('CANDIDATE_CHECKLIST', { candidate });
                 }}
               >
-                âœï¸ Manage Checklist &rarr;
+                ✏️ Manage Checklist &rarr;
               </button>
             </div>
           </div>
@@ -3490,7 +3506,7 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             {(candidate.checklist_completion_pct || 0) >= 100 
-              ? 'âœ“ All mandatory identity, educational, banking, and retainment compliance criteria verified.'
+              ? '✓ All mandatory identity, educational, banking, and retainment compliance criteria verified.'
               : 'Criteria verification in progress. Click Manage Checklist to update verified criteria and certificates.'}
           </div>
         </div>
@@ -3498,7 +3514,7 @@ function CandidateDetailModal({ state, candidate }) {
         {/* Retention Milestones Timeline */}
         <div>
           <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
-            â±ï¸ Retention Milestones Timeline (Day 0, Day 180, Day 365)
+            ⏱️ Retention Milestones Timeline (Day 0, Day 180, Day 365)
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             {candMilestones.map(m => (
@@ -3551,7 +3567,7 @@ function CandidateDetailModal({ state, candidate }) {
             window.AppStore.openModal('CANDIDATE_DOCUMENTS', { candidate });
           }}
         >
-          ðŸ“ View / Manage Documents ({docs.length})
+          📁 View / Manage Documents ({docs.length})
         </button>
         <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>Close</button>
       </div>
@@ -3660,13 +3676,13 @@ function NewClaimModal({ state, initialProps = {} }) {
       <div className="modal-header">
         <div>
           <h2 className="modal-title">
-            {initialCandidate ? `ðŸ“ Register Claim: ${initialCandidate.full_name}` : 'ðŸ“ Register Placement Claim'}
+            {initialCandidate ? `📝 Register Claim: ${initialCandidate.full_name}` : '📝 Register Placement Claim'}
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Specify the claim amount and milestone stage to be registered for this employee
           </span>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -3693,7 +3709,7 @@ function NewClaimModal({ state, initialProps = {} }) {
                     {initialCandidate.full_name}
                   </strong>
                   <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                    Ref: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>{initialCandidate.ref_no}</span> â€¢ CPR: {initialCandidate.cpr_no}
+                    Ref: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>{initialCandidate.ref_no}</span> • CPR: {initialCandidate.cpr_no}
                   </div>
                 </div>
 
@@ -3711,8 +3727,8 @@ function NewClaimModal({ state, initialProps = {} }) {
               </div>
 
               <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.45rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                <span>ðŸ¢ <strong>{initialCandidate.company_name || 'Employer Pending'}</strong> {initialCandidate.employer_cr ? `(CR: ${initialCandidate.employer_cr})` : ''}</span>
-                <span>ðŸ’¼ {initialCandidate.position_title || 'Position'} â€¢ {initialCandidate.employee_type || 'Full-Time'}</span>
+                <span>🏢 <strong>{initialCandidate.company_name || 'Employer Pending'}</strong> {initialCandidate.employer_cr ? `(CR: ${initialCandidate.employer_cr})` : ''}</span>
+                <span>💼 {initialCandidate.position_title || 'Position'} • {initialCandidate.employee_type || 'Full-Time'}</span>
               </div>
             </div>
           ) : (
@@ -3744,7 +3760,7 @@ function NewClaimModal({ state, initialProps = {} }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
               <label className="form-label" style={{ margin: 0, fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
-                ðŸ’° Claim Amount ({currency}) *
+                💰 Claim Amount ({currency}) *
               </label>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                 Agreed reimbursement amount to be claimed
@@ -3843,7 +3859,7 @@ function NewClaimModal({ state, initialProps = {} }) {
               {candidateMilestones.length > 0 ? (
                 candidateMilestones.map(m => {
                   const stageLabel = m.milestone_stage === 0 ? 'Day 0 Gate' : (m.milestone_stage === 180 ? 'Day 180 Gate (+6m)' : 'Day 365 Gate (+12m)');
-                  const targetStr = m.target_date || m.due_date ? ` â€¢ Target: ${window.formatAppDate(m.target_date || m.due_date)}` : '';
+                  const targetStr = m.target_date || m.due_date ? ` • Target: ${window.formatAppDate(m.target_date || m.due_date)}` : '';
                   const statusStr = m.status === 'claimed' ? ' [Already Claimed]' : (m.status === 'due' || m.status === 'overdue' ? ' [Action Required]' : '');
                   return (
                     <option key={m.id} value={String(m.id)}>
@@ -4014,8 +4030,8 @@ function NewPaymentModal({ state, initialProps = {} }) {
   return (
     <div className="modal-content" style={{ maxWidth: '720px', width: '94vw' }}>
       <div className="modal-header">
-        <h2 className="modal-title">ðŸ’° Record Payment Receipt</h2>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <h2 className="modal-title">💰 Record Payment Receipt</h2>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
       <form onSubmit={handleSubmit}>
         <div className="modal-body" style={{ maxHeight: '78vh', overflowY: 'auto' }}>
@@ -4124,7 +4140,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div>
                 <label style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
-                  <span>ðŸ“Ž</span>
+                  <span>📎</span>
                   <span>Receipt Attachments & Vouchers</span>
                   <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>{attachments.length} attached</span>
                 </label>
@@ -4154,7 +4170,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
                 cursor: 'pointer',
                 background: 'var(--bg-card)'
               }}>
-                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>ðŸ“‚</div>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>📂</div>
                 <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                   Click to select multiple receipt attachments (PDF, PNG, JPG, DOCX, XLSX)
                 </div>
@@ -4187,7 +4203,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
                         <span style={{ fontSize: '1.2rem' }}>
-                          {att.file_name.toLowerCase().endsWith('.pdf') ? 'ðŸ“„' : (att.file_name.match(/\.(png|jpg|jpeg)$/i) ? 'ðŸ–¼ï¸' : 'ðŸ“Ž')}
+                          {att.file_name.toLowerCase().endsWith('.pdf') ? '📄' : (att.file_name.match(/\.(png|jpg|jpeg)$/i) ? '🖼️' : '📎')}
                         </span>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{att.file_name}</strong>
@@ -4210,7 +4226,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
                         }}
                         title="Remove attachment"
                       >
-                        âœ•
+                        ✕
                       </button>
                     </div>
 
@@ -4315,7 +4331,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
             justifyContent: 'center',
             fontSize: '1.4rem'
           }}>
-            ðŸ§¾
+            🧾
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>
@@ -4323,12 +4339,12 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
             </h2>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Claim Ref: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{claim.claim_ref}</strong>
-              <span style={{ margin: '0 0.5rem' }}>â€¢</span>
+              <span style={{ margin: '0 0.5rem' }}>•</span>
               Gate: <strong>{milestoneTitle}</strong>
             </div>
           </div>
         </div>
-        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
@@ -4347,7 +4363,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
           <div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>CANDIDATE</div>
             <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{candidateName}</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>CPR: {candidateCpr} â€¢ {candidateRef}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>CPR: {candidateCpr} • {candidateRef}</div>
           </div>
           <div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>EMPLOYER</div>
@@ -4364,7 +4380,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
           <div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>STATUS</div>
             <span className={`badge ${isSettled ? 'badge-success' : (isDisputed ? 'badge-danger' : (isTerminated ? 'badge-neutral' : 'badge-warning'))}`} style={{ marginTop: '0.2rem', display: 'inline-block' }}>
-              {isDisputed ? 'âš ï¸ Disputed' : (isSettled ? 'âœ“ Settled' : (isTerminated ? 'Terminated' : 'Unsettled'))}
+              {isDisputed ? '⚠️ Disputed' : (isSettled ? '✓ Settled' : (isTerminated ? 'Terminated' : 'Unsettled'))}
             </span>
           </div>
         </div>
@@ -4402,7 +4418,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
             <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>ðŸ’°</span>
+              <span>💰</span>
               <span>Payment Receipts Recorded</span>
               <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>{claimPayments.length}</span>
             </h3>
@@ -4426,7 +4442,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
               borderRadius: 'var(--radius-md)',
               border: '1px dashed var(--border-light)'
             }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>â³</div>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⏳</div>
               <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem' }}>No Payments Received Yet</h4>
               <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px', marginInline: 'auto' }}>
                 No disbursement receipts have been recorded for claim <strong>{claim.claim_ref}</strong>.
@@ -4439,7 +4455,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
                   style={{ marginTop: '1rem' }}
                   onClick={handlePayRemaining}
                 >
-                  ðŸ’³ Record First Payment Receipt
+                  💳 Record First Payment Receipt
                 </button>
               )}
             </div>
@@ -4481,10 +4497,10 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
                         </span>
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                        {p.reference_doc_no || 'â€”'}
+                        {p.reference_doc_no || '—'}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', maxWidth: '160px' }}>
-                        {p.cashier_notes || p.notes || 'â€”'}
+                        {p.cashier_notes || p.notes || '—'}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem' }}>
                         {p.attachments && p.attachments.length > 0 ? (
@@ -4514,19 +4530,19 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
                                   }}
                                   title={`Click to view/download ${att.file_name}`}
                                 >
-                                  <span>ðŸ“Ž</span>
+                                  <span>📎</span>
                                   <span style={{ textDecoration: 'underline' }}>{att.name || att.file_name}</span>
                                 </a>
                                 {att.notes && (
                                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                                    ðŸ’¬ {att.notes}
+                                    💬 {att.notes}
                                   </div>
                                 )}
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>â€”</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
                         )}
                       </td>
                     </tr>
@@ -4546,11 +4562,11 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
               className="btn btn-primary"
               onClick={handlePayRemaining}
             >
-              ðŸ’³ Pay Remaining Balance ({currency} {balance.toFixed(3)})
+              💳 Pay Remaining Balance ({currency} {balance.toFixed(3)})
             </button>
           ) : (
             <span style={{ fontSize: '0.8rem', color: isSettled ? 'var(--success)' : 'var(--text-muted)', fontWeight: 600 }}>
-              {isSettled ? 'âœ“ Claim is fully settled' : (isDisputed ? 'âš ï¸ Payments are frozen due to active dispute' : '')}
+              {isSettled ? '✓ Claim is fully settled' : (isDisputed ? '⚠️ Payments are frozen due to active dispute' : '')}
             </span>
           )}
         </div>
@@ -4750,7 +4766,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
             fontSize: '1.25rem',
             fontWeight: 700
           }}>
-            âš ï¸
+            ⚠️
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>Mark Claim as Disputed</h2>
@@ -4759,7 +4775,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
             </div>
           </div>
         </div>
-        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -4805,7 +4821,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>Claim Amount</span>
                 <strong style={{ color: 'var(--warning)', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>
-                  {claimAmount !== undefined && claimAmount !== null ? `${currency} ${Number(claimAmount).toFixed(3)}` : 'â€”'}
+                  {claimAmount !== undefined && claimAmount !== null ? `${currency} ${Number(claimAmount).toFixed(3)}` : '—'}
                 </strong>
                 <div style={{ fontSize: '0.72rem', color: 'var(--danger)', fontWeight: 600 }}>
                   Payment will be frozen
@@ -4852,7 +4868,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
                   gap: '3px'
                 }}
               >
-                <span>{showAddMaster ? 'âœ• Cancel' : 'âž• Add to Master'}</span>
+                <span>{showAddMaster ? '✕ Cancel' : '➕ Add to Master'}</span>
               </button>
             </div>
 
@@ -4865,7 +4881,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
               {masterReasons.map((r, i) => (
                 <option key={i} value={r}>{r}</option>
               ))}
-              <option value="__ADD_NEW__">âž• Add New Reason to Master...</option>
+              <option value="__ADD_NEW__">➕ Add New Reason to Master...</option>
             </select>
 
             {/* Inline Add to Master Box */}
@@ -4900,7 +4916,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
                     disabled={savingReason || !newMasterReason.trim()}
                     style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', padding: '0.4rem 0.75rem' }}
                   >
-                    {savingReason ? 'Saving...' : 'ðŸ’¾ Save to Master'}
+                    {savingReason ? 'Saving...' : '💾 Save to Master'}
                   </button>
                 </div>
               </div>
@@ -4944,10 +4960,10 @@ function NewDisputeModal({ state, initialProps = {} }) {
           <div className="form-group" style={{ margin: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', gap: '0.5rem' }}>
               <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>
-                ðŸ“Ž Attachments <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional, multiple files)</span>
+                📎 Attachments <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional, multiple files)</span>
               </label>
               <label className="btn btn-sm btn-outline" style={{ cursor: uploading ? 'wait' : 'pointer', margin: 0 }}>
-                {uploading ? 'Uploading...' : 'âž• Add Files'}
+                {uploading ? 'Uploading...' : '➕ Add Files'}
                 <input
                   type="file"
                   multiple
@@ -4968,7 +4984,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
                   <div key={att.id} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.7rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.82rem', marginBottom: '0.35rem' }}>
                       <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={att.file_name}>
-                        ðŸ“„ {att.file_name || att.name}
+                        📄 {att.file_name || att.name}
                       </span>
                       <button
                         type="button"
@@ -4976,7 +4992,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
                         title="Remove attachment"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.9rem', lineHeight: 1 }}
                       >
-                        âœ•
+                        ✕
                       </button>
                     </div>
                     <input
@@ -5004,7 +5020,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
             alignItems: 'center',
             gap: '0.5rem'
           }}>
-            <span>ðŸ”’</span>
+            <span>🔒</span>
             <span>Flagging this claim will freeze payment release and record an audit entry. Reinstatement requires administrative verification.</span>
           </div>
 
@@ -5029,7 +5045,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
               <span>Filing Dispute...</span>
             ) : (
               <>
-                <span>âš ï¸</span>
+                <span>⚠️</span>
                 <span>Confirm & Mark as Disputed</span>
               </>
             )}
@@ -5200,7 +5216,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             fontSize: '1.35rem',
             fontWeight: 700
           }}>
-            {isActive ? 'âš ï¸' : (disputeStatus === 'reinstated' ? 'âœ“' : 'â›”')}
+            {isActive ? '⚠️' : (disputeStatus === 'reinstated' ? '✓' : '⛔')}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -5221,7 +5237,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             </div>
           </div>
         </div>
-        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '76vh', overflowY: 'auto' }}>
@@ -5265,7 +5281,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
           <div>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', display: 'block' }}>Submitted Amount</span>
             <strong style={{ color: 'var(--warning)', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>
-              {claimAmount !== undefined && claimAmount !== null ? `${currency} ${Number(claimAmount).toFixed(3)}` : 'â€”'}
+              {claimAmount !== undefined && claimAmount !== null ? `${currency} ${Number(claimAmount).toFixed(3)}` : '—'}
             </strong>
             <div style={{
               fontSize: '0.72rem',
@@ -5273,8 +5289,8 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
               fontWeight: 600
             }}>
               {isActive
-                ? 'â— Payment Frozen'
-                : (disputeStatus === 'reinstated' ? 'â— Payment Released / Active' : 'â— Permanently Terminated')}
+                ? '● Payment Frozen'
+                : (disputeStatus === 'reinstated' ? '● Payment Released / Active' : '● Permanently Terminated')}
             </div>
           </div>
         </div>
@@ -5293,7 +5309,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontSize: '1.3rem' }}>
-                  {disputeStatus === 'reinstated' ? 'âœ“' : 'â›”'}
+                  {disputeStatus === 'reinstated' ? '✓' : '⛔'}
                 </span>
                 <strong style={{
                   fontSize: '0.96rem',
@@ -5369,7 +5385,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
               fontWeight: 700,
               fontSize: '0.86rem'
             }}>
-              <span>âš ï¸</span>
+              <span>⚠️</span>
               <span>{disputeCategory}</span>
             </div>
           </div>
@@ -5467,11 +5483,11 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.9rem 1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', fontWeight: 700 }}>
-              ðŸ“Ž Attachments ({attachments.length})
+              📎 Attachments ({attachments.length})
             </span>
             {editing && (
               <label className="btn btn-sm btn-outline" style={{ cursor: uploading ? 'wait' : 'pointer', margin: 0 }}>
-                {uploading ? 'Uploading...' : 'âž• Add Files'}
+                {uploading ? 'Uploading...' : '➕ Add Files'}
                 <input
                   type="file"
                   multiple
@@ -5511,7 +5527,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
                     style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
                     title={att.file_name}
                   >
-                    ðŸ“„ {att.file_name || att.name}
+                    📄 {att.file_name || att.name}
                   </a>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
                     {formatFileSize(att.file_size)}
@@ -5527,7 +5543,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
                     />
                   ) : (att.notes ? (
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', fontStyle: 'italic', flex: 1 }}>
-                      ðŸ’¬ {att.notes}
+                      💬 {att.notes}
                     </span>
                   ) : null)}
                   {editing && (
@@ -5537,7 +5553,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
                       title="Remove attachment"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.9rem', lineHeight: 1 }}
                     >
-                      âœ•
+                      ✕
                     </button>
                   )}
                 </div>
@@ -5555,14 +5571,14 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
               Cancel
             </button>
             <button type="button" className="btn btn-primary" onClick={handleSaveEdit} disabled={saving || uploading}>
-              {saving ? 'Saving...' : 'ðŸ’¾ Save Changes'}
+              {saving ? 'Saving...' : '💾 Save Changes'}
             </button>
           </>
         ) : (
           <>
             {canEdit && (
               <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
-                âœï¸ Edit
+                ✏️ Edit
               </button>
             )}
             <button
@@ -5616,7 +5632,7 @@ function SandsCompanyProfileModal({ state }) {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '1.3rem' }}>ðŸ’¬</span>
+              <span style={{ fontSize: '1.3rem' }}>💬</span>
               <strong style={{ fontSize: '1rem', color: '#065f46' }}>
                 Need Help or Support? We Are Active on WhatsApp
               </strong>
@@ -5686,13 +5702,13 @@ function SandsCompanyProfileModal({ state }) {
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ padding: '0.3rem 0.7rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.76rem' }}>
-              ðŸ¢ Bahrain Commercial Registration: <strong>CR: 181123-1</strong>
+              🏢 Bahrain Commercial Registration: <strong>CR: 181123-1</strong>
             </span>
             <span style={{ padding: '0.3rem 0.7rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.76rem' }}>
-              ðŸ“ Tech Hub: Infopark Thrissur, Kerala
+              📍 Tech Hub: Infopark Thrissur, Kerala
             </span>
             <span style={{ padding: '0.3rem 0.7rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.76rem' }}>
-              ðŸ›¡ï¸ ISO & Bahrain PDPL Data Privacy Compliant
+              🛡️ ISO & Bahrain PDPL Data Privacy Compliant
             </span>
           </div>
         </div>
@@ -5711,7 +5727,7 @@ function SandsCompanyProfileModal({ state }) {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span style={{ fontSize: '1.2rem' }}>ðŸš€</span>
+              <span style={{ fontSize: '1.2rem' }}>🚀</span>
               <strong style={{ fontSize: '0.98rem', color: 'var(--text-primary)' }}>
                 Our Recent Enterprise Products & Innovations
               </strong>
@@ -5756,7 +5772,7 @@ function SandsCompanyProfileModal({ state }) {
             rel="noopener noreferrer"
             style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            ðŸ’¬ WhatsApp: 35078079
+            💬 WhatsApp: 35078079
           </a>
           <span style={{ opacity: 0.35 }}>|</span>
           <a
@@ -5765,7 +5781,7 @@ function SandsCompanyProfileModal({ state }) {
             rel="noopener noreferrer"
             style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            ðŸ’¬ WhatsApp: 36533695
+            💬 WhatsApp: 36533695
           </a>
           <span style={{ opacity: 0.35 }}>|</span>
           <a
@@ -5774,7 +5790,7 @@ function SandsCompanyProfileModal({ state }) {
             rel="noopener noreferrer"
             style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}
           >
-            ðŸš€ sandslab.com/products/
+            🚀 sandslab.com/products/
           </a>
           <span style={{ opacity: 0.35 }}>|</span>
           <a
@@ -5783,7 +5799,7 @@ function SandsCompanyProfileModal({ state }) {
             rel="noopener noreferrer"
             style={{ fontSize: '0.82rem', color: '#7cb342', fontWeight: 700, textDecoration: 'none' }}
           >
-            ðŸŒ www.sandslab.com
+            🌐 www.sandslab.com
           </a>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => window.AppStore.closeModal()}>
@@ -5884,7 +5900,7 @@ function EditUserModal({ state, user }) {
             fontSize: '1.25rem',
             fontWeight: 700
           }}>
-            âœï¸
+            ✏️
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>Edit User Account</h2>
@@ -5893,7 +5909,7 @@ function EditUserModal({ state, user }) {
             </div>
           </div>
         </div>
-        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -5932,7 +5948,7 @@ function EditUserModal({ state, user }) {
             </div>
             <div>
               <span className={`badge ${(user.is_active ?? 1) ? 'badge-success' : 'badge-danger'}`}>
-                {(user.is_active ?? 1) ? 'â— Active' : 'â—‹ Deactivated'}
+                {(user.is_active ?? 1) ? '● Active' : '○ Deactivated'}
               </span>
             </div>
           </div>
@@ -6067,7 +6083,7 @@ function EditUserModal({ state, user }) {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>
-                ðŸ”‘ Reset Password <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional)</span>
+                🔑 Reset Password <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional)</span>
               </label>
               <button
                 type="button"
@@ -6249,7 +6265,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
             fontSize: '1.25rem',
             fontWeight: 700
           }}>
-            ðŸ’°
+            💰
           </div>
           <div>
             <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>Adjust Claim Amount</h2>
@@ -6258,7 +6274,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
             </div>
           </div>
         </div>
-        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>âœ•</button>
+        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -6388,12 +6404,12 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
     const list = (documentCategories || []).filter(c => c.is_active !== 0 && c.is_active !== false);
     if (list.length > 0) return list;
     return [
-      { id: 1, code: 'CPR', name: 'Renewed CPR / Smart Card Copy', icon: 'ðŸªª', description: 'Valid renewed CPR front/back copy or smart card verification certificate.' },
-      { id: 2, code: 'RESUME', name: 'Updated CV / Resume', icon: 'ðŸ“„', description: 'Latest updated curriculum vitae reflecting candidate employment history and current skills.' },
-      { id: 3, code: 'DEGREE', name: 'Degree / Graduation Certificate', icon: 'ðŸŽ“', description: 'Attested degree certificate or new post-graduate credentials.' },
-      { id: 4, code: 'CONTRACT', name: 'Resignation Letter / Exit Settlement', icon: 'ðŸ“', description: 'Official employer release, exit settlement, or resignation clearance letter.' },
-      { id: 5, code: 'CONSENT', name: 'Renewal Consent Form', icon: 'ðŸ“‘', description: 'Signed renewal agreement and Ministry placement consent form.' },
-      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: 'ðŸ“Ž', description: 'Additional certifications, training credentials, or endorsement letters.' }
+      { id: 1, code: 'CPR', name: 'Renewed CPR / Smart Card Copy', icon: '🪪', description: 'Valid renewed CPR front/back copy or smart card verification certificate.' },
+      { id: 2, code: 'RESUME', name: 'Updated CV / Resume', icon: '📄', description: 'Latest updated curriculum vitae reflecting candidate employment history and current skills.' },
+      { id: 3, code: 'DEGREE', name: 'Degree / Graduation Certificate', icon: '🎓', description: 'Attested degree certificate or new post-graduate credentials.' },
+      { id: 4, code: 'CONTRACT', name: 'Resignation Letter / Exit Settlement', icon: '📝', description: 'Official employer release, exit settlement, or resignation clearance letter.' },
+      { id: 5, code: 'CONSENT', name: 'Renewal Consent Form', icon: '📑', description: 'Signed renewal agreement and Ministry placement consent form.' },
+      { id: 6, code: 'OTHER', name: 'Other Supporting Document', icon: '📎', description: 'Additional certifications, training credentials, or endorsement letters.' }
     ];
   }, [documentCategories]);
 
@@ -6502,7 +6518,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
             ${wasPlaced && liveCandidate.company_name ? `<div><strong>Previous Employer:</strong> ${liveCandidate.company_name} (Archived)</div>` : ''}
             ${wasPlaced ? `<div><strong>Exit Type:</strong> <span style="text-transform: capitalize;">${exitType.replace('_', ' ')}</span></div>` : ''}
             <div><strong>Renewal Date:</strong> ${renewalDate}</div>
-            <div style="margin-top: 6px; color: var(--success); font-weight: 600;">âœ“ Successfully moved back to "Available in Pool" with reset 12-month validity.</div>
+            <div style="margin-top: 6px; color: var(--success); font-weight: 600;">✓ Successfully moved back to "Available in Pool" with reset 12-month validity.</div>
           </div>`,
           confirmButtonColor: 'var(--primary)'
         });
@@ -6533,7 +6549,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
       <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
         <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            <span>ðŸ”„</span> {wasPlaced ? 'Record Placement Exit & Renew to Pool' : 'Renew Candidate Registration'}
+            <span>🔄</span> {wasPlaced ? 'Record Placement Exit & Renew to Pool' : 'Renew Candidate Registration'}
           </h2>
           <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
             {wasPlaced
@@ -6569,7 +6585,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span>ðŸ’¼</span> Placement Exit & Return to Talent Pool
+                  <span>💼</span> Placement Exit & Return to Talent Pool
                 </div>
                 <span className="badge badge-warning" style={{ fontSize: '0.74rem' }}>
                   Currently Placed
@@ -6588,11 +6604,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                     onChange={e => setExitType(e.target.value)}
                     style={{ fontSize: '0.82rem' }}
                   >
-                    <option value="resigned">âš ï¸ Voluntary Resignation (Candidate Resigned)</option>
-                    <option value="terminated">âš ï¸ Employer Contract Ended / Terminated</option>
-                    <option value="probation_exit">âš ï¸ Probation Period Exit</option>
-                    <option value="completed_365">ðŸŽ“ 365-Day Program Completed (Re-enrolling in Pool)</option>
-                    <option value="general_renewal">ðŸ”„ Cycle Renewal</option>
+                    <option value="resigned">⚠️ Voluntary Resignation (Candidate Resigned)</option>
+                    <option value="terminated">⚠️ Employer Contract Ended / Terminated</option>
+                    <option value="probation_exit">⚠️ Probation Period Exit</option>
+                    <option value="completed_365">🎓 365-Day Program Completed (Re-enrolling in Pool)</option>
+                    <option value="general_renewal">🔄 Cycle Renewal</option>
                   </select>
                 </div>
                 <div>
@@ -6638,7 +6654,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                   Preserved Registration Reference (Locked)
                 </span>
                 <div style={{ fontSize: '1.2rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span>ðŸ”’</span> {liveCandidate.ref_no}
+                  <span>🔒</span> {liveCandidate.ref_no}
                 </div>
               </div>
 
@@ -6658,7 +6674,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                       gap: '0.35rem'
                     }}
                   >
-                    <span>âš ï¸</span> Expired (+{daysPast12m} days past 12 months)
+                    <span>⚠️</span> Expired (+{daysPast12m} days past 12 months)
                   </span>
                 ) : (
                   <span
@@ -6675,7 +6691,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                       gap: '0.35rem'
                     }}
                   >
-                    <span>âœ“</span> Within Active Cycle ({daysElapsed}/365 days)
+                    <span>✓</span> Within Active Cycle ({daysElapsed}/365 days)
                   </span>
                 )}
               </div>
@@ -6792,7 +6808,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
           <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', background: 'var(--bg-subtle, #f8fafc)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
               <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>ðŸ“Ž</span> Attach Renewal Documents (Optional)
+                <span>📎</span> Attach Renewal Documents (Optional)
               </div>
               <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
                 {newDocuments.length} New File(s)
@@ -6846,7 +6862,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                     background: 'var(--bg-card)'
                   }}
                 >
-                  <span>ðŸ“</span> Select & Attach File
+                  <span>📁</span> Select & Attach File
                   <input
                     type="file"
                     style={{ display: 'none' }}
@@ -6871,7 +6887,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 gap: '0.45rem',
                 lineHeight: 1.4
               }}>
-                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>ðŸ’¡</span>
+                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
                 <div>
                   <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
                   <span>{selectedDocCategory.description}</span>
@@ -6966,7 +6982,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 <span>Renewing...</span>
               ) : (
                 <>
-                  <span>ðŸ”„</span> Confirm Renewal (Keep {liveCandidate.ref_no})
+                  <span>🔄</span> Confirm Renewal (Keep {liveCandidate.ref_no})
                 </>
               )}
             </button>
@@ -7084,7 +7100,7 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-          <span>{isOpen ? 'â–²' : 'â–¼'}</span>
+          <span>{isOpen ? '▲' : '▼'}</span>
         </div>
       </div>
 
@@ -7109,7 +7125,7 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
           {/* Live Search Input Box */}
           <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
             <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              ðŸ”
+              🔍
             </span>
             <input
               ref={searchInputRef}
@@ -7140,7 +7156,7 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
                 }}
                 title="Clear search"
               >
-                âœ•
+                ✕
               </span>
             )}
           </div>
@@ -7165,7 +7181,7 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
           >
             {filteredCandidates.length === 0 ? (
               <div style={{ padding: '1.25rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                <div style={{ fontSize: '1.4rem', marginBottom: '0.25rem' }}>ðŸ”</div>
+                <div style={{ fontSize: '1.4rem', marginBottom: '0.25rem' }}>🔍</div>
                 <div>No candidates match "<strong>{searchTerm}</strong>"</div>
                 <div style={{ fontSize: '0.72rem', marginTop: '0.2rem' }}>Try searching by candidate name, 9-digit CPR, or reference code.</div>
               </div>
@@ -7223,7 +7239,7 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
                           {c.status || 'registered'}
                         </span>
                         {isSelected && (
-                          <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '0.85rem' }}>âœ“</span>
+                          <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '0.85rem' }}>✓</span>
                         )}
                       </div>
                     </div>
@@ -7231,9 +7247,9 @@ function CandidateSearchSelect({ candidates = [], selectedId, onSelect }) {
                     {/* Subtitle Row: CPR + Registration Date + Case Manager */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                       <span>CPR: <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{c.cpr_no}</strong></span>
-                      <span>â€¢</span>
+                      <span>•</span>
                       <span>Reg: {window.formatAppDate ? window.formatAppDate(c.registration_date) : c.registration_date}</span>
-                      <span>â€¢</span>
+                      <span>•</span>
                       <span>Mgr: {c.case_manager_name || 'System'}</span>
                     </div>
                   </div>
@@ -7389,17 +7405,17 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
   // Category Icon & Styling Helper
   const getCategoryMeta = (cat) => {
     switch (cat) {
-      case 'registration': return { icon: 'ðŸ‘¤', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Registration' };
-      case 'renewal':      return { icon: 'ðŸ”„', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)', label: 'Renewal' };
-      case 'checklist':    return { icon: 'ðŸ“‹', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', label: 'Checklist' };
-      case 'document':     return { icon: 'ðŸ“„', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', label: 'Document' };
-      case 'placement':    return { icon: 'ðŸ’¼', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.12)', label: 'Placement' };
-      case 'milestone':    return { icon: 'ðŸŽ¯', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)', label: 'Retention Gate' };
-      case 'claim':        return { icon: 'ðŸ“‘', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.12)', label: 'Subsidy Claim' };
-      case 'payment':      return { icon: 'ðŸ’µ', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Disbursement' };
-      case 'dispute':      return { icon: 'âš ï¸', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Dispute' };
-      case 'audit':        return { icon: 'ðŸ›¡ï¸', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Audit Log' };
-      default:             return { icon: 'ðŸ“Œ', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Event' };
+      case 'registration': return { icon: '👤', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Registration' };
+      case 'renewal':      return { icon: '🔄', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)', label: 'Renewal' };
+      case 'checklist':    return { icon: '📋', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', label: 'Checklist' };
+      case 'document':     return { icon: '📄', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', label: 'Document' };
+      case 'placement':    return { icon: '💼', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.12)', label: 'Placement' };
+      case 'milestone':    return { icon: '🎯', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)', label: 'Retention Gate' };
+      case 'claim':        return { icon: '📑', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.12)', label: 'Subsidy Claim' };
+      case 'payment':      return { icon: '💵', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Disbursement' };
+      case 'dispute':      return { icon: '⚠️', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Dispute' };
+      case 'audit':        return { icon: '🛡️', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Audit Log' };
+      default:             return { icon: '📌', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', label: 'Event' };
     }
   };
 
@@ -7409,7 +7425,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
       <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
         <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            <span>ðŸ“œ</span> Candidate Activity Log & Lifecycle Audit
+            <span>📜</span> Candidate Activity Log & Lifecycle Audit
           </h2>
           <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
             Unified chronological audit trail across registrations, renewals, placements, retention milestones, subsidy claims, disbursements, and disputes.
@@ -7443,7 +7459,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: '320px', position: 'relative', zIndex: 110 }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span>ðŸ‘¤</span> Candidate:
+              <span>👤</span> Candidate:
             </label>
             <CandidateSearchSelect
               candidates={candidates}
@@ -7461,7 +7477,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
               disabled={loading}
               title="Refresh timeline data"
             >
-              <span>ðŸ”„</span> Refresh
+              <span>🔄</span> Refresh
             </button>
 
             <button
@@ -7472,7 +7488,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
               disabled={loading || !activities.length}
               title="Download full candidate history as Excel-compatible CSV file"
             >
-              <span>ðŸ“¥</span> Export Activity Log to Excel (CSV)
+              <span>📥</span> Export Activity Log to Excel (CSV)
             </button>
           </div>
         </div>
@@ -7520,7 +7536,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
               </span>
               {currentCandidate.renewals_count > 0 && (
                 <div style={{ marginTop: '2px', color: 'var(--success)', fontWeight: 600, fontSize: '0.72rem' }}>
-                  ðŸ”„ Renewed {currentCandidate.renewals_count} time(s)
+                  🔄 Renewed {currentCandidate.renewals_count} time(s)
                 </div>
               )}
             </div>
@@ -7563,7 +7579,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
           {/* Top Row: Section Label + Keyword Search Box */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              <span>ðŸ·ï¸</span> Filter Activities by Category:
+              <span>🏷️</span> Filter Activities by Category:
             </div>
 
             {/* Keyword Search Input */}
@@ -7572,7 +7588,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
                 type="text"
                 className="input-control"
                 style={{ fontSize: '0.8rem', padding: '0.38rem 0.65rem' }}
-                placeholder="ðŸ” Search candidate log..."
+                placeholder="🔍 Search candidate log..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
@@ -7633,12 +7649,12 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
         <div style={{ position: 'relative', marginTop: '0.5rem' }}>
           {loading ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>â³</div>
+              <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>⏳</div>
               <div>Retrieving comprehensive candidate activity history...</div>
             </div>
           ) : filteredActivities.length === 0 ? (
             <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-subtle, #f8fafc)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>ðŸ“­</div>
+              <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>📭</div>
               <div style={{ fontWeight: 600 }}>No activity records match your current filters.</div>
               <div style={{ fontSize: '0.78rem', marginTop: '0.25rem' }}>Try clearing the search query or selecting "All Activities".</div>
             </div>
@@ -7727,13 +7743,13 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
                       </div>
 
                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>ðŸ“…</span>
+                        <span>📅</span>
                         <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
                           {window.formatAppDate ? window.formatAppDate(act.date || act.timestamp) : act.date}
                         </strong>
                         {act.timestamp && act.timestamp.includes(' ') && (
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                            â€¢ {act.timestamp.split(' ')[1].substring(0, 5)}
+                            • {act.timestamp.split(' ')[1].substring(0, 5)}
                           </span>
                         )}
                       </div>
@@ -7779,7 +7795,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
             disabled={!activities.length}
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
           >
-            <span>ðŸ“¥</span> Export to Excel
+            <span>📥</span> Export to Excel
           </button>
           <button
             type="button"
@@ -7794,7 +7810,6 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
   );
 }
 
-// =========================================================================
 // CASE MANAGER ACTIVITIES & AUDIT TRAIL MODAL
 // =========================================================================
 function CaseManagerActivitiesModal({ state, targetCM }) {
