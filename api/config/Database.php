@@ -556,7 +556,7 @@ class Database {
                 'event_time' => '09:00 AM - 01:00 PM',
                 'location' => 'Training Center - Bahrain Polytechnic Hall 3',
                 'remarks' => 'Intensive professional onboarding and compliance preparation for registered talent pool candidates.',
-                'status' => 'upcoming',
+                'status' => 'active',
                 'created_by' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
@@ -570,7 +570,7 @@ class Database {
                 'event_time' => '10:00 AM - 04:00 PM',
                 'location' => 'Bahrain International Exhibition & Convention Centre (BIECC)',
                 'remarks' => 'Direct walk-in candidate registrations and corporate employer interviews.',
-                'status' => 'upcoming',
+                'status' => 'active',
                 'created_by' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')

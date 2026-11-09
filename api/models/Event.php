@@ -32,11 +32,15 @@ class Event {
             });
         }
 
-        // Filter by status ('upcoming', 'active', 'completed', 'cancelled')
+        // Filter by status ('active', 'completed', 'all')
         if ($status !== null && $status !== '' && $status !== 'all') {
             $st = strtolower(trim($status));
             $events = array_filter($events, function($e) use ($st) {
-                return strtolower($e['status'] ?? 'upcoming') === $st;
+                $eventStatus = strtolower($e['status'] ?? 'active');
+                if ($st === 'active') {
+                    return $eventStatus === 'active' || $eventStatus === 'upcoming';
+                }
+                return $eventStatus === $st;
             });
         }
 
@@ -114,9 +118,9 @@ class Event {
         $eventTime = !empty($data['event_time']) ? trim($data['event_time']) : null;
         $location = trim($data['location'] ?? 'Job Center');
         $remarks = trim($data['remarks'] ?? '');
-        $status = strtolower(trim($data['status'] ?? 'upcoming'));
-        if (!in_array($status, ['upcoming', 'active', 'completed', 'cancelled'])) {
-            $status = 'upcoming';
+        $status = strtolower(trim($data['status'] ?? 'active'));
+        if (!in_array($status, ['active', 'completed', 'upcoming', 'cancelled'])) {
+            $status = 'active';
         }
 
         $newEvent = [
@@ -333,3 +337,4 @@ class Event {
         return null;
     }
 }
+

@@ -16,7 +16,7 @@ function EventsView({ state, moduleType = 'training' }) {
 
   // Local state
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -39,11 +39,14 @@ function EventsView({ state, moduleType = 'training' }) {
     });
   }, [events, moduleType]);
 
-  // Filter by search & status
+  // Filter by search & status ('active', 'completed', 'all')
   const filteredEvents = useMemo(() => {
     return moduleEvents.filter(e => {
-      if (statusFilter !== 'all' && (e.status || 'upcoming').toLowerCase() !== statusFilter.toLowerCase()) {
-        return false;
+      const st = (e.status || 'active').toLowerCase();
+      if (statusFilter === 'active') {
+        if (st !== 'active' && st !== 'upcoming') return false;
+      } else if (statusFilter === 'completed') {
+        if (st !== 'completed') return false;
       }
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -57,14 +60,16 @@ function EventsView({ state, moduleType = 'training' }) {
     });
   }, [moduleEvents, statusFilter, search]);
 
-  // Statistics
+  // Statistics (Active, Completed, All, Attended Candidates)
   const stats = useMemo(() => {
     const total = moduleEvents.length;
-    const upcoming = moduleEvents.filter(e => (e.status || 'upcoming') === 'upcoming').length;
-    const active = moduleEvents.filter(e => (e.status || 'upcoming') === 'active').length;
-    const completed = moduleEvents.filter(e => (e.status || 'upcoming') === 'completed').length;
+    const active = moduleEvents.filter(e => {
+      const st = (e.status || 'active').toLowerCase();
+      return st === 'active' || st === 'upcoming';
+    }).length;
+    const completed = moduleEvents.filter(e => (e.status || '').toLowerCase() === 'completed').length;
     const totalAttendees = moduleEvents.reduce((acc, e) => acc + (parseInt(e.attendees_count, 10) || 0), 0);
-    return { total, upcoming, active, completed, totalAttendees };
+    return { total, active, completed, totalAttendees };
   }, [moduleEvents]);
 
   // Load attendees for an event
@@ -118,6 +123,17 @@ function EventsView({ state, moduleType = 'training' }) {
       await window.AppStore.refreshData();
     } catch (err) {
       window.AppStore.showNotification('Error deleting event: ' + err.message, 'error');
+    }
+  };
+
+  // Toggle Event Status between Active and Completed
+  const handleToggleEventStatus = async (event, newStatus) => {
+    try {
+      await window.api.events.update(event.id, { status: newStatus });
+      window.AppStore.showNotification(`Event marked as ${newStatus === 'completed' ? 'Completed' : 'Active'}`, 'success');
+      await window.AppStore.refreshData();
+    } catch (err) {
+      window.AppStore.showNotification('Error updating event status: ' + err.message, 'error');
     }
   };
 
@@ -300,84 +316,130 @@ function EventsView({ state, moduleType = 'training' }) {
         </div>
       </div>
 
-      {/* KPI Cards Row */}
+      {/* KPI Cards Row - Active, Completed, All & Attended Candidates */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-        <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid var(--primary)' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
-            📅
+        <div
+          className="card"
+          onClick={() => setStatusFilter('active')}
+          style={{
+            padding: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            borderLeft: '4px solid #10b981',
+            cursor: 'pointer',
+            background: statusFilter === 'active' ? 'rgba(16,185,129,0.06)' : undefined,
+            boxShadow: statusFilter === 'active' ? '0 0 0 2px rgba(16,185,129,0.3)' : undefined,
+            transition: 'all 0.15s ease'
+          }}
+          title="Filter to Active Events"
+        >
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+            🟢
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Events</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active Events</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>{stats.active}</div>
+          </div>
+        </div>
+
+        <div
+          className="card"
+          onClick={() => setStatusFilter('completed')}
+          style={{
+            padding: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            borderLeft: '4px solid #8b5cf6',
+            cursor: 'pointer',
+            background: statusFilter === 'completed' ? 'rgba(139,92,246,0.06)' : undefined,
+            boxShadow: statusFilter === 'completed' ? '0 0 0 2px rgba(139,92,246,0.3)' : undefined,
+            transition: 'all 0.15s ease'
+          }}
+          title="Filter to Completed Events"
+        >
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(139,92,246,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+            ✅
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Completed Events</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#8b5cf6' }}>{stats.completed}</div>
+          </div>
+        </div>
+
+        <div
+          className="card"
+          onClick={() => setStatusFilter('all')}
+          style={{
+            padding: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            borderLeft: '4px solid var(--primary)',
+            cursor: 'pointer',
+            background: statusFilter === 'all' ? 'rgba(37,99,235,0.06)' : undefined,
+            boxShadow: statusFilter === 'all' ? '0 0 0 2px rgba(37,99,235,0.3)' : undefined,
+            transition: 'all 0.15s ease'
+          }}
+          title="Show All Events"
+        >
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(37,99,235,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+            📋
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>All Events</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{stats.total}</div>
           </div>
         </div>
 
         <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(2,132,199,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
-            ⏳
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Upcoming</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0284c7' }}>{stats.upcoming}</div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #10b981' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(2,132,199,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
             👥
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Attended Candidates</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>{stats.totalAttendees}</div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #8b5cf6' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
-            ✅
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Completed</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#8b5cf6' }}>{stats.completed}</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0284c7' }}>{stats.totalAttendees}</div>
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="card" style={{ padding: '0.85rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem' }}>
-        {/* Status Filter Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflowX: 'auto' }}>
+        {/* Status Filter Tabs: Active, Completed, All */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflowX: 'auto' }}>
           {[
-            { id: 'all', label: 'All Events', count: stats.total },
-            { id: 'upcoming', label: 'Upcoming', count: stats.upcoming },
-            { id: 'active', label: 'Active', count: stats.active },
-            { id: 'completed', label: 'Completed', count: stats.completed }
+            { id: 'active', label: '🟢 Active Events', count: stats.active },
+            { id: 'completed', label: '✅ Completed Events', count: stats.completed },
+            { id: 'all', label: '📋 All Events', count: stats.total }
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
               style={{
-                padding: '0.4rem 0.85rem',
+                padding: '0.45rem 0.95rem',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid',
                 borderColor: statusFilter === tab.id ? 'var(--primary)' : 'var(--border-light)',
                 background: statusFilter === tab.id ? 'var(--primary)' : 'transparent',
                 color: statusFilter === tab.id ? '#fff' : 'var(--text-primary)',
                 fontWeight: 700,
-                fontSize: '0.8rem',
+                fontSize: '0.82rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem'
+                gap: '0.45rem',
+                transition: 'all 0.15s ease'
               }}
             >
               <span>{tab.label}</span>
               <span style={{
                 background: statusFilter === tab.id ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
                 color: statusFilter === tab.id ? '#fff' : 'var(--text-muted)',
-                padding: '0.1rem 0.4rem',
+                padding: '0.1rem 0.45rem',
                 borderRadius: '10px',
-                fontSize: '0.72rem'
+                fontSize: '0.72rem',
+                fontWeight: 800
               }}>
                 {tab.count}
               </span>
@@ -417,10 +479,10 @@ function EventsView({ state, moduleType = 'training' }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.25rem' }}>
           {filteredEvents.map(event => {
             const attendeesCount = parseInt(event.attendees_count, 10) || 0;
-            const statusColor = 
-              event.status === 'active' ? '#10b981' :
-              event.status === 'completed' ? '#64748b' :
-              event.status === 'cancelled' ? '#ef4444' : '#0284c7';
+            const isCompleted = (event.status || '').toLowerCase() === 'completed';
+            const statusColor = isCompleted ? '#8b5cf6' : '#10b981';
+            const statusLabel = isCompleted ? 'Completed' : 'Active';
+            const statusIcon = isCompleted ? '✅' : '🟢';
 
             return (
               <div
@@ -458,9 +520,13 @@ function EventsView({ state, moduleType = 'training' }) {
                       borderRadius: '12px',
                       fontSize: '0.72rem',
                       fontWeight: 800,
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
                     }}>
-                      {event.status || 'upcoming'}
+                      <span>{statusIcon}</span>
+                      <span>{statusLabel}</span>
                     </span>
                   </div>
 
@@ -517,6 +583,29 @@ function EventsView({ state, moduleType = 'training' }) {
                   </button>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    {/* Quick Toggle Active / Completed */}
+                    {isCompleted ? (
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => handleToggleEventStatus(event, 'active')}
+                        title="Reopen / reactivate this event"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', color: '#0284c7', borderColor: '#38bdf8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      >
+                        <span>🔄</span>
+                        <span>Reactivate</span>
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => handleToggleEventStatus(event, 'completed')}
+                        title="Mark event as completed"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', color: '#059669', borderColor: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      >
+                        <span>✅</span>
+                        <span>Complete</span>
+                      </button>
+                    )}
+
                     <button
                       className="btn btn-outline btn-sm"
                       onClick={() => handleOpenEditEvent(event)}
@@ -891,7 +980,7 @@ function EventFormModal({ moduleType, moduleLabel, event, onClose, onSaved }) {
     event_date: event?.event_date || new Date().toISOString().split('T')[0],
     event_time: event?.event_time || '09:00 AM - 01:00 PM',
     location: event?.location || (moduleType === 'training' ? 'Training Center - Hall 1' : 'Enma Mall Atrium'),
-    status: event?.status || 'upcoming',
+    status: event?.status || 'active',
     remarks: event?.remarks || ''
   });
 
@@ -967,10 +1056,8 @@ function EventFormModal({ moduleType, moduleLabel, event, onClose, onSaved }) {
                   onChange={e => setForm({ ...form, status: e.target.value })}
                   required
                 >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="active">Active (Ongoing)</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="active">Active (Ongoing / Scheduled)</option>
+                  <option value="completed">Completed (Concluded)</option>
                 </select>
               </div>
             </div>
@@ -1050,3 +1137,4 @@ function EventFormModal({ moduleType, moduleLabel, event, onClose, onSaved }) {
 }
 
 window.EventsView = EventsView;
+

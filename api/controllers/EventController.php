@@ -189,3 +189,4 @@ class EventController {
         Response::json($updated, 200, 'Attendance updated successfully');
     }
 }
+

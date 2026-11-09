@@ -370,8 +370,8 @@ ON DUPLICATE KEY UPDATE `amount_paid_bhd` = VALUES(`amount_paid_bhd`);
 
 -- 10. Sample Events
 INSERT INTO `events` (`id`, `event_code`, `module_type`, `title`, `event_date`, `event_time`, `location`, `remarks`, `status`, `created_by`) VALUES
-(1, 'EVT-TRN-26001', 'training', 'Bahrain National Workforce Readiness & Technical Skills Workshop', '2026-11-20', '09:00 AM - 01:00 PM', 'Training Center - Bahrain Polytechnic Hall 3', 'Intensive professional onboarding and compliance preparation for registered talent pool candidates.', 'upcoming', 1),
-(2, 'EVT-CF-26001', 'career_fair', 'Kingdom Employment & Private Sector Placement Career Fair 2026', '2026-11-28', '10:00 AM - 04:00 PM', 'Bahrain International Exhibition & Convention Centre (BIECC)', 'Direct walk-in candidate registrations and corporate employer interviews.', 'upcoming', 1)
+(1, 'EVT-TRN-26001', 'training', 'Bahrain National Workforce Readiness & Technical Skills Workshop', '2026-11-20', '09:00 AM - 01:00 PM', 'Training Center - Bahrain Polytechnic Hall 3', 'Intensive professional onboarding and compliance preparation for registered talent pool candidates.', 'active', 1),
+(2, 'EVT-CF-26001', 'career_fair', 'Kingdom Employment & Private Sector Placement Career Fair 2026', '2026-11-28', '10:00 AM - 04:00 PM', 'Bahrain International Exhibition & Convention Centre (BIECC)', 'Direct walk-in candidate registrations and corporate employer interviews.', 'active', 1)
 ON DUPLICATE KEY UPDATE `title` = VALUES(`title`);
 
 SET FOREIGN_KEY_CHECKS = 1;
