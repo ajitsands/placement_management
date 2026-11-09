@@ -43,6 +43,24 @@ function NavIcon({ type }) {
           <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
         </svg>
       );
+    case 'training':
+      return (
+        <svg {...props}>
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+          <path d="M6 12v5c3 3 9 3 12 0v-5" />
+        </svg>
+      );
+    case 'career_fair':
+      return (
+        <svg {...props}>
+          <path d="M3 21h18" />
+          <path d="M19 21v-4" />
+          <path d="M5 21v-4" />
+          <path d="M4 11V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4" />
+          <path d="M2 11h20v6H2z" />
+          <circle cx="12" cy="7" r="1.5" />
+        </svg>
+      );
     case 'placements':
       return (
         <svg {...props}>
@@ -168,6 +186,8 @@ function Navbar({ state }) {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'candidates', label: 'Candidates' },
     { id: 'jobs', label: 'Jobs' },
+    { id: 'training', label: 'Training' },
+    { id: 'career_fair', label: 'Career Fair' },
     { id: 'placements', label: 'Placements' },
     { id: 'milestones', label: 'Retention Milestones' },
     { id: 'claims', label: 'Claims Ledger' },

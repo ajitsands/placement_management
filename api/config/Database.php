@@ -38,10 +38,12 @@ class Database {
                         self::ensureDisputeColumns(self::$pdo);
                         self::ensureJobsTable(self::$pdo);
                         self::ensureCandidateJobColumn(self::$pdo);
+                        self::ensureCandidateCenterColumn(self::$pdo);
                         self::ensureChecklistTables(self::$pdo);
                         self::ensureCandidateChecklistColumns(self::$pdo);
                         self::ensureDocumentCategoriesTable(self::$pdo);
                         self::ensureAuditLogsTable(self::$pdo);
+                        self::ensureEventsTables(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -191,6 +193,52 @@ class Database {
         }
     }
 
+    private static function ensureCandidateCenterColumn(PDO $pdo): void {
+        $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'candidates'");
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (!in_array('center', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN center VARCHAR(100) NOT NULL DEFAULT 'Enma Mall' AFTER case_manager_name");
+        }
+    }
+
+    private static function ensureEventsTables(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `events` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `event_code` VARCHAR(64) NOT NULL UNIQUE,
+                `module_type` ENUM('training', 'career_fair') NOT NULL DEFAULT 'training',
+                `title` VARCHAR(255) NOT NULL,
+                `event_date` DATE NOT NULL,
+                `event_time` VARCHAR(64) NULL,
+                `location` VARCHAR(255) NOT NULL,
+                `remarks` TEXT NULL,
+                `status` ENUM('upcoming', 'active', 'completed', 'cancelled') NOT NULL DEFAULT 'upcoming',
+                `created_by` INT NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_events_module` (`module_type`),
+                INDEX `idx_events_date` (`event_date`),
+                INDEX `idx_events_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `event_attendees` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `event_id` INT NOT NULL,
+                `candidate_id` INT NOT NULL,
+                `status` ENUM('registered', 'attended', 'absent', 'cancelled') NOT NULL DEFAULT 'attended',
+                `attended_at` DATETIME NULL,
+                `notes` TEXT NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uk_event_candidate` (`event_id`, `candidate_id`),
+                INDEX `idx_ea_event` (`event_id`),
+                INDEX `idx_ea_candidate` (`candidate_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
     public static function isMySQL(): bool {
         self::getConnection();
         return self::$useMySQL;
@@ -210,7 +258,25 @@ class Database {
         }
         $data = file_get_contents(self::$storeFile);
         $decoded = json_decode($data, true);
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+
+        if (!isset($decoded['events'])) {
+            $decoded['events'] = self::getDefaultEvents();
+        }
+        if (!isset($decoded['event_attendees'])) {
+            $decoded['event_attendees'] = [];
+        }
+        if (!empty($decoded['candidates']) && is_array($decoded['candidates'])) {
+            foreach ($decoded['candidates'] as &$c) {
+                if (empty($c['center'])) {
+                    $c['center'] = 'Enma Mall';
+                }
+            }
+        }
+
+        return $decoded;
     }
 
     public static function saveStore(array $data): bool {
@@ -274,6 +340,7 @@ class Database {
             $c['date_of_birth'] = $c['date_of_birth'] ?? null;
             $c['phone'] = $c['phone'] ?? null;
             $c['email'] = $c['email'] ?? null;
+            $c['center'] = !empty($c['center']) ? $c['center'] : 'Enma Mall';
             $c['remarks'] = $c['remarks'] ?? $c['notes'] ?? '';
             $c['checklist_completion_pct'] = isset($c['checklist_completion_pct']) ? (int)$c['checklist_completion_pct'] : 0;
             if (isset($c['checklist_items']) && is_string($c['checklist_items'])) {
@@ -418,6 +485,49 @@ class Database {
             self::saveDocumentCategoriesToMySQL($pdo, $docCategories);
         }
 
+        // Events
+        try {
+            $events = array_map(function($ev) {
+                $ev['id'] = (int)$ev['id'];
+                $ev['created_by'] = $ev['created_by'] !== null ? (int)$ev['created_by'] : null;
+                return $ev;
+            }, $pdo->query("SELECT * FROM events ORDER BY event_date DESC, id DESC")->fetchAll());
+        } catch (Exception $e) {
+            $events = [];
+        }
+
+        if (empty($events) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['events'])) {
+                $events = $jsonRaw['events'];
+                self::saveEventsToMySQL($pdo, $events);
+            }
+        }
+        if (empty($events)) {
+            $events = self::getDefaultEvents();
+            self::saveEventsToMySQL($pdo, $events);
+        }
+
+        // Event Attendees
+        try {
+            $eventAttendees = array_map(function($ea) {
+                $ea['id'] = (int)$ea['id'];
+                $ea['event_id'] = (int)$ea['event_id'];
+                $ea['candidate_id'] = (int)$ea['candidate_id'];
+                return $ea;
+            }, $pdo->query("SELECT * FROM event_attendees ORDER BY id DESC")->fetchAll());
+        } catch (Exception $e) {
+            $eventAttendees = [];
+        }
+
+        if (empty($eventAttendees) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['event_attendees'])) {
+                $eventAttendees = $jsonRaw['event_attendees'];
+                self::saveEventAttendeesToMySQL($pdo, $eventAttendees);
+            }
+        }
+
         return [
             'settings'            => $settings,
             'users'               => $users,
@@ -425,11 +535,46 @@ class Database {
             'jobs'                => $jobs,
             'checklist_masters'   => $checklistMasters,
             'document_categories' => $docCategories,
+            'events'              => $events,
+            'event_attendees'     => $eventAttendees,
             'milestones'          => $milestones,
             'claims'              => $claims,
             'disputes'            => $disputes,
             'payments'            => $payments,
             'audit_logs'          => $auditLogs
+        ];
+    }
+
+    public static function getDefaultEvents(): array {
+        return [
+            [
+                'id' => 1,
+                'event_code' => 'EVT-TRN-26001',
+                'module_type' => 'training',
+                'title' => 'Bahrain National Workforce Readiness & Technical Skills Workshop',
+                'event_date' => date('Y-m-d', strtotime('+7 days')),
+                'event_time' => '09:00 AM - 01:00 PM',
+                'location' => 'Training Center - Bahrain Polytechnic Hall 3',
+                'remarks' => 'Intensive professional onboarding and compliance preparation for registered talent pool candidates.',
+                'status' => 'upcoming',
+                'created_by' => 1,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'id' => 2,
+                'event_code' => 'EVT-CF-26001',
+                'module_type' => 'career_fair',
+                'title' => 'Kingdom Employment & Private Sector Placement Career Fair 2026',
+                'event_date' => date('Y-m-d', strtotime('+14 days')),
+                'event_time' => '10:00 AM - 04:00 PM',
+                'location' => 'Bahrain International Exhibition & Convention Centre (BIECC)',
+                'remarks' => 'Direct walk-in candidate registrations and corporate employer interviews.',
+                'status' => 'upcoming',
+                'created_by' => 1,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ]
         ];
     }
 
@@ -646,8 +791,8 @@ class Database {
 
             // 3. Candidates
             if (!empty($data['candidates']) && is_array($data['candidates'])) {
-                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, created_at)
-                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, center, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, created_at)
+                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :center, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :created_at)
                     ON DUPLICATE KEY UPDATE
                         full_name = VALUES(full_name),
                         cpr_no = VALUES(cpr_no),
@@ -670,6 +815,7 @@ class Database {
                         long_mol = VALUES(long_mol),
                         joining_date = VALUES(joining_date),
                         case_manager_name = VALUES(case_manager_name),
+                        center = VALUES(center),
                         notes = VALUES(notes),
                         comments = VALUES(comments),
                         remarks = VALUES(remarks),
@@ -707,6 +853,7 @@ class Database {
                         ':joining_date' => $c['joining_date'] ?? null,
                         ':case_manager_id' => !empty($c['case_manager_id']) ? (int)$c['case_manager_id'] : null,
                         ':case_manager_name' => $c['case_manager_name'] ?? 'Husain',
+                        ':center' => !empty($c['center']) ? $c['center'] : 'Enma Mall',
                         ':notes' => $c['notes'] ?? null,
                         ':comments' => $c['comments'] ?? null,
                         ':remarks' => $c['remarks'] ?? $c['notes'] ?? null,
@@ -866,10 +1013,80 @@ class Database {
                 self::saveAuditLogsToMySQL($pdo, $data['audit_logs']);
             }
 
+            // 10. Events
+            if (isset($data['events']) && is_array($data['events'])) {
+                self::saveEventsToMySQL($pdo, $data['events']);
+            }
+
+            // 11. Event Attendees
+            if (isset($data['event_attendees']) && is_array($data['event_attendees'])) {
+                self::saveEventAttendeesToMySQL($pdo, $data['event_attendees']);
+            }
+
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
             throw $e;
+        }
+    }
+
+    private static function saveEventsToMySQL(PDO $pdo, array $events): void {
+        try {
+            self::ensureEventsTables($pdo);
+            $stmt = $pdo->prepare("INSERT INTO events (id, event_code, module_type, title, event_date, event_time, location, remarks, status, created_by, created_at)
+                VALUES (:id, :event_code, :module_type, :title, :event_date, :event_time, :location, :remarks, :status, :created_by, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    module_type = VALUES(module_type),
+                    title = VALUES(title),
+                    event_date = VALUES(event_date),
+                    event_time = VALUES(event_time),
+                    location = VALUES(location),
+                    remarks = VALUES(remarks),
+                    status = VALUES(status)");
+
+            foreach ($events as $ev) {
+                $stmt->execute([
+                    ':id'          => (int)$ev['id'],
+                    ':event_code'  => $ev['event_code'],
+                    ':module_type' => in_array($ev['module_type'] ?? '', ['training', 'career_fair']) ? $ev['module_type'] : 'training',
+                    ':title'       => $ev['title'],
+                    ':event_date'  => $ev['event_date'],
+                    ':event_time'  => $ev['event_time'] ?? null,
+                    ':location'    => $ev['location'],
+                    ':remarks'     => $ev['remarks'] ?? '',
+                    ':status'      => $ev['status'] ?? 'upcoming',
+                    ':created_by'  => !empty($ev['created_by']) ? (int)$ev['created_by'] : null,
+                    ':created_at'  => $ev['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Non-fatal
+        }
+    }
+
+    private static function saveEventAttendeesToMySQL(PDO $pdo, array $attendees): void {
+        try {
+            self::ensureEventsTables($pdo);
+            $stmt = $pdo->prepare("INSERT INTO event_attendees (id, event_id, candidate_id, status, attended_at, notes, created_at)
+                VALUES (:id, :event_id, :candidate_id, :status, :attended_at, :notes, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    attended_at = VALUES(attended_at),
+                    notes = VALUES(notes)");
+
+            foreach ($attendees as $ea) {
+                $stmt->execute([
+                    ':id'           => (int)$ea['id'],
+                    ':event_id'     => (int)$ea['event_id'],
+                    ':candidate_id' => (int)$ea['candidate_id'],
+                    ':status'       => $ea['status'] ?? 'attended',
+                    ':attended_at'  => $ea['attended_at'] ?? null,
+                    ':notes'        => $ea['notes'] ?? '',
+                    ':created_at'   => $ea['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Non-fatal
         }
     }
 
@@ -1443,7 +1660,9 @@ class Database {
                 ['id' => 1, 'user_id' => 1, 'username' => 'superadmin', 'role' => 'superadmin', 'action' => 'SYSTEM_INIT', 'entity_type' => 'system', 'entity_id' => null, 'details' => 'Application initialized with default Bahrain settings', 'created_at' => '2026-01-01 10:00:00'],
                 ['id' => 2, 'user_id' => 3, 'username' => 'cm_husain', 'role' => 'case_manager', 'action' => 'CLAIM_CREATED', 'entity_type' => 'claim', 'entity_id' => 3, 'details' => 'Entered manual claim amount 605.000 BHD for Waleed Abdulwahid', 'created_at' => '2026-02-02 14:00:00'],
                 ['id' => 3, 'user_id' => 4, 'username' => 'cm_meaad', 'role' => 'case_manager', 'action' => 'DISPUTE_LOGGED', 'entity_type' => 'dispute', 'entity_id' => 1, 'details' => 'Logged dispute for claim CLM-2026-005', 'created_at' => '2026-03-15 11:00:00']
-            ]
+            ],
+            'events' => self::getDefaultEvents(),
+            'event_attendees' => []
         ];
 
         self::saveStore($defaultStore);

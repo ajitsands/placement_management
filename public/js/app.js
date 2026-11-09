@@ -27,6 +27,10 @@ function App() {
         return <window.CandidatesView state={state} />;
       case 'jobs':
         return <window.JobsView state={state} />;
+      case 'training':
+        return <window.EventsView state={state} moduleType="training" />;
+      case 'career_fair':
+        return <window.EventsView state={state} moduleType="career_fair" />;
       case 'placements':
         return <window.PlacementsView state={state} />;
       case 'milestones':

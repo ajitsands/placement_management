@@ -63,6 +63,7 @@ require_once __DIR__ . '/models/Setting.php';
 require_once __DIR__ . '/models/Report.php';
 require_once __DIR__ . '/models/DocumentCategory.php';
 require_once __DIR__ . '/models/AuditLog.php';
+require_once __DIR__ . '/models/Event.php';
 
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UserController.php';
@@ -77,6 +78,7 @@ require_once __DIR__ . '/controllers/ReportController.php';
 require_once __DIR__ . '/controllers/ChecklistMasterController.php';
 require_once __DIR__ . '/controllers/DocumentCategoryController.php';
 require_once __DIR__ . '/controllers/ActivityController.php';
+require_once __DIR__ . '/controllers/EventController.php';
 
 use App\Core\Router;
 use App\Controllers\AuthController;
@@ -92,6 +94,7 @@ use App\Controllers\ReportController;
 use App\Controllers\ChecklistMasterController;
 use App\Controllers\DocumentCategoryController;
 use App\Controllers\ActivityController;
+use App\Controllers\EventController;
 
 $router = new Router();
 
@@ -131,6 +134,20 @@ $router->post('/candidates/{id}/renew', [CandidateController::class, 'renew']);
 $router->get('/candidates/{id}/activities', [CandidateController::class, 'activities']);
 $router->post('/candidates', [CandidateController::class, 'create']);
 $router->put('/candidates/{id}', [CandidateController::class, 'update']);
+
+// ==================== TRAINING & CAREER FAIR EVENTS MICRO ROUTES ====================
+$router->get('/events', [EventController::class, 'index']);
+$router->get('/events/next-code', [EventController::class, 'nextCode']);
+$router->get('/events/{id}', [EventController::class, 'show']);
+$router->post('/events', [EventController::class, 'create']);
+$router->put('/events/{id}', [EventController::class, 'update']);
+$router->post('/events/{id}', [EventController::class, 'update']);
+$router->delete('/events/{id}', [EventController::class, 'delete']);
+$router->get('/events/{id}/attendees', [EventController::class, 'attendees']);
+$router->post('/events/{id}/attendees', [EventController::class, 'addAttendee']);
+$router->delete('/events/{id}/attendees/{candidateId}', [EventController::class, 'removeAttendee']);
+$router->put('/events/{id}/attendees/{candidateId}', [EventController::class, 'updateAttendee']);
+$router->post('/events/{id}/attendees/{candidateId}', [EventController::class, 'updateAttendee']);
 
 // ==================== EMPLOYER JOBS & VACANCIES MICRO ROUTES ====================
 $router->get('/jobs', [JobController::class, 'index']);

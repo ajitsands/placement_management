@@ -72,6 +72,8 @@ const APP_VALID_TABS = [
   'dashboard',
   'candidates',
   'jobs',
+  'training',
+  'career_fair',
   'placements',
   'milestones',
   'claims',
@@ -88,6 +90,12 @@ const APP_TAB_ALIASES = {
   'job': 'jobs',
   'vacancies': 'jobs',
   'vacancy': 'jobs',
+  'training': 'training',
+  'trainings': 'training',
+  'career_fair': 'career_fair',
+  'career-fair': 'career_fair',
+  'careerfair': 'career_fair',
+  'career_fairs': 'career_fair',
   'placements': 'placements',
   'placement': 'placements',
   'candidates': 'candidates',
@@ -149,6 +157,7 @@ class AppStoreClass {
       kpis: {},
       candidates: [],
       jobs: [],
+      events: [],
       checklistMasters: [],
       documentCategories: [],
       milestones: [],
@@ -393,10 +402,11 @@ class AppStoreClass {
         ? (activeUser.case_manager_code || activeUser.full_name)
         : null;
 
-      const [kpisRes, candRes, jobsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes, actRes] = await Promise.all([
+      const [kpisRes, candRes, jobsRes, eventsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes, actRes] = await Promise.all([
         window.api.reports.getKPIs(),
         window.api.candidates.getAll(),
         window.api.jobs.getAll().catch(() => ({ jobs: [] })),
+        window.api.events.getAll().catch(() => ({ events: [] })),
         window.api.checklistMaster.getAll().catch(() => ({ items: [] })),
         window.api.documentCategories.getAll().catch(() => ({ items: [] })),
         window.api.milestones.getAll(),
@@ -415,6 +425,7 @@ class AppStoreClass {
         kpis: kpisRes?.kpis || {},
         candidates: candRes?.candidates || [],
         jobs: jobsRes?.jobs || [],
+        events: eventsRes?.events || [],
         checklistMasters: chkRes?.items || [],
         documentCategories: docCatsRes?.items || [],
         milestones: msRes?.milestones || [],

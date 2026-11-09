@@ -37,7 +37,7 @@ function Modals({ state }) {
 
   return (
     <div className="modal-overlay">
-      {type === 'NEW_CANDIDATE' && <NewCandidateModal state={state} />}
+      {type === 'NEW_CANDIDATE' && <NewCandidateModal state={state} initialCenter={props?.initialCenter || props?.center} eventId={props?.eventId} onCandidateCreated={props?.onCandidateCreated} />}
       {type === 'LINK_PLACEMENT' && <LinkPlacementModal state={state} candidate={props?.candidate} job={props?.job} />}
       {type === 'BATCH_PLACEMENT' && <BatchPlacementModal state={state} initialJobId={props?.jobId || props?.job?.id} />}
       {type === 'NEW_JOB' && <JobModal state={state} />}
@@ -63,7 +63,7 @@ function Modals({ state }) {
 }
 
 // 1. New Candidate Registration Modal with Multiple Document Upload & Optional Placement Linker
-function NewCandidateModal({ state }) {
+function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }) {
   const { currentUser, caseManagers, settings } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
   const currency = settings.currency || 'BHD';
@@ -81,6 +81,7 @@ function NewCandidateModal({ state }) {
     registration_date: new Date().toISOString().split('T')[0],
     remarks: '',
     status: 'registered',
+    center: initialCenter || 'Enma Mall',
     case_manager_name: currentUser.role === 'case_manager' 
       ? (currentUser.case_manager_code || currentUser.full_name) 
       : (caseManagers[0]?.case_manager_code || 'Husain')
@@ -275,6 +276,8 @@ function NewCandidateModal({ state }) {
     try {
       const payload = {
         ...form,
+        center: form.center || initialCenter || 'Enma Mall',
+        event_id: eventId || null,
         ref_no: form.ref_no.trim(), // Custom ref if provided, otherwise empty string allows backend to auto-generate
         phone: form.phone.trim(),
         email: form.email.trim(),
@@ -290,6 +293,9 @@ function NewCandidateModal({ state }) {
       };
 
       const created = await window.api.candidates.create(payload);
+      if (typeof onCandidateCreated === 'function') {
+        try { onCandidateCreated(created); } catch (e) {}
+      }
       if (isIncomplete) {
         sessionStorage.setItem('sands_claims_cand_status_v2', 'registration_incomplete');
         sessionStorage.setItem('sands_claims_cand_status', 'registration_incomplete');
@@ -496,29 +502,46 @@ function NewCandidateModal({ state }) {
               </div>
             </div>
 
-            {/* Row 5: Assigned Case Manager */}
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label className="form-label">Assigned Case Manager</label>
-              {isAdminOrSuper ? (
+            {/* Row 5: Registration Center & Assigned Case Manager */}
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Center *</label>
                 <select
                   className="select-control"
-                  value={form.case_manager_name}
-                  onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+                  value={form.center}
+                  onChange={e => setForm({ ...form, center: e.target.value })}
+                  required
                 >
-                  {caseManagers.map(cm => (
-                    <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
-                      {cm.full_name} ({cm.case_manager_code || 'CM'})
-                    </option>
-                  ))}
+                  <option value="Enma Mall">Enma Mall</option>
+                  <option value="Career Fair">Career Fair</option>
+                  <option value="Training">Training</option>
+                  <option value="Other Job Center">Other Job Center</option>
                 </select>
-              ) : (
-                <input
-                  type="text"
-                  className="input-control"
-                  value={form.case_manager_name}
-                  disabled
-                />
-              )}
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Assigned Case Manager</label>
+                {isAdminOrSuper ? (
+                  <select
+                    className="select-control"
+                    value={form.case_manager_name}
+                    onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+                  >
+                    {caseManagers.map(cm => (
+                      <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
+                        {cm.full_name} ({cm.case_manager_code || 'CM'})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={form.case_manager_name}
+                    disabled
+                  />
+                )}
+              </div>
             </div>
 
             {/* Row 5: Remarks */}
@@ -3390,6 +3413,10 @@ function CandidateDetailModal({ state, candidate }) {
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CASE MANAGER</div>
             <strong style={{ fontSize: '0.85rem' }}>{candidate.case_manager_name}</strong>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>REGISTRATION CENTER</div>
+            <strong style={{ fontSize: '0.85rem', color: '#4f46e5' }}>🏬 {candidate.center || 'Enma Mall'}</strong>
           </div>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ATTACHED DOCUMENTS</div>

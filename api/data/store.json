@@ -212,7 +212,8 @@
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
-            "checklist_items": []
+            "checklist_items": [],
+            "center": "Enma Mall"
         },
         {
             "id": 2,
@@ -249,7 +250,8 @@
             "job_id": 5,
             "job_code": "JOB-2025-005",
             "checklist_completion_pct": 0,
-            "checklist_items": []
+            "checklist_items": [],
+            "center": "Enma Mall"
         },
         {
             "id": 3,
@@ -286,7 +288,8 @@
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
-            "checklist_items": []
+            "checklist_items": [],
+            "center": "Enma Mall"
         },
         {
             "id": 4,
@@ -323,7 +326,8 @@
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
-            "checklist_items": []
+            "checklist_items": [],
+            "center": "Enma Mall"
         },
         {
             "id": 5,
@@ -360,7 +364,8 @@
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
-            "checklist_items": []
+            "checklist_items": [],
+            "center": "Enma Mall"
         },
         {
             "id": 6,
@@ -462,7 +467,8 @@
                     "is_mandatory": true,
                     "completed": true
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         },
         {
             "id": 7,
@@ -584,7 +590,8 @@
                     "is_mandatory": true,
                     "completed": true
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         },
         {
             "id": 8,
@@ -676,7 +683,8 @@
                     "is_mandatory": true,
                     "completed": true
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         },
         {
             "id": 9,
@@ -768,7 +776,8 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         },
         {
             "id": 10,
@@ -860,7 +869,8 @@
                     "is_mandatory": true,
                     "completed": true
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         },
         {
             "id": 11,
@@ -952,7 +962,8 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "center": "Enma Mall"
         }
     ],
     "jobs": [
@@ -1661,5 +1672,36 @@
             "created_at": "2026-10-29 13:18:59"
         }
     ],
-    "audit_logs": []
+    "audit_logs": [],
+    "events": [
+        {
+            "id": 1,
+            "event_code": "EVT-TRN-26001",
+            "module_type": "training",
+            "title": "Bahrain National Workforce Readiness & Technical Skills Workshop",
+            "event_date": "2026-11-16",
+            "event_time": "09:00 AM - 01:00 PM",
+            "location": "Training Center - Bahrain Polytechnic Hall 3",
+            "remarks": "Intensive professional onboarding and compliance preparation for registered talent pool candidates.",
+            "status": "upcoming",
+            "created_by": 1,
+            "created_at": "2026-11-09 13:17:55",
+            "updated_at": "2026-11-09 13:17:55"
+        },
+        {
+            "id": 2,
+            "event_code": "EVT-CF-26001",
+            "module_type": "career_fair",
+            "title": "Kingdom Employment & Private Sector Placement Career Fair 2026",
+            "event_date": "2026-11-23",
+            "event_time": "10:00 AM - 04:00 PM",
+            "location": "Bahrain International Exhibition & Convention Centre (BIECC)",
+            "remarks": "Direct walk-in candidate registrations and corporate employer interviews.",
+            "status": "upcoming",
+            "created_by": 1,
+            "created_at": "2026-11-09 13:17:55",
+            "updated_at": "2026-11-09 13:17:55"
+        }
+    ],
+    "event_attendees": []
 }

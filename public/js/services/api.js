@@ -211,6 +211,22 @@ class ApiService {
       return this.request(`/activities?${qs}`);
     }
   };
+
+  events = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/events${qs ? '?' + qs : ''}`);
+    },
+    getNextCode: (moduleType = 'training') => this.request(`/events/next-code?module_type=${encodeURIComponent(moduleType)}`),
+    getOne: (id) => this.request(`/events/${id}`),
+    create: (data) => this.request('/events', { method: 'POST', body: data }),
+    update: (id, data) => this.request(`/events/${id}`, { method: 'PUT', body: data }),
+    delete: (id) => this.request(`/events/${id}`, { method: 'DELETE' }),
+    getAttendees: (id) => this.request(`/events/${id}/attendees`),
+    addAttendee: (eventId, data) => this.request(`/events/${eventId}/attendees`, { method: 'POST', body: data }),
+    removeAttendee: (eventId, candidateId) => this.request(`/events/${eventId}/attendees/${candidateId}`, { method: 'DELETE' }),
+    updateAttendee: (eventId, candidateId, data) => this.request(`/events/${eventId}/attendees/${candidateId}`, { method: 'PUT', body: data })
+  };
 }
 
 window.api = new ApiService();

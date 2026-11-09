@@ -107,13 +107,20 @@ class CandidateController {
         $newCandidate = Candidate::create($data, $defaultCaseManager);
         $hasPlacement = !empty($newCandidate['company_name']);
 
+        // If candidate registered from Training or Career Fair Event Studio, automatically record attendance
+        if (!empty($data['event_id'])) {
+            $eventId = (int)$data['event_id'];
+            $eventNotes = "Registered at " . ($newCandidate['center'] ?? 'event');
+            \App\Models\Event::addAttendee($eventId, (int)$newCandidate['id'], 'attended', $eventNotes);
+        }
+
         // Log candidate registration action
         \App\Models\AuditLog::log(
             'CANDIDATE_REGISTERED',
             'candidate',
             (int)$newCandidate['id'],
             $newCandidate['ref_no'],
-            "Candidate {$newCandidate['full_name']} (CPR: {$newCandidate['cpr_no']}) registered in talent pool with education {$newCandidate['education']}.",
+            "Candidate {$newCandidate['full_name']} (CPR: {$newCandidate['cpr_no']}) registered in talent pool with education {$newCandidate['education']} at Center {$newCandidate['center']}.",
             $user
         );
 

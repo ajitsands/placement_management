@@ -23,6 +23,9 @@ function CandidatesView({ state }) {
   const [selectedEducation, setSelectedEducation] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_education') || 'all';
   });
+  const [selectedCenter, setSelectedCenter] = useState(() => {
+    return sessionStorage.getItem('sands_claims_cand_center') || 'all';
+  });
   const [regDateFrom, setRegDateFrom] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_reg_from') || '';
   });
@@ -62,6 +65,11 @@ function CandidatesView({ state }) {
   const handleEducationChange = (edu) => {
     setSelectedEducation(edu);
     sessionStorage.setItem('sands_claims_cand_education', edu);
+  };
+
+  const handleCenterChange = (center) => {
+    setSelectedCenter(center);
+    sessionStorage.setItem('sands_claims_cand_center', center);
   };
 
   const handleRegDateFrom = (val) => {
@@ -116,6 +124,7 @@ function CandidatesView({ state }) {
     setStatusFilter('registered');
     setSelectedGender('all');
     setSelectedEducation('all');
+    setSelectedCenter('all');
     setRegDateFrom('');
     setRegDateTo('');
     sessionStorage.removeItem('sands_claims_cand_cm');
@@ -123,6 +132,7 @@ function CandidatesView({ state }) {
     sessionStorage.setItem('sands_claims_cand_status', 'registered');
     sessionStorage.removeItem('sands_claims_cand_gender');
     sessionStorage.removeItem('sands_claims_cand_education');
+    sessionStorage.removeItem('sands_claims_cand_center');
     sessionStorage.removeItem('sands_claims_cand_reg_from');
     sessionStorage.removeItem('sands_claims_cand_reg_to');
   };
@@ -134,9 +144,10 @@ function CandidatesView({ state }) {
     if (statusFilter && statusFilter !== 'registered') count++;
     if (selectedGender && selectedGender !== 'all') count++;
     if (selectedEducation && selectedEducation !== 'all') count++;
+    if (selectedCenter && selectedCenter !== 'all') count++;
     if (regDateFrom || regDateTo) count++;
     return count;
-  }, [selectedCaseManager, statusFilter, selectedGender, selectedEducation, regDateFrom, regDateTo]);
+  }, [selectedCaseManager, statusFilter, selectedGender, selectedEducation, selectedCenter, regDateFrom, regDateTo]);
 
   // Helper to determine if a candidate belongs to the Incomplete Profile category
   const isCandidateIncomplete = (c) => {
@@ -270,6 +281,12 @@ function CandidatesView({ state }) {
         return edu === target || edu.includes(target) || target.includes(edu);
       });
     }
+    if (selectedCenter && selectedCenter !== 'all') {
+      result = result.filter(c => {
+        const center = String(c.center || 'Enma Mall').trim().toLowerCase();
+        return center === selectedCenter.toLowerCase();
+      });
+    }
     if (regDateFrom) {
       result = result.filter(c => {
         const d = parseDateStr(c.registration_date || c.created_at);
@@ -283,7 +300,7 @@ function CandidatesView({ state }) {
       });
     }
     return result;
-  }, [candidates, selectedCaseManager, statusFilter, selectedGender, selectedEducation, regDateFrom, regDateTo]);
+  }, [candidates, selectedCaseManager, statusFilter, selectedGender, selectedEducation, selectedCenter, regDateFrom, regDateTo]);
 
   // Status badge styling helper strictly mapped to core lifecycle logic
   const renderStatusBadge = (status, candidate) => {
@@ -442,6 +459,7 @@ function CandidatesView({ state }) {
               <span>📁</span> Document Vault & Case Assignment
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div><strong>Center:</strong> 🏬 {row.center || 'Enma Mall'}</div>
               <div><strong>Case Manager:</strong> {row.case_manager_name || 'System Assigned'}</div>
               <div><strong>Documents Vault:</strong> {docs.length} uploaded file(s)</div>
               {row.remarks && <div><strong>Remarks:</strong> <em>{row.remarks}</em></div>}
@@ -667,6 +685,36 @@ function CandidatesView({ state }) {
             <span>📎</span>
             <span>{docs.length} Docs</span>
           </button>
+        );
+      }
+    },
+    {
+      key: 'center',
+      label: 'Center',
+      sortable: true,
+      render: (val) => {
+        const centerName = val || 'Enma Mall';
+        const isEnma = centerName === 'Enma Mall';
+        const isCF = centerName === 'Career Fair';
+        const isTrn = centerName === 'Training';
+        const bg = isCF ? 'rgba(16,185,129,0.1)' : (isTrn ? 'rgba(139,92,246,0.1)' : (isEnma ? 'rgba(37,99,235,0.08)' : 'rgba(100,116,139,0.1)'));
+        const color = isCF ? '#059669' : (isTrn ? '#7c3aed' : (isEnma ? '#2563eb' : '#475569'));
+        const icon = isCF ? '🎪' : (isTrn ? '🎓' : (isEnma ? '🏬' : '🏢'));
+        return (
+          <span style={{
+            background: bg,
+            color: color,
+            padding: '0.2rem 0.55rem',
+            borderRadius: 'var(--radius-sm)',
+            fontWeight: 700,
+            fontSize: '0.74rem',
+            whiteSpace: 'nowrap',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem'
+          }}>
+            <span>{icon}</span> {centerName}
+          </span>
         );
       }
     },
@@ -954,6 +1002,25 @@ function CandidatesView({ state }) {
               <option value="Master Degree">Master Degree</option>
               <option value="Doctorate">Doctorate / PhD</option>
               <option value="Vocational">Vocational / Technical</option>
+            </select>
+          </div>
+
+          {/* 5. Center Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              🏬 Center:
+            </span>
+            <select
+              className="select-control"
+              style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem', minWidth: '135px', width: 'auto' }}
+              value={selectedCenter}
+              onChange={e => handleCenterChange(e.target.value)}
+            >
+              <option value="all">All Centers</option>
+              <option value="Enma Mall">Enma Mall</option>
+              <option value="Career Fair">Career Fair</option>
+              <option value="Training">Training</option>
+              <option value="Other Job Center">Other Job Center</option>
             </select>
           </div>
         </div>

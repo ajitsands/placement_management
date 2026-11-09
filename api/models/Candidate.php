@@ -27,6 +27,7 @@ class Candidate {
                        str_contains(strtolower($c['ref_no'] ?? ''), $q) ||
                        str_contains(strtolower($c['cpr_no'] ?? ''), $q) ||
                        str_contains(strtolower($c['company_name'] ?? ''), $q) ||
+                       str_contains(strtolower($c['center'] ?? ''), $q) ||
                        str_contains(strtolower($c['status'] ?? ''), $q);
             });
         }
@@ -156,6 +157,7 @@ class Candidate {
             'joining_date'             => $hasPlacement ? $data['joining_date'] : null,
             'case_manager_id'          => isset($data['case_manager_id']) ? (int)$data['case_manager_id'] : 3,
             'case_manager_name'        => $caseManagerName,
+            'center'                   => !empty($data['center']) ? trim($data['center']) : 'Enma Mall',
             'notes'                    => $remarks,
             'comments'                 => trim($data['comments'] ?? ''),
             'remarks'                  => $remarks,
@@ -390,6 +392,7 @@ class Candidate {
                 if (isset($data['mol_certified'])) $c['mol_certified'] = $data['mol_certified'];
                 if (isset($data['joining_date'])) $c['joining_date'] = $data['joining_date'];
                 if (isset($data['case_manager_name'])) $c['case_manager_name'] = trim($data['case_manager_name']);
+                if (isset($data['center'])) $c['center'] = trim($data['center']);
                 if (isset($data['remarks'])) {
                     $c['remarks'] = trim($data['remarks']);
                     $c['notes'] = trim($data['remarks']);
