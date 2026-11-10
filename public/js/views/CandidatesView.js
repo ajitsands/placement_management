@@ -646,49 +646,45 @@ function CandidatesView({ state }) {
 
   const columns = [
     {
-      key: 'center',
-      label: 'Center',
+      key: 'ref_no',
+      label: 'Ref & Reg Date',
       sortable: true,
-      render: (val) => {
-        const centerName = val || 'Enma Mall';
+      render: (val, row) => {
+        const centerName = row.center || 'Enma Mall';
         const isEnma = centerName === 'Enma Mall';
         const isCF = centerName === 'Career Fair';
         const isTrn = centerName === 'Training';
         const bg = isCF ? 'rgba(16,185,129,0.1)' : (isTrn ? 'rgba(139,92,246,0.1)' : (isEnma ? 'rgba(37,99,235,0.08)' : 'rgba(100,116,139,0.1)'));
         const color = isCF ? '#059669' : (isTrn ? '#7c3aed' : (isEnma ? '#2563eb' : '#475569'));
         const icon = isCF ? '🎪' : (isTrn ? '🎓' : (isEnma ? '🏬' : '🏢'));
+
         return (
-          <span style={{
-            background: bg,
-            color: color,
-            padding: '0.2rem 0.55rem',
-            borderRadius: 'var(--radius-sm)',
-            fontWeight: 700,
-            fontSize: '0.74rem',
-            whiteSpace: 'nowrap',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem'
-          }}>
-            <span>{icon}</span> {centerName}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)', fontSize: '0.88rem' }}>
+                {val}
+              </span>
+              <span style={{
+                background: bg,
+                color: color,
+                padding: '0.1rem 0.45rem',
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: 700,
+                fontSize: '0.68rem',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}>
+                <span>{icon}</span> {centerName}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Reg: {window.formatAppDate(row.registration_date || row.created_at)}
+            </div>
+          </div>
         );
       }
-    },
-    {
-      key: 'ref_no',
-      label: 'Ref & Reg Date',
-      sortable: true,
-      render: (val, row) => (
-        <div>
-          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)', fontSize: '0.88rem' }}>
-            {val}
-          </span>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Reg: {window.formatAppDate(row.registration_date || row.created_at)}
-          </div>
-        </div>
-      )
     },
     {
       key: 'full_name',
