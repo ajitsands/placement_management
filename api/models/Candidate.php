@@ -438,10 +438,6 @@ class Candidate {
         $store = Database::getStore();
         foreach ($store['candidates'] as &$c) {
             if ((int)$c['id'] === $id) {
-                if ($caseManagerScope !== null && strcasecmp($c['case_manager_name'] ?? '', $caseManagerScope) !== 0) {
-                    return null;
-                }
-
                 $approvalDate = !empty($data['approval_date']) ? trim($data['approval_date']) : date('Y-m-d');
                 $notes = trim($data['notes'] ?? ($data['remarks'] ?? ''));
 

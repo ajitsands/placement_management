@@ -10,15 +10,19 @@ use App\Config\Database;
 class Auth {
     private static ?array $currentUser = null;
 
+    public static function user(): array {
+        return self::getCurrentUser();
+    }
+
     public static function getCurrentUser(): array {
         if (self::$currentUser !== null) {
             return self::$currentUser;
         }
 
         // 1. Check custom headers (X-User-Id, X-User-Role) for micro-API client flexibility
-        $headers = getallheaders();
-        $headerUserId = $headers['X-User-Id'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
-        $headerRole = $headers['X-User-Role'] ?? $_SERVER['HTTP_X_USER_ROLE'] ?? null;
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $headerUserId = $headers['X-User-Id'] ?? $headers['x-user-id'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
+        $headerRole = $headers['X-User-Role'] ?? $headers['x-user-role'] ?? $_SERVER['HTTP_X_USER_ROLE'] ?? null;
 
         $store = Database::getStore();
         $users = $store['users'] ?? [];

@@ -487,54 +487,68 @@ class CandidateController {
     }
 
     public function approveTamkeen(array $data, array $params): void {
-        $id = (int)($params['id'] ?? 0);
-        $user = Auth::user();
-        $scope = Auth::getScopedCaseManagerName();
+        try {
+            $id = (int)($params['id'] ?? 0);
+            $user = Auth::getCurrentUser();
+            $scope = Auth::getScopedCaseManagerName();
 
-        $approvalDate = !empty($data['approval_date']) ? trim($data['approval_date']) : date('Y-m-d');
-        $notes = trim($data['notes'] ?? ($data['remarks'] ?? ''));
+            $approvalDate = !empty($data['approval_date']) ? trim($data['approval_date']) : date('Y-m-d');
+            $notes = trim($data['notes'] ?? ($data['remarks'] ?? ''));
 
-        $approvedBy = $user['full_name'] ?? ($user['username'] ?? 'Tamkeen Directorate');
-        $candidate = Candidate::approveTamkeen($id, [
-            'approval_date' => $approvalDate,
-            'notes' => $notes
-        ], $approvedBy, $scope);
+            $approvedBy = $user['full_name'] ?? ($user['username'] ?? 'Tamkeen Directorate');
+            $candidate = Candidate::approveTamkeen($id, [
+                'approval_date' => $approvalDate,
+                'notes' => $notes
+            ], $approvedBy, $scope);
 
-        if (!$candidate) {
-            Response::notFound("Candidate record not found or access restricted");
+            if (!$candidate) {
+                Response::notFound("Candidate record not found or access restricted");
+                return;
+            }
+
+            \App\Models\AuditLog::log(
+                'CANDIDATE_TAMKEEN_APPROVED',
+                'candidate',
+                $id,
+                $candidate['ref_no'],
+                "Candidate {$candidate['full_name']} (CPR: {$candidate['cpr_no']}) approved by Tamkeen on {$approvalDate}. Notes: {$notes}. Approved by {$approvedBy}.",
+                $user
+            );
+
+            Response::json($candidate, 200, "Candidate '{$candidate['full_name']}' approved by Tamkeen successfully.");
+        } catch (\Throwable $e) {
+            error_log("[CandidateController::approveTamkeen Error] " . $e->getMessage());
+            Response::error("Approval processing failed: " . $e->getMessage(), 500);
         }
-
-        \App\Models\AuditLog::log(
-            'CANDIDATE_TAMKEEN_APPROVED',
-            'candidate',
-            $id,
-            $candidate['ref_no'],
-            "Candidate {$candidate['full_name']} (CPR: {$candidate['cpr_no']}) approved by Tamkeen on {$approvalDate}. Notes: {$notes}. Approved by {$approvedBy}."
-        );
-
-        Response::json($candidate, 200, "Candidate '{$candidate['full_name']}' approved by Tamkeen successfully.");
     }
 
     public function updateApprovals(array $data, array $params): void {
-        $id = (int)($params['id'] ?? 0);
-        $user = Auth::user();
-        $scope = Auth::getScopedCaseManagerName();
+        try {
+            $id = (int)($params['id'] ?? 0);
+            $user = Auth::getCurrentUser();
+            $scope = Auth::getScopedCaseManagerName();
 
-        $approvedBy = $user['full_name'] ?? ($user['username'] ?? 'Authorized Officer');
-        $candidate = Candidate::updateApprovals($id, $data, $approvedBy, $scope);
+            $approvedBy = $user['full_name'] ?? ($user['username'] ?? 'Authorized Officer');
+            $candidate = Candidate::updateApprovals($id, $data, $approvedBy, $scope);
 
-        if (!$candidate) {
-            Response::notFound("Candidate record not found or access restricted");
+            if (!$candidate) {
+                Response::notFound("Candidate record not found or access restricted");
+                return;
+            }
+
+            \App\Models\AuditLog::log(
+                'CANDIDATE_APPROVALS_UPDATED',
+                'candidate',
+                $id,
+                $candidate['ref_no'],
+                "Approvals updated for {$candidate['full_name']} (Job Center: {$candidate['approved_by_job_center']}, Tamkeen: {$candidate['approved_by_tamkeen']}).",
+                $user
+            );
+
+            Response::json($candidate, 200, "Approvals updated successfully for '{$candidate['full_name']}'.");
+        } catch (\Throwable $e) {
+            error_log("[CandidateController::updateApprovals Error] " . $e->getMessage());
+            Response::error("Approval update failed: " . $e->getMessage(), 500);
         }
-
-        \App\Models\AuditLog::log(
-            'CANDIDATE_APPROVALS_UPDATED',
-            'candidate',
-            $id,
-            $candidate['ref_no'],
-            "Approvals updated for {$candidate['full_name']} (Job Center: {$candidate['approved_by_job_center']}, Tamkeen: {$candidate['approved_by_tamkeen']})."
-        );
-
-        Response::json($candidate, 200, "Approvals updated successfully for '{$candidate['full_name']}'.");
     }
 }
