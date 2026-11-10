@@ -669,7 +669,7 @@ function EventsView({ state, moduleType = 'training' }) {
                       </button>
                     )}
 
-                    {/* Export Icon Button with Tooltip */}
+                    {/* Export Button with Icon, Label & Tooltip */}
                     <button
                       type="button"
                       className="btn btn-outline btn-sm"
@@ -677,16 +677,21 @@ function EventsView({ state, moduleType = 'training' }) {
                       disabled={exportingEventId === event.id}
                       title={`Export candidate attendees for "${event.title}" to CSV`}
                       style={{
-                        padding: '0.35rem 0.6rem',
-                        fontSize: '0.8rem',
+                        padding: '0.35rem 0.65rem',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
                         color: attendeesCount > 0 ? '#059669' : 'var(--text-muted)',
                         borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.45)' : 'var(--border-light)',
                         background: attendeesCount > 0 ? 'rgba(16,185,129,0.08)' : 'transparent',
                         cursor: 'pointer'
                       }}
-                      aria-label="Export Attendees"
+                      aria-label="Export"
                     >
-                      {exportingEventId === event.id ? '⏳' : '📥'}
+                      <span>{exportingEventId === event.id ? '⏳' : '📥'}</span>
+                      <span>Export</span>
                     </button>
 
                     <button
