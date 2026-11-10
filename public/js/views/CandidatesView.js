@@ -646,6 +646,36 @@ function CandidatesView({ state }) {
 
   const columns = [
     {
+      key: 'center',
+      label: 'Center',
+      sortable: true,
+      render: (val) => {
+        const centerName = val || 'Enma Mall';
+        const isEnma = centerName === 'Enma Mall';
+        const isCF = centerName === 'Career Fair';
+        const isTrn = centerName === 'Training';
+        const bg = isCF ? 'rgba(16,185,129,0.1)' : (isTrn ? 'rgba(139,92,246,0.1)' : (isEnma ? 'rgba(37,99,235,0.08)' : 'rgba(100,116,139,0.1)'));
+        const color = isCF ? '#059669' : (isTrn ? '#7c3aed' : (isEnma ? '#2563eb' : '#475569'));
+        const icon = isCF ? '🎪' : (isTrn ? '🎓' : (isEnma ? '🏬' : '🏢'));
+        return (
+          <span style={{
+            background: bg,
+            color: color,
+            padding: '0.2rem 0.55rem',
+            borderRadius: 'var(--radius-sm)',
+            fontWeight: 700,
+            fontSize: '0.74rem',
+            whiteSpace: 'nowrap',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem'
+          }}>
+            <span>{icon}</span> {centerName}
+          </span>
+        );
+      }
+    },
+    {
       key: 'ref_no',
       label: 'Ref & Reg Date',
       sortable: true,
@@ -784,65 +814,58 @@ function CandidatesView({ state }) {
       )
     },
     {
-      key: 'approved_by_tamkeen',
-      label: 'Tamkeen Approval',
-      sortable: true,
-      render: (val, row) => {
-        const isApproved = val === true || String(val || '').toLowerCase() === 'yes';
-        if (isApproved) {
-          return (
-            <span
-              className="badge badge-success"
-              style={{
-                fontWeight: 800,
-                fontSize: '0.74rem',
-                padding: '0.25rem 0.6rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#059669',
-                border: '1px solid rgba(16, 185, 129, 0.45)'
-              }}
-              title={`Approved by Tamkeen on ${window.formatAppDate(row.tamkeen_approval_date || row.updated_at)}${row.tamkeen_approved_by ? ` by ${row.tamkeen_approved_by}` : ''}${row.tamkeen_approval_notes ? ` • ${row.tamkeen_approval_notes}` : ''}`}
-            >
-              <span>✓</span> Approved
-            </span>
-          );
-        }
-
-        return (
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            style={{
-              padding: '0.22rem 0.65rem',
-              fontSize: '0.74rem',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              whiteSpace: 'nowrap',
-              background: '#059669',
-              borderColor: '#059669',
-              boxShadow: '0 1px 2px rgba(5, 150, 105, 0.2)'
-            }}
-            title={`Approve ${row.full_name} for Tamkeen Scheme`}
-            onClick={(e) => {
-              e.stopPropagation();
-              window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row });
-            }}
-          >
-            <span>✓</span> Approve
-          </button>
-        );
-      }
-    },
-    {
       key: 'status',
       label: 'Talent Pool Status',
       sortable: true,
-      render: (val, row) => renderStatusBadge(val, row)
+      render: (val, row) => {
+        const isJc = row.approved_by_job_center === true || String(row.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
+        const isTamkeen = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
+            <div>{renderStatusBadge(val, row)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: '0.67rem',
+                  fontWeight: 700,
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '3px',
+                  background: isJc ? 'rgba(37, 99, 235, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                  color: isJc ? '#2563eb' : '#64748b',
+                  border: isJc ? '1px solid rgba(37, 99, 235, 0.3)' : '1px solid rgba(100, 116, 139, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  whiteSpace: 'nowrap'
+                }}
+                title={isJc ? 'Approved by Job Center upon registration' : 'Pending Job Center approval'}
+              >
+                <span>🏬</span> JC: {isJc ? 'Yes' : 'No'}
+              </span>
+
+              <span
+                style={{
+                  fontSize: '0.67rem',
+                  fontWeight: 800,
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '3px',
+                  background: isTamkeen ? 'rgba(16, 185, 129, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                  color: isTamkeen ? '#059669' : '#d97706',
+                  border: isTamkeen ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  whiteSpace: 'nowrap'
+                }}
+                title={isTamkeen ? `Approved by Tamkeen on ${window.formatAppDate(row.tamkeen_approval_date || row.updated_at)}${row.tamkeen_approval_notes ? ` • ${row.tamkeen_approval_notes}` : ''}` : 'Tamkeen Scheme Approval: Pending'}
+              >
+                <span>{isTamkeen ? '✓' : '✕'}</span> Tamkeen: {isTamkeen ? 'Yes' : 'No'}
+              </span>
+            </div>
+          </div>
+        );
+      }
     },
     {
       key: 'checklist_completion_pct',
@@ -913,36 +936,6 @@ function CandidatesView({ state }) {
       }
     },
     {
-      key: 'center',
-      label: 'Center',
-      sortable: true,
-      render: (val) => {
-        const centerName = val || 'Enma Mall';
-        const isEnma = centerName === 'Enma Mall';
-        const isCF = centerName === 'Career Fair';
-        const isTrn = centerName === 'Training';
-        const bg = isCF ? 'rgba(16,185,129,0.1)' : (isTrn ? 'rgba(139,92,246,0.1)' : (isEnma ? 'rgba(37,99,235,0.08)' : 'rgba(100,116,139,0.1)'));
-        const color = isCF ? '#059669' : (isTrn ? '#7c3aed' : (isEnma ? '#2563eb' : '#475569'));
-        const icon = isCF ? '🎪' : (isTrn ? '🎓' : (isEnma ? '🏬' : '🏢'));
-        return (
-          <span style={{
-            background: bg,
-            color: color,
-            padding: '0.2rem 0.55rem',
-            borderRadius: 'var(--radius-sm)',
-            fontWeight: 700,
-            fontSize: '0.74rem',
-            whiteSpace: 'nowrap',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem'
-          }}>
-            <span>{icon}</span> {centerName}
-          </span>
-        );
-      }
-    },
-    {
       key: 'case_manager_name',
       label: 'Case Manager',
       sortable: true,
@@ -956,8 +949,33 @@ function CandidatesView({ state }) {
       sortable: false,
       render: (_, row) => {
         const ren = getCandidateRenewalInfo(row);
+        const isTamkeenApproved = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
+
         return (
           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+            {/* Tamkeen Approve Action Button */}
+            {!isTamkeenApproved && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                title={`Approve ${row.full_name} for Tamkeen Scheme`}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.25rem 0.55rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  whiteSpace: 'nowrap',
+                  background: '#059669',
+                  borderColor: '#059669'
+                }}
+                onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
+              >
+                <span>🏛️</span> Tamkeen Approve
+              </button>
+            )}
+
             {ren.isAwaitingRenewal && (
               <button
                 className="btn btn-warning btn-sm"
