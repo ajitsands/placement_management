@@ -622,54 +622,28 @@ function EventsView({ state, moduleType = 'training' }) {
 
                 {/* Card Footer: Attendees pill & Action buttons */}
                 <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => handleOpenAttendees(event)}
-                      style={{
-                        background: attendeesCount > 0 ? 'rgba(16,185,129,0.12)' : 'var(--bg-tertiary)',
-                        color: attendeesCount > 0 ? '#059669' : 'var(--text-secondary)',
-                        border: '1px solid',
-                        borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.3)' : 'var(--border-light)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        cursor: 'pointer'
-                      }}
-                      title="View attendee details & register talent"
-                    >
-                      <span>👥</span>
-                      <span>{attendeesCount} Attended Candidate{attendeesCount === 1 ? '' : 's'}</span>
-                      <span style={{ fontSize: '0.7rem' }}>→</span>
-                    </button>
-
-                    {/* Direct Export Option for this Event */}
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm"
-                      onClick={() => handleExportEventAttendees(event)}
-                      disabled={exportingEventId === event.id}
-                      title={`Export list of candidates who attended "${event.title}" (CSV)`}
-                      style={{
-                        padding: '0.35rem 0.65rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        color: attendeesCount > 0 ? '#059669' : 'var(--text-muted)',
-                        borderColor: attendeesCount > 0 ? '#10b981' : 'var(--border-light)',
-                        background: attendeesCount > 0 ? 'rgba(16,185,129,0.08)' : 'transparent',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span>{exportingEventId === event.id ? '⏳' : '📥'}</span>
-                      <span>{exportingEventId === event.id ? 'Exporting...' : 'Export Attendees'}</span>
-                    </button>
-                  </div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => handleOpenAttendees(event)}
+                    style={{
+                      background: attendeesCount > 0 ? 'rgba(16,185,129,0.12)' : 'var(--bg-tertiary)',
+                      color: attendeesCount > 0 ? '#059669' : 'var(--text-secondary)',
+                      border: '1px solid',
+                      borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.3)' : 'var(--border-light)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer'
+                    }}
+                    title="View attendee details & register talent"
+                  >
+                    <span>👥</span>
+                    <span>{attendeesCount} Attended Candidate{attendeesCount === 1 ? '' : 's'}</span>
+                    <span style={{ fontSize: '0.7rem' }}>→</span>
+                  </button>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     {/* Quick Toggle Active / Completed */}
@@ -694,6 +668,26 @@ function EventsView({ state, moduleType = 'training' }) {
                         <span>Complete</span>
                       </button>
                     )}
+
+                    {/* Export Icon Button with Tooltip */}
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleExportEventAttendees(event)}
+                      disabled={exportingEventId === event.id}
+                      title={`Export candidate attendees for "${event.title}" to CSV`}
+                      style={{
+                        padding: '0.35rem 0.6rem',
+                        fontSize: '0.8rem',
+                        color: attendeesCount > 0 ? '#059669' : 'var(--text-muted)',
+                        borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.45)' : 'var(--border-light)',
+                        background: attendeesCount > 0 ? 'rgba(16,185,129,0.08)' : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                      aria-label="Export Attendees"
+                    >
+                      {exportingEventId === event.id ? '⏳' : '📥'}
+                    </button>
 
                     <button
                       className="btn btn-outline btn-sm"
