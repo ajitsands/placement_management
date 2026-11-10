@@ -244,26 +244,6 @@ function EventsView({ state, moduleType = 'training' }) {
       return;
     }
 
-    const headers = [
-      'SL No.',
-      'Event Code',
-      'Event Title',
-      'Event Date',
-      'Event Location',
-      'Candidate Ref',
-      'Candidate Full Name',
-      'CPR Number',
-      'Contact Phone',
-      'Contact Email',
-      'Gender',
-      'Education',
-      'Center',
-      'Candidate Status in Pool',
-      'Attendance Status',
-      'Attended / Recorded At',
-      'Remarks / Notes'
-    ];
-
     const escapeCell = (val, isTextCode = false) => {
       if (val === null || val === undefined) return '""';
       let str = String(val).trim();
@@ -272,26 +252,67 @@ function EventsView({ state, moduleType = 'training' }) {
       // Escape double quotes
       str = str.replace(/"/g, '""');
       // For numeric-like codes (CPR, Ref, Phone) wrap in ="..." formula so Excel preserves leading zeroes and prevents formula error on +
-      if (isTextCode && str) {
+      if (isTextCode && str && str !== '—') {
         return `"=""${str}"""`;
       }
       return `"${str}"`;
     };
 
+    const formattedDate = eventObj?.event_date
+      ? (window.formatAppDate ? window.formatAppDate(eventObj.event_date) : eventObj.event_date)
+      : '—';
+
+    const eventStatusLabel = eventObj?.status
+      ? eventObj.status.charAt(0).toUpperCase() + eventObj.status.slice(1)
+      : 'Active';
+
+    // 1. Event Details Header Metadata Block (Key-Value rows at the top of the sheet)
+    const metaLines = [
+      [escapeCell(`EVENT ATTENDANCE REPORT - ${moduleLabel.toUpperCase()}`)].join(','),
+      [escapeCell('Exported On:'), escapeCell(new Date().toLocaleString('en-GB'))].join(','),
+      '',
+      [escapeCell('--- EVENT DETAILS ---')].join(','),
+      [escapeCell('Event Title:'), escapeCell(eventObj?.title || '—')].join(','),
+      [escapeCell('Event Code:'), escapeCell(eventObj?.event_code || '—', true)].join(','),
+      [escapeCell('Module:'), escapeCell(moduleLabel)].join(','),
+      [escapeCell('Event Date:'), escapeCell(formattedDate)].join(','),
+      [escapeCell('Event Time:'), escapeCell(eventObj?.event_time || '—')].join(','),
+      [escapeCell('Location:'), escapeCell(eventObj?.location || '—')].join(','),
+      [escapeCell('Event Status:'), escapeCell(eventStatusLabel)].join(','),
+      [escapeCell('Remarks / Agenda:'), escapeCell(eventObj?.remarks || '—')].join(','),
+      [escapeCell('Total Candidates Attended:'), escapeCell(list.length)].join(','),
+      '',
+      [escapeCell('--- CANDIDATE ATTENDEES LIST ---')].join(',')
+    ];
+
+    // 2. Candidate Table Columns
+    const headers = [
+      'SL No.',
+      'Candidate Full Name',
+      'CPR Number',
+      'Candidate Ref',
+      'Contact Phone',
+      'Contact Email',
+      'Center',
+      'Education',
+      'Gender',
+      'Candidate Status in Pool',
+      'Attendance Status',
+      'Attended / Recorded At',
+      'Remarks / Notes'
+    ];
+
+    // 3. Candidate Rows (row-wise under the header)
     const rows = list.map((a, idx) => [
       escapeCell(idx + 1),
-      escapeCell(eventObj?.event_code || '', true),
-      escapeCell(eventObj?.title || ''),
-      escapeCell(eventObj?.event_date ? (window.formatAppDate ? window.formatAppDate(eventObj.event_date) : eventObj.event_date) : ''),
-      escapeCell(eventObj?.location || ''),
-      escapeCell(a.ref_no || '', true),
       escapeCell(a.full_name || ''),
       escapeCell(a.cpr_no || '', true),
+      escapeCell(a.ref_no || '', true),
       escapeCell(a.phone || '', true),
       escapeCell(a.email || ''),
-      escapeCell(a.gender || ''),
-      escapeCell(a.education || ''),
       escapeCell(a.center || defaultCenter),
+      escapeCell(a.education || ''),
+      escapeCell(a.gender || ''),
       escapeCell(a.candidate_status || 'registered'),
       escapeCell(a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Attended'),
       escapeCell(a.attended_at || a.created_at || ''),
@@ -300,8 +321,9 @@ function EventsView({ state, moduleType = 'training' }) {
 
     const headerLine = headers.map(h => escapeCell(h)).join(',');
     const dataLines = rows.map(r => r.join(','));
-    // Prepend UTF-8 BOM (\uFEFF) and use CRLF (\r\n) for native Windows Excel compatibility
-    const csvContent = '\uFEFF' + [headerLine, ...dataLines].join('\r\n');
+
+    // Combine Header Metadata + Candidate Table
+    const csvContent = '\uFEFF' + [...metaLines, headerLine, ...dataLines].join('\r\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
