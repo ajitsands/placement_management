@@ -728,53 +728,6 @@ function CandidatesView({ state }) {
                   🔄 Renewed (x{row.renewals_count})
                 </span>
               )}
-              {(() => {
-                const isJc = row.approved_by_job_center === true || String(row.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
-                const isTamkeen = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
-                if (isJc && isTamkeen) {
-                  return (
-                    <span
-                      style={{
-                        fontSize: '0.66rem',
-                        padding: '0.1rem 0.45rem',
-                        fontWeight: 800,
-                        background: 'rgba(16, 185, 129, 0.14)',
-                        color: '#059669',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        borderRadius: '4px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}
-                      title="Approved by both Ministry Job Center and Tamkeen Scheme"
-                    >
-                      <span>✓</span> Both Approved
-                    </span>
-                  );
-                }
-                if (isJc) {
-                  return (
-                    <span
-                      style={{
-                        fontSize: '0.66rem',
-                        padding: '0.1rem 0.45rem',
-                        fontWeight: 800,
-                        background: 'rgba(245, 158, 11, 0.14)',
-                        color: '#d97706',
-                        border: '1px solid rgba(245, 158, 11, 0.4)',
-                        borderRadius: '4px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}
-                      title="Approved by Job Center only (Tamkeen Approval Pending)"
-                    >
-                      <span>🏬</span> Job Center Only
-                    </span>
-                  );
-                }
-                return null;
-              })()}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               CPR: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{row.cpr_no}</span> • {row.gender || 'N/A'} • {row.education || 'N/A'}
