@@ -30,6 +30,7 @@ function EventsView({ state, moduleType = 'training' }) {
   const [addAttendeeStatus, setAddAttendeeStatus] = useState('attended');
   const [addAttendeeNotes, setAddAttendeeNotes] = useState('');
   const [savingAttendee, setSavingAttendee] = useState(false);
+  const [exportingEventId, setExportingEventId] = useState(null);
 
   // Filter events for current module
   const moduleEvents = useMemo(() => {
@@ -266,6 +267,75 @@ function EventsView({ state, moduleType = 'training' }) {
     link.click();
     document.body.removeChild(link);
     window.AppStore.showNotification(`Exported ${attendeesList.length} attendees to CSV`, 'success');
+  };
+
+  // Direct CSV Export from Event Card for attended candidates
+  const handleExportEventAttendees = async (event) => {
+    setExportingEventId(event.id);
+    try {
+      const res = await window.api.events.getAttendees(event.id);
+      const attendees = res?.attendees || [];
+
+      if (!attendees || attendees.length === 0) {
+        window.AppStore.showNotification(`No candidates have attended "${event.title}" yet.`, 'warning');
+        return;
+      }
+
+      const headers = [
+        '#',
+        'Event Code',
+        'Event Title',
+        'Event Date',
+        'Candidate Ref',
+        'Candidate Full Name',
+        'CPR Number',
+        'Contact Phone',
+        'Contact Email',
+        'Center',
+        'Education',
+        'Gender',
+        'Candidate Status',
+        'Attendance Status',
+        'Attended At',
+        'Notes / Remarks'
+      ];
+
+      const rows = attendees.map((a, idx) => [
+        idx + 1,
+        `"${event.event_code || ''}"`,
+        `"${(event.title || '').replace(/"/g, '""')}"`,
+        `"${event.event_date || ''}"`,
+        `"${a.ref_no || ''}"`,
+        `"${(a.full_name || '').replace(/"/g, '""')}"`,
+        `"${a.cpr_no || ''}"`,
+        `"${a.phone || ''}"`,
+        `"${a.email || ''}"`,
+        `"${a.center || defaultCenter}"`,
+        `"${a.education || ''}"`,
+        `"${a.gender || ''}"`,
+        `"${a.candidate_status || ''}"`,
+        `"${a.status || 'attended'}"`,
+        `"${a.attended_at || ''}"`,
+        `"${(a.notes || '').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      const safeTitle = (event.title || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+      const filename = `${moduleLabel.replace(/\s+/g, '_')}_${event.event_code || 'Event'}_${safeTitle}_Attendees.csv`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.AppStore.showNotification(`Exported ${attendees.length} candidate attendee(s) for "${event.title}" to CSV`, 'success');
+    } catch (err) {
+      window.AppStore.showNotification('Error exporting attendees: ' + err.message, 'error');
+    } finally {
+      setExportingEventId(null);
+    }
   };
 
   // Existing candidates available to add (exclude already attending candidates)
@@ -552,27 +622,54 @@ function EventsView({ state, moduleType = 'training' }) {
 
                 {/* Card Footer: Attendees pill & Action buttons */}
                 <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => handleOpenAttendees(event)}
-                    style={{
-                      background: attendeesCount > 0 ? 'rgba(16,185,129,0.12)' : 'var(--bg-tertiary)',
-                      color: attendeesCount > 0 ? '#059669' : 'var(--text-secondary)',
-                      border: '1px solid',
-                      borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.3)' : 'var(--border-light)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontWeight: 700,
-                      fontSize: '0.78rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span>👥</span>
-                    <span>{attendeesCount} Attended Candidate{attendeesCount === 1 ? '' : 's'}</span>
-                    <span style={{ fontSize: '0.7rem' }}>→</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => handleOpenAttendees(event)}
+                      style={{
+                        background: attendeesCount > 0 ? 'rgba(16,185,129,0.12)' : 'var(--bg-tertiary)',
+                        color: attendeesCount > 0 ? '#059669' : 'var(--text-secondary)',
+                        border: '1px solid',
+                        borderColor: attendeesCount > 0 ? 'rgba(16,185,129,0.3)' : 'var(--border-light)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        cursor: 'pointer'
+                      }}
+                      title="View attendee details & register talent"
+                    >
+                      <span>👥</span>
+                      <span>{attendeesCount} Attended Candidate{attendeesCount === 1 ? '' : 's'}</span>
+                      <span style={{ fontSize: '0.7rem' }}>→</span>
+                    </button>
+
+                    {/* Direct Export Option for this Event */}
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleExportEventAttendees(event)}
+                      disabled={exportingEventId === event.id}
+                      title={`Export list of candidates who attended "${event.title}" (CSV)`}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        color: attendeesCount > 0 ? '#059669' : 'var(--text-muted)',
+                        borderColor: attendeesCount > 0 ? '#10b981' : 'var(--border-light)',
+                        background: attendeesCount > 0 ? 'rgba(16,185,129,0.08)' : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>{exportingEventId === event.id ? '⏳' : '📥'}</span>
+                      <span>{exportingEventId === event.id ? 'Exporting...' : 'Export Attendees'}</span>
+                    </button>
+                  </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     {/* Quick Toggle Active / Completed */}
