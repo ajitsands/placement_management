@@ -826,94 +826,166 @@ function EventsView({ state, moduleType = 'training' }) {
                 </div>
               </div>
 
-              {/* Add Existing Candidate Picker Sub-Panel */}
+              {/* Add Existing Candidate Picker Sub-Panel (Enhanced Visibility & Textarea Notes) */}
               {isAddExistingOpen && (
                 <form
                   onSubmit={handleAddExistingCandidate}
                   style={{
-                    background: 'var(--bg-card)',
-                    border: '2px dashed var(--primary)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
+                    background: 'var(--bg-secondary)',
+                    border: '2px solid var(--primary)',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: '0 4px 20px rgba(37, 99, 235, 0.15)',
+                    overflow: 'hidden',
+                    marginBottom: '0.5rem',
+                    transition: 'var(--transition)'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.88rem', color: 'var(--primary)' }}>
-                      ➕ Link Existing Candidate to this {moduleLabel} Event
-                    </strong>
+                  {/* High-Visibility Header Bar */}
+                  <div style={{
+                    background: 'linear-gradient(90deg, rgba(37, 99, 235, 0.12) 0%, rgba(37, 99, 235, 0.05) 100%)',
+                    borderBottom: '1px solid rgba(37, 99, 235, 0.2)',
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <span style={{ fontSize: '1.15rem' }}>👤</span>
+                      <div>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--primary)', fontWeight: 800 }}>
+                          Link Candidate to this {moduleLabel} Event
+                        </strong>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Search candidates from the national pool, set their attendance status, and record notes
+                        </div>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+                      style={{
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-sm)',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        color: 'var(--text-muted)'
+                      }}
                       onClick={() => setIsAddExistingOpen(false)}
+                      title="Close"
                     >
                       ✕
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-                    <div>
-                      <label className="form-label">Search & Select Candidate *</label>
-                      <input
-                        type="text"
-                        className="input-control"
-                        placeholder="Type CPR, name or reference..."
-                        value={candSearchQuery}
-                        onChange={e => setCandSearchQuery(e.target.value)}
-                        style={{ marginBottom: '0.4rem', height: '34px', fontSize: '0.8rem' }}
-                      />
-                      <select
-                        className="select-control"
-                        value={selectedCandidateId}
-                        onChange={e => setSelectedCandidateId(e.target.value)}
-                        required
-                        style={{ height: '36px', fontSize: '0.82rem' }}
-                      >
-                        <option value="">-- Choose Candidate ({filteredCandidatesToAdd.length} found) --</option>
-                        {filteredCandidatesToAdd.map(c => (
-                          <option key={c.id} value={c.id}>
-                            {c.full_name} (CPR: {c.cpr_no} • Ref: {c.ref_no} • Center: {c.center || 'Enma Mall'})
-                          </option>
-                        ))}
-                      </select>
+                  <div style={{ padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {/* Row 1: Candidate Picker + Attendance Status */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Search & Select Candidate *</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            {filteredCandidatesToAdd.length} available
+                          </span>
+                        </label>
+                        <div style={{ position: 'relative', marginBottom: '0.45rem' }}>
+                          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>🔍</span>
+                          <input
+                            type="text"
+                            className="input-control"
+                            placeholder="Type CPR number, name, reference or phone..."
+                            value={candSearchQuery}
+                            onChange={e => setCandSearchQuery(e.target.value)}
+                            style={{ paddingLeft: '2rem', height: '36px', fontSize: '0.82rem', margin: 0 }}
+                          />
+                        </div>
+                        <select
+                          className="select-control"
+                          value={selectedCandidateId}
+                          onChange={e => setSelectedCandidateId(e.target.value)}
+                          required
+                          style={{ height: '38px', fontSize: '0.84rem', fontWeight: 600, borderColor: selectedCandidateId ? 'var(--primary)' : undefined }}
+                        >
+                          <option value="">-- Click to Select Candidate --</option>
+                          {filteredCandidatesToAdd.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.full_name} (CPR: {c.cpr_no} • Ref: {c.ref_no} • Center: {c.center || 'Enma Mall'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                          Attendance Status *
+                        </label>
+                        <select
+                          className="select-control"
+                          value={addAttendeeStatus}
+                          onChange={e => setAddAttendeeStatus(e.target.value)}
+                          style={{ height: '38px', fontSize: '0.84rem', fontWeight: 700 }}
+                        >
+                          <option value="attended">✓ Attended (Present on-site)</option>
+                          <option value="registered">⏳ Registered (RSVP confirmed)</option>
+                          <option value="absent">✕ Absent (Did not attend)</option>
+                        </select>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.45rem' }}>
+                          Candidates marked as "Attended" will automatically reflect in this session's attendance tally.
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Row 2: Notes / Remarks as TEXTAREA */}
                     <div>
-                      <label className="form-label">Attendance Status</label>
-                      <select
-                        className="select-control"
-                        value={addAttendeeStatus}
-                        onChange={e => setAddAttendeeStatus(e.target.value)}
-                        style={{ height: '36px', fontSize: '0.82rem' }}
-                      >
-                        <option value="attended">Attended (Present)</option>
-                        <option value="registered">Registered (RSVP)</option>
-                        <option value="absent">Absent</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="form-label">Notes / Remarks</label>
-                      <input
-                        type="text"
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                        Session Notes & Remarks
+                      </label>
+                      <textarea
                         className="input-control"
-                        placeholder="e.g. Attended CV vetting session..."
+                        rows="3"
+                        placeholder="Record detailed notes, candidate evaluation, interview feedback, or session participation remarks..."
                         value={addAttendeeNotes}
                         onChange={e => setAddAttendeeNotes(e.target.value)}
-                        style={{ height: '36px', fontSize: '0.82rem' }}
+                        style={{
+                          fontSize: '0.84rem',
+                          lineHeight: 1.5,
+                          resize: 'vertical',
+                          minHeight: '75px',
+                          padding: '0.55rem 0.75rem'
+                        }}
                       />
                     </div>
-                  </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <button type="button" className="btn btn-outline btn-sm" onClick={() => setIsAddExistingOpen(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingAttendee || !selectedCandidateId}>
-                      {savingAttendee ? 'Adding...' : 'Confirm Add to Event'}
-                    </button>
+                    {/* Row 3: Action Buttons */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.65rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setIsAddExistingOpen(false)}
+                        style={{ padding: '0.45rem 0.95rem' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary btn-sm"
+                        disabled={savingAttendee || !selectedCandidateId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          fontWeight: 700,
+                          padding: '0.45rem 1.15rem'
+                        }}
+                      >
+                        <span>{savingAttendee ? '⏳' : '➕'}</span>
+                        <span>{savingAttendee ? 'Linking Candidate...' : 'Confirm Add to Event'}</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               )}
