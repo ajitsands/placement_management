@@ -4,7 +4,7 @@
  * Includes Event Creation, Attendance Tracking, Candidate Auto-Linking, Direct Registration & CSV Export
  */
 
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useRef } = React;
 
 function EventsView({ state, moduleType = 'training' }) {
   const isTraining = moduleType === 'training';
@@ -26,11 +26,24 @@ function EventsView({ state, moduleType = 'training' }) {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [isAddExistingOpen, setIsAddExistingOpen] = useState(false);
   const [candSearchQuery, setCandSearchQuery] = useState('');
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const multiSelectRef = useRef(null);
   const [addAttendeeStatus, setAddAttendeeStatus] = useState('attended');
   const [addAttendeeNotes, setAddAttendeeNotes] = useState('');
   const [savingAttendee, setSavingAttendee] = useState(false);
   const [exportingEventId, setExportingEventId] = useState(null);
+
+  // Close multi-select dropdown when clicking outside
+  useEffect(() => {
+    const handleDocClick = (e) => {
+      if (multiSelectRef.current && !multiSelectRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleDocClick);
+    return () => document.removeEventListener('mousedown', handleDocClick);
+  }, []);
 
   // Filter events for current module
   const moduleEvents = useMemo(() => {
@@ -140,30 +153,34 @@ function EventsView({ state, moduleType = 'training' }) {
     }
   };
 
-  // Add existing candidate to event
+  // Add existing candidate(s) to event (supports multi-select)
   const handleAddExistingCandidate = async (e) => {
     e.preventDefault();
-    if (!selectedCandidateId || !attendeesEvent) return;
+    if (!selectedCandidateIds.length || !attendeesEvent) return;
 
     setSavingAttendee(true);
     try {
       await window.api.events.addAttendee(attendeesEvent.id, {
-        candidate_id: parseInt(selectedCandidateId, 10),
+        candidate_ids: selectedCandidateIds,
         status: addAttendeeStatus,
         notes: addAttendeeNotes.trim()
       });
-      window.AppStore.showNotification('Candidate added to event attendees successfully', 'success');
-      // Reset form fields but keep panel open so user can immediately add another candidate
-      setSelectedCandidateId('');
+      window.AppStore.showNotification(
+        `${selectedCandidateIds.length} candidate${selectedCandidateIds.length === 1 ? '' : 's'} added to event successfully`,
+        'success'
+      );
+      // Reset form fields but keep panel open so user can immediately add another batch
+      setSelectedCandidateIds([]);
       setCandSearchQuery('');
       setAddAttendeeNotes('');
       setAddAttendeeStatus('attended');
       setIsAddExistingOpen(true);
+      setIsDropdownOpen(false);
       // Silent load so datatable updates in place without loading spinner jump
       await loadAttendees(attendeesEvent.id, true);
       await window.AppStore.refreshData();
     } catch (err) {
-      window.AppStore.showNotification('Error adding candidate: ' + err.message, 'error');
+      window.AppStore.showNotification('Error adding candidate(s): ' + err.message, 'error');
     } finally {
       setSavingAttendee(false);
     }
@@ -350,17 +367,54 @@ function EventsView({ state, moduleType = 'training' }) {
     return (candidates || []).filter(c => !attendingIds.has(parseInt(c.id, 10)));
   }, [candidates, attendeesList]);
 
+  // Fast candidate lookup map for selected chips display
+  const candidateMap = useMemo(() => {
+    const map = new Map();
+    (candidates || []).forEach(c => map.set(parseInt(c.id, 10), c));
+    return map;
+  }, [candidates]);
+
   // Filtered candidate options for searchable picker
   const filteredCandidatesToAdd = useMemo(() => {
-    if (!candSearchQuery.trim()) return existingCandidatesAvailable.slice(0, 15);
+    if (!candSearchQuery.trim()) return existingCandidatesAvailable;
     const q = candSearchQuery.toLowerCase().trim();
     return existingCandidatesAvailable.filter(c => {
       return (c.full_name || '').toLowerCase().includes(q) ||
              (c.cpr_no || '').toLowerCase().includes(q) ||
              (c.ref_no || '').toLowerCase().includes(q) ||
-             (c.phone || '').toLowerCase().includes(q);
-    }).slice(0, 20);
+             (c.phone || '').toLowerCase().includes(q) ||
+             (c.center || '').toLowerCase().includes(q);
+    });
   }, [existingCandidatesAvailable, candSearchQuery]);
+
+  // Multi-select toggle helpers
+  const handleToggleCandidateSelect = (candId) => {
+    const id = parseInt(candId, 10);
+    setSelectedCandidateIds(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(x => x !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    const idsToAdd = filteredCandidatesToAdd.map(c => parseInt(c.id, 10));
+    setSelectedCandidateIds(prev => {
+      const set = new Set([...prev, ...idsToAdd]);
+      return Array.from(set);
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedCandidateIds([]);
+  };
+
+  const handleRemoveSelectedCandidate = (candId) => {
+    const id = parseInt(candId, 10);
+    setSelectedCandidateIds(prev => prev.filter(x => x !== id));
+  };
 
   return (
     <div className="view-container">
@@ -806,18 +860,19 @@ function EventsView({ state, moduleType = 'training' }) {
                     <span>Register New Candidate</span>
                   </button>
 
-                  {/* Button 2: Add Existing Candidate from Pool */}
+                  {/* Button 2: Add Existing Candidates from Pool */}
                   <button
                     className="btn btn-outline btn-sm"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}
                     onClick={() => {
                       setIsAddExistingOpen(true);
                       setCandSearchQuery('');
-                      setSelectedCandidateId('');
+                      setSelectedCandidateIds([]);
+                      setIsDropdownOpen(true);
                     }}
                   >
-                    <span>👤</span>
-                    <span>Add Existing Candidate</span>
+                    <span>👥</span>
+                    <span>Add Existing Candidates</span>
                   </button>
 
                   {/* Button 3: Export Attendees to CSV */}
@@ -889,42 +944,379 @@ function EventsView({ state, moduleType = 'training' }) {
                   </div>
 
                   <div style={{ padding: '1rem 1.15rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Row 1: Candidate Picker + Attendance Status */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                      <div>
-                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Search & Select Candidate *</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                            {filteredCandidatesToAdd.length} available
+                    {/* Row 1: Searchable Multi-Select Candidate Picker + Attendance Status */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+                      
+                      {/* Searchable Multi-Select Dropdown Component */}
+                      <div ref={multiSelectRef} style={{ position: 'relative' }}>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>Search & Select Candidates *</span>
+                          <span style={{ fontSize: '0.72rem', color: selectedCandidateIds.length > 0 ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700 }}>
+                            {selectedCandidateIds.length} selected ({existingCandidatesAvailable.length} in pool)
                           </span>
                         </label>
-                        <div style={{ position: 'relative', marginBottom: '0.45rem' }}>
-                          <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>🔍</span>
-                          <input
-                            type="text"
-                            className="input-control"
-                            placeholder="Type CPR number, name, reference or phone..."
-                            value={candSearchQuery}
-                            onChange={e => setCandSearchQuery(e.target.value)}
-                            style={{ paddingLeft: '2rem', height: '36px', fontSize: '0.82rem', margin: 0 }}
-                          />
-                        </div>
-                        <select
-                          className="select-control"
-                          value={selectedCandidateId}
-                          onChange={e => setSelectedCandidateId(e.target.value)}
-                          required
-                          style={{ height: '38px', fontSize: '0.84rem', fontWeight: 600, borderColor: selectedCandidateId ? 'var(--primary)' : undefined }}
+
+                        {/* Interactive Dropdown Trigger Box */}
+                        <div
+                          onClick={() => setIsDropdownOpen(prev => !prev)}
+                          style={{
+                            minHeight: '38px',
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid',
+                            borderColor: isDropdownOpen ? 'var(--primary)' : (selectedCandidateIds.length > 0 ? 'var(--primary)' : 'var(--border-light)'),
+                            background: 'var(--bg-card)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.5rem',
+                            transition: 'all 0.15s ease',
+                            boxShadow: isDropdownOpen ? '0 0 0 3px rgba(37,99,235,0.15)' : 'none'
+                          }}
                         >
-                          <option value="">-- Click to Select Candidate --</option>
-                          {filteredCandidatesToAdd.map(c => (
-                            <option key={c.id} value={c.id}>
-                              {c.full_name} (CPR: {c.cpr_no} • Ref: {c.ref_no} • Center: {c.center || 'Enma Mall'})
-                            </option>
-                          ))}
-                        </select>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', flex: 1, overflow: 'hidden' }}>
+                            {selectedCandidateIds.length === 0 ? (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                👥 Click to search and select candidates...
+                              </span>
+                            ) : (
+                              <>
+                                <span style={{
+                                  background: 'rgba(37,99,235,0.12)',
+                                  color: 'var(--primary)',
+                                  padding: '0.15rem 0.55rem',
+                                  borderRadius: '12px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800
+                                }}>
+                                  ✓ {selectedCandidateIds.length} Selected
+                                </span>
+                                {selectedCandidateIds.slice(0, 2).map(id => {
+                                  const c = candidateMap.get(id);
+                                  return (
+                                    <span
+                                      key={id}
+                                      style={{
+                                        background: 'var(--bg-tertiary)',
+                                        border: '1px solid var(--border-light)',
+                                        padding: '0.1rem 0.45rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.73rem',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      <span>{c?.full_name || `Candidate #${id}`}</span>
+                                      <span
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveSelectedCandidate(id);
+                                        }}
+                                        style={{ color: 'var(--text-muted)', fontWeight: 800, cursor: 'pointer' }}
+                                        title="Remove"
+                                      >
+                                        ✕
+                                      </span>
+                                    </span>
+                                  );
+                                })}
+                                {selectedCandidateIds.length > 2 && (
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                                    +{selectedCandidateIds.length - 2} more
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            {selectedCandidateIds.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeselectAll();
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  fontSize: '0.72rem',
+                                  cursor: 'pointer',
+                                  padding: '0.1rem 0.3rem',
+                                  fontWeight: 600
+                                }}
+                                title="Clear all selections"
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}>
+                              ▼
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Menu Popover */}
+                        {isDropdownOpen && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            zIndex: 1050,
+                            marginTop: '4px',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-light)',
+                            borderRadius: 'var(--radius-md)',
+                            boxShadow: 'var(--shadow-xl)',
+                            overflow: 'hidden'
+                          }}>
+                            {/* Dropdown Search Box & Quick Actions */}
+                            <div style={{
+                              padding: '0.65rem 0.75rem',
+                              background: 'var(--bg-tertiary)',
+                              borderBottom: '1px solid var(--border-light)'
+                            }}>
+                              <div style={{ position: 'relative', marginBottom: '0.45rem' }}>
+                                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                  🔍
+                                </span>
+                                <input
+                                  type="text"
+                                  className="input-control"
+                                  autoFocus
+                                  placeholder="Type CPR number, name, reference, phone, or center..."
+                                  value={candSearchQuery}
+                                  onChange={e => setCandSearchQuery(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ paddingLeft: '2rem', height: '34px', fontSize: '0.82rem', margin: 0, background: 'var(--bg-card)' }}
+                                />
+                                {candSearchQuery && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCandSearchQuery('');
+                                    }}
+                                    style={{
+                                      position: 'absolute',
+                                      right: '8px',
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: 'var(--text-muted)',
+                                      fontSize: '0.75rem'
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleSelectAllFiltered();
+                                    }}
+                                    className="btn btn-outline btn-sm"
+                                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 700 }}
+                                  >
+                                    ☑ Select All Filtered ({filteredCandidatesToAdd.length})
+                                  </button>
+                                  {selectedCandidateIds.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleDeselectAll();
+                                      }}
+                                      className="btn btn-outline btn-sm"
+                                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                                    >
+                                      ☐ Deselect All
+                                    </button>
+                                  )}
+                                </div>
+
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                                  {filteredCandidatesToAdd.length} available
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Scrollable List with Checkboxes */}
+                            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                              {filteredCandidatesToAdd.length === 0 ? (
+                                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                  {candSearchQuery 
+                                    ? `No candidates found matching "${candSearchQuery}"`
+                                    : 'All candidates in the pool are already attending this event!'}
+                                </div>
+                              ) : (
+                                filteredCandidatesToAdd.map(c => {
+                                  const cId = parseInt(c.id, 10);
+                                  const isSelected = selectedCandidateIds.includes(cId);
+
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleCandidateSelect(cId);
+                                      }}
+                                      style={{
+                                        padding: '0.55rem 0.85rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.65rem',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid var(--border-light)',
+                                        background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                                        transition: 'background 0.1s ease'
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {}} // Controlled by row click
+                                        style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                                      />
+
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                          <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                                            {c.full_name}
+                                          </strong>
+                                          <span style={{
+                                            fontFamily: 'monospace',
+                                            fontWeight: 700,
+                                            fontSize: '0.74rem',
+                                            background: 'var(--bg-tertiary)',
+                                            padding: '0.05rem 0.35rem',
+                                            borderRadius: '3px',
+                                            color: 'var(--text-secondary)'
+                                          }}>
+                                            CPR: {c.cpr_no || '—'}
+                                          </span>
+                                          {c.center && (
+                                            <span style={{
+                                              fontSize: '0.7rem',
+                                              color: '#4f46e5',
+                                              background: 'rgba(99,102,241,0.1)',
+                                              padding: '0.05rem 0.35rem',
+                                              borderRadius: '3px',
+                                              fontWeight: 600
+                                            }}>
+                                              🏬 {c.center}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '0.65rem', marginTop: '0.15rem' }}>
+                                          <span>Ref: {c.ref_no}</span>
+                                          {c.phone && <span>📞 {c.phone}</span>}
+                                          {c.education && <span>🎓 {c.education}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Dropdown Footer */}
+                            <div style={{
+                              padding: '0.5rem 0.75rem',
+                              background: 'var(--bg-tertiary)',
+                              borderTop: '1px solid var(--border-light)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                Tip: Click candidates to multi-select
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsDropdownOpen(false);
+                                }}
+                                style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: 700 }}
+                              >
+                                Done ({selectedCandidateIds.length})
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Selected Candidates Preview Chips List */}
+                        {selectedCandidateIds.length > 0 && (
+                          <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.35rem',
+                            marginTop: '0.5rem',
+                            maxHeight: '90px',
+                            overflowY: 'auto',
+                            padding: '0.35rem',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px dashed var(--border-light)'
+                          }}>
+                            {selectedCandidateIds.map(id => {
+                              const c = candidateMap.get(id);
+                              return (
+                                <span
+                                  key={id}
+                                  style={{
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '12px',
+                                    fontSize: '0.73rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                  }}
+                                >
+                                  <strong>{c?.full_name || `Candidate #${id}`}</strong>
+                                  <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                    ({c?.cpr_no || id})
+                                  </span>
+                                  <span
+                                    onClick={() => handleRemoveSelectedCandidate(id)}
+                                    style={{
+                                      cursor: 'pointer',
+                                      color: 'var(--danger)',
+                                      fontWeight: 800,
+                                      marginLeft: '2px',
+                                      fontSize: '0.75rem'
+                                    }}
+                                    title="Deselect"
+                                  >
+                                    ✕
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
+                      {/* Column 2: Attendance Status */}
                       <div>
                         <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
                           Attendance Status *
@@ -940,7 +1332,7 @@ function EventsView({ state, moduleType = 'training' }) {
                           <option value="absent">✕ Absent (Did not attend)</option>
                         </select>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.45rem' }}>
-                          Candidates marked as "Attended" will automatically reflect in this session's attendance tally.
+                          Status applied to all {selectedCandidateIds.length > 0 ? selectedCandidateIds.length : ''} selected candidate(s).
                         </div>
                       </div>
                     </div>
@@ -979,7 +1371,7 @@ function EventsView({ state, moduleType = 'training' }) {
                       <button
                         type="submit"
                         className="btn btn-primary btn-sm"
-                        disabled={savingAttendee || !selectedCandidateId}
+                        disabled={savingAttendee || selectedCandidateIds.length === 0}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -989,7 +1381,15 @@ function EventsView({ state, moduleType = 'training' }) {
                         }}
                       >
                         <span>{savingAttendee ? '⏳' : '➕'}</span>
-                        <span>{savingAttendee ? 'Linking Candidate...' : 'Confirm Add to Event'}</span>
+                        <span>
+                          {savingAttendee 
+                            ? 'Adding Candidates...' 
+                            : (selectedCandidateIds.length > 1 
+                                ? `Confirm Add (${selectedCandidateIds.length}) Candidates to Event` 
+                                : (selectedCandidateIds.length === 1 
+                                    ? 'Confirm Add (1) Candidate to Event' 
+                                    : 'Select Candidates to Add'))}
+                        </span>
                       </button>
                     </div>
                   </div>

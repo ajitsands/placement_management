@@ -130,34 +130,50 @@ class EventController {
 
     public function addAttendee(array $data, array $params): void {
         $eventId = (int)($params['id'] ?? 0);
-        $candidateId = (int)($data['candidate_id'] ?? 0);
+        
+        $candidateIds = [];
+        if (!empty($data['candidate_ids']) && is_array($data['candidate_ids'])) {
+            $candidateIds = array_values(array_filter(array_map('intval', $data['candidate_ids'])));
+        } elseif (!empty($data['candidate_id'])) {
+            $candidateIds = [(int)$data['candidate_id']];
+        }
 
-        if (!$candidateId) {
-            Response::error('Candidate ID is mandatory to record attendance', 400);
+        if (empty($candidateIds)) {
+            Response::error('At least one Candidate ID is mandatory to record attendance', 400);
         }
 
         $status = !empty($data['status']) ? trim($data['status']) : 'attended';
         $notes = !empty($data['notes']) ? trim($data['notes']) : null;
-
-        $record = Event::addAttendee($eventId, $candidateId, $status, $notes);
-
-        // Fetch candidate details for rich client response
-        $cand = Candidate::find($candidateId);
         $user = Auth::getCurrentUser();
         $event = Event::find($eventId);
 
-        if ($cand && $event) {
-            AuditLog::log(
-                'EVENT_ATTENDEE_ADDED',
-                'event',
-                $eventId,
-                $event['event_code'] ?? null,
-                "Candidate {$cand['full_name']} (CPR: {$cand['cpr_no']}) marked as {$status} in event '{$event['title']}'.",
-                $user
-            );
+        $records = [];
+        foreach ($candidateIds as $candidateId) {
+            $record = Event::addAttendee($eventId, $candidateId, $status, $notes);
+            $records[] = $record;
+
+            // Fetch candidate details for rich audit log
+            $cand = Candidate::find($candidateId);
+            if ($cand && $event) {
+                AuditLog::log(
+                    'EVENT_ATTENDEE_ADDED',
+                    'event',
+                    $eventId,
+                    $event['event_code'] ?? null,
+                    "Candidate {$cand['full_name']} (CPR: {$cand['cpr_no']}) marked as {$status} in event '{$event['title']}'.",
+                    $user
+                );
+            }
         }
 
-        Response::json($record, 201, 'Candidate attendance recorded successfully');
+        $msg = count($records) === 1 
+            ? 'Candidate attendance recorded successfully' 
+            : count($records) . ' candidates added to event successfully';
+
+        Response::json([
+            'count'   => count($records),
+            'records' => $records
+        ], 201, $msg);
     }
 
     public function removeAttendee(array $data, array $params): void {
