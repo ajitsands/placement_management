@@ -240,14 +240,18 @@ class AppStoreClass {
   }
 
   showNotification(message, type = 'success') {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     const newNotif = { id, message, type };
     this.setState({ notifications: [...this.state.notifications, newNotif] });
     setTimeout(() => {
-      this.setState({
-        notifications: this.state.notifications.filter(n => n.id !== id)
-      });
-    }, 4000);
+      this.dismissNotification(id);
+    }, 4500);
+  }
+
+  dismissNotification(id) {
+    this.setState({
+      notifications: (this.state.notifications || []).filter(n => n.id !== id)
+    });
   }
 
   confirm(options = {}) {

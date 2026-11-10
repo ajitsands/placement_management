@@ -340,6 +340,10 @@ function EventsView({ state, moduleType = 'training' }) {
 
   // Export Attendees to Excel from Studio Modal
   const handleExportAttendeesCSV = () => {
+    if (!attendeesList || attendeesList.length === 0) {
+      window.AppStore.showNotification(`No candidates have attended "${attendeesEvent?.title || 'this event'}" yet.`, 'warning');
+      return;
+    }
     const safeCode = (attendeesEvent?.event_code || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${moduleLabel.replace(/\s+/g, '_')}_${safeCode}_Attendees_${new Date().toISOString().split('T')[0]}.csv`;
     downloadAttendeesExport(filename, attendeesEvent, attendeesList);

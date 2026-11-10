@@ -59,13 +59,36 @@ function App() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <window.LoginView state={state} onLoginSuccess={() => window.AppStore.refreshData()} />
-        <div className="toast-container">
-          {state.notifications.map(n => (
-            <div key={n.id} className={`toast toast-${n.type}`}>
-              <span>{n.type === 'success' ? '✓' : (n.type === 'error' ? '⚠️' : 'ℹ️')}</span>
-              <span>{n.message}</span>
-            </div>
-          ))}
+        <div className="toast-container" aria-live="polite">
+          {state.notifications.map(n => {
+            let icon = 'ℹ️';
+            if (n.type === 'success') icon = '✓';
+            else if (n.type === 'error') icon = '✕';
+            else if (n.type === 'warning') icon = '⚠️';
+
+            return (
+              <div
+                key={n.id}
+                className={`toast toast-${n.type || 'info'}`}
+                onClick={() => window.AppStore.dismissNotification(n.id)}
+                title="Click to dismiss"
+              >
+                <div className="toast-icon">{icon}</div>
+                <div className="toast-content">{n.message}</div>
+                <button
+                  type="button"
+                  className="toast-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.AppStore.dismissNotification(n.id);
+                  }}
+                  aria-label="Close notification"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -98,13 +121,36 @@ function App() {
       <window.Modals state={state} />
 
       {/* Toast Notifications */}
-      <div className="toast-container">
-        {state.notifications.map(n => (
-          <div key={n.id} className={`toast toast-${n.type}`}>
-            <span>{n.type === 'success' ? '✓' : (n.type === 'error' ? '⚠️' : 'ℹ️')}</span>
-            <span>{n.message}</span>
-          </div>
-        ))}
+      <div className="toast-container" aria-live="polite">
+        {state.notifications.map(n => {
+          let icon = 'ℹ️';
+          if (n.type === 'success') icon = '✓';
+          else if (n.type === 'error') icon = '✕';
+          else if (n.type === 'warning') icon = '⚠️';
+
+          return (
+            <div
+              key={n.id}
+              className={`toast toast-${n.type || 'info'}`}
+              onClick={() => window.AppStore.dismissNotification(n.id)}
+              title="Click to dismiss"
+            >
+              <div className="toast-icon">{icon}</div>
+              <div className="toast-content">{n.message}</div>
+              <button
+                type="button"
+                className="toast-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.AppStore.dismissNotification(n.id);
+                }}
+                aria-label="Close notification"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer (Full-Length Edge-to-Edge with SaNDS Lab Branding & Recent Products) */}
