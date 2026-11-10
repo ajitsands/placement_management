@@ -55,6 +55,7 @@ function Modals({ state }) {
       {type === 'EDIT_USER' && <EditUserModal state={state} user={props?.user} />}
       {type === 'EDIT_CLAIM_AMOUNT' && <EditClaimAmountModal state={state} milestone={props?.milestone} claim={props?.claim} />}
       {type === 'RENEW_CANDIDATE' && <RenewCandidateModal state={state} candidate={props?.candidate} fromPlaced={props?.fromPlaced} />}
+      {type === 'TAMKEEN_APPROVAL' && <TamkeenApprovalModal state={state} candidate={props?.candidate} />}
       {type === 'CANDIDATE_ACTIVITY_LOG' && <CandidateActivityLogModal state={state} initialCandidateId={props?.candidateId || props?.candidate?.id} />}
       {type === 'CASE_MANAGER_ACTIVITIES' && <CaseManagerActivitiesModal state={state} targetCM={props?.caseManager || props?.cmName} />}
       {(type === 'SANDS_PROFILE' || type === 'PRODUCTS_SHOWCASE') && <SandsCompanyProfileModal state={state} />}
@@ -3636,6 +3637,145 @@ function CandidateDetailModal({ state, candidate }) {
         </button>
         <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>Close</button>
       </div>
+    </div>
+  );
+}
+
+// Tamkeen Scheme Manual Approval Modal
+function TamkeenApprovalModal({ state, candidate }) {
+  if (!candidate) return null;
+  const { useState } = React;
+  const [approvalDate, setApprovalDate] = useState(() => candidate.tamkeen_approval_date || new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState(() => candidate.tamkeen_approval_notes || '');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setSubmitting(true);
+    try {
+      await window.api.candidates.approveTamkeen(candidate.id, {
+        approval_date: approvalDate || new Date().toISOString().split('T')[0],
+        notes: notes
+      });
+
+      if (window.AppStore && window.AppStore.refreshData) {
+        await window.AppStore.refreshData();
+      }
+
+      window.AppStore.closeModal();
+
+      if (window.swal) {
+        window.swal.fire({
+          icon: 'success',
+          title: 'Tamkeen Approved!',
+          text: `Candidate '${candidate.full_name}' has been successfully approved for Tamkeen scheme.`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } else if (window.AppStore?.showNotification) {
+        window.AppStore.showNotification(`Candidate '${candidate.full_name}' approved by Tamkeen!`, 'success');
+      }
+    } catch (err) {
+      console.error('Tamkeen approval failed:', err);
+      if (window.swal) {
+        window.swal.fire({
+          icon: 'error',
+          title: 'Approval Failed',
+          text: err.message || 'Could not record Tamkeen approval.'
+        });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-content" style={{ maxWidth: '560px', width: '100%' }}>
+      <div className="modal-header">
+        <div>
+          <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: 0 }}>
+            <span>🏛️</span> Tamkeen Scheme Approval
+          </h2>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Record official Tamkeen placement & wage subsidy scheme approval
+          </span>
+        </div>
+        <button type="button" className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>&times;</button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }}>
+          {/* Candidate Profile Summary Box */}
+          <div style={{ background: 'var(--bg-tertiary)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                {candidate.full_name}
+              </strong>
+              <span className="badge badge-success" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                🏬 Job Center: Approved
+              </span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.35rem' }}>
+              <div><strong>CPR:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{candidate.cpr_no}</span></div>
+              <div><strong>Ref:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{candidate.ref_no}</span></div>
+              <div><strong>Center:</strong> 🏬 {candidate.center || 'Enma Mall'}</div>
+              <div><strong>Education:</strong> {candidate.education || 'High School / Diploma'}</div>
+            </div>
+          </div>
+
+          {/* Form Input 1: Approval Date */}
+          <div className="form-group">
+            <label className="form-label" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+              Approval Date *
+            </label>
+            <input
+              type="date"
+              className="input-control"
+              style={{ width: '100%', padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
+              value={approvalDate}
+              onChange={e => setApprovalDate(e.target.value)}
+              required
+            />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
+              Defaults to current date. Adjust if backdating official Tamkeen decisions.
+            </span>
+          </div>
+
+          {/* Form Input 2: Approval Notes & Remarks */}
+          <div className="form-group">
+            <label className="form-label" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+              Approval Notes / Remarks (Optional)
+            </label>
+            <textarea
+              className="input-control"
+              rows="3"
+              placeholder="Enter committee reference, Tamkeen program code, subsidy rate confirmation, or verification notes..."
+              style={{ width: '100%', padding: '0.5rem 0.65rem', fontSize: '0.82rem', resize: 'vertical' }}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer" style={{ padding: '0.85rem 1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => window.AppStore.closeModal()}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ background: '#059669', borderColor: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            disabled={submitting}
+          >
+            {submitting ? 'Recording Approval...' : '✓ Confirm Tamkeen Approval'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

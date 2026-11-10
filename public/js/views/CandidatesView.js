@@ -35,68 +35,10 @@ function CandidatesView({ state }) {
   const [selectedTamkeenFilter, setSelectedTamkeenFilter] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_tamkeen') || 'all';
   });
-  const [tamkeenModalCandidate, setTamkeenModalCandidate] = useState(null);
-  const [tamkeenApprovalDate, setTamkeenApprovalDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [tamkeenApprovalNotes, setTamkeenApprovalNotes] = useState('');
-  const [isSubmittingTamkeen, setIsSubmittingTamkeen] = useState(false);
 
   const handleTamkeenFilterChange = (val) => {
     setSelectedTamkeenFilter(val);
     sessionStorage.setItem('sands_claims_cand_tamkeen', val);
-  };
-
-  const handleOpenTamkeenModal = (c) => {
-    setTamkeenModalCandidate(c);
-    setTamkeenApprovalDate(c.tamkeen_approval_date || new Date().toISOString().split('T')[0]);
-    setTamkeenApprovalNotes(c.tamkeen_approval_notes || '');
-  };
-
-  const handleCloseTamkeenModal = () => {
-    setTamkeenModalCandidate(null);
-    setTamkeenApprovalNotes('');
-    setIsSubmittingTamkeen(false);
-  };
-
-  const handleSubmitTamkeenApproval = async (e) => {
-    if (e) e.preventDefault();
-    if (!tamkeenModalCandidate) return;
-
-    setIsSubmittingTamkeen(true);
-    try {
-      const res = await window.api.candidates.approveTamkeen(tamkeenModalCandidate.id, {
-        approval_date: tamkeenApprovalDate || new Date().toISOString().split('T')[0],
-        notes: tamkeenApprovalNotes
-      });
-
-      if (window.AppStore && window.AppStore.refreshData) {
-        await window.AppStore.refreshData();
-      }
-
-      if (window.swal) {
-        window.swal.fire({
-          icon: 'success',
-          title: 'Tamkeen Approved!',
-          text: `Candidate '${tamkeenModalCandidate.full_name}' has been successfully approved for Tamkeen scheme.`,
-          timer: 2200,
-          showConfirmButton: false
-        });
-      } else if (window.AppStore?.showNotification) {
-        window.AppStore.showNotification(`Candidate '${tamkeenModalCandidate.full_name}' approved by Tamkeen!`, 'success');
-      }
-
-      handleCloseTamkeenModal();
-    } catch (err) {
-      console.error('Failed to approve candidate by Tamkeen:', err);
-      if (window.swal) {
-        window.swal.fire({
-          icon: 'error',
-          title: 'Approval Failed',
-          text: err.message || 'Could not record Tamkeen approval.'
-        });
-      }
-    } finally {
-      setIsSubmittingTamkeen(false);
-    }
   };
 
   const handleStatusFilterChange = (key) => {
@@ -675,7 +617,7 @@ function CandidatesView({ state }) {
                         type="button"
                         className="btn btn-primary btn-sm"
                         style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', fontWeight: 700, background: '#059669', borderColor: '#059669' }}
-                        onClick={() => handleOpenTamkeenModal(row)}
+                        onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
                       >
                         ✓ Approve Candidate by Tamkeen Now
                       </button>
@@ -842,116 +784,57 @@ function CandidatesView({ state }) {
       )
     },
     {
-      key: 'approved_by_job_center',
-      label: 'Approved by Job Center',
-      sortable: true,
-      render: (val, row) => {
-        const isApproved = val === true || String(val || 'Yes').toLowerCase() === 'yes';
-        return (
-          <div>
-            {isApproved ? (
-              <span
-                className="badge badge-success"
-                style={{
-                  fontWeight: 700,
-                  fontSize: '0.74rem',
-                  padding: '0.2rem 0.55rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  color: '#059669',
-                  border: '1px solid rgba(16, 185, 129, 0.35)'
-                }}
-                title={`Approved upon registration on ${window.formatAppDate(row.job_center_approved_at || row.registration_date || row.created_at)} by ${row.job_center_approved_by || row.case_manager_name || 'Job Center'}`}
-              >
-                <span>🏬</span> Yes
-              </span>
-            ) : (
-              <span
-                className="badge badge-neutral"
-                style={{
-                  fontWeight: 600,
-                  fontSize: '0.74rem',
-                  padding: '0.2rem 0.5rem',
-                  color: 'var(--text-muted)'
-                }}
-              >
-                ✕ No
-              </span>
-            )}
-          </div>
-        );
-      }
-    },
-    {
       key: 'approved_by_tamkeen',
-      label: 'Approved by Tamkeen',
+      label: 'Tamkeen Approval',
       sortable: true,
       render: (val, row) => {
         const isApproved = val === true || String(val || '').toLowerCase() === 'yes';
         if (isApproved) {
-          const appDate = row.tamkeen_approval_date ? window.formatAppDate(row.tamkeen_approval_date) : '';
           return (
-            <div>
-              <span
-                className="badge badge-success"
-                style={{
-                  fontWeight: 800,
-                  fontSize: '0.74rem',
-                  padding: '0.2rem 0.55rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#059669',
-                  border: '1px solid rgba(16, 185, 129, 0.45)'
-                }}
-                title={`Approved by Tamkeen on ${appDate || 'N/A'}${row.tamkeen_approved_by ? ` by ${row.tamkeen_approved_by}` : ''}${row.tamkeen_approval_notes ? ` • Notes: ${row.tamkeen_approval_notes}` : ''}`}
-              >
-                <span>✓</span> Yes {appDate ? `(${appDate})` : ''}
-              </span>
-            </div>
+            <span
+              className="badge badge-success"
+              style={{
+                fontWeight: 800,
+                fontSize: '0.74rem',
+                padding: '0.25rem 0.6rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#059669',
+                border: '1px solid rgba(16, 185, 129, 0.45)'
+              }}
+              title={`Approved by Tamkeen on ${window.formatAppDate(row.tamkeen_approval_date || row.updated_at)}${row.tamkeen_approved_by ? ` by ${row.tamkeen_approved_by}` : ''}${row.tamkeen_approval_notes ? ` • ${row.tamkeen_approval_notes}` : ''}`}
+            >
+              <span>✓</span> Approved
+            </span>
           );
         }
 
         return (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-            <span
-              className="badge badge-neutral"
-              style={{
-                fontWeight: 600,
-                fontSize: '0.72rem',
-                padding: '0.2rem 0.45rem',
-                color: 'var(--text-muted)'
-              }}
-            >
-              ✕ No
-            </span>
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              style={{
-                padding: '0.2rem 0.55rem',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px',
-                whiteSpace: 'nowrap',
-                background: '#059669',
-                borderColor: '#059669',
-                boxShadow: '0 1px 2px rgba(5, 150, 105, 0.2)'
-              }}
-              title={`Manually approve ${row.full_name} for Tamkeen Scheme`}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenTamkeenModal(row);
-              }}
-            >
-              <span>✓</span> Approve
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            style={{
+              padding: '0.22rem 0.65rem',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              background: '#059669',
+              borderColor: '#059669',
+              boxShadow: '0 1px 2px rgba(5, 150, 105, 0.2)'
+            }}
+            title={`Approve ${row.full_name} for Tamkeen Scheme`}
+            onClick={(e) => {
+              e.stopPropagation();
+              window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row });
+            }}
+          >
+            <span>✓</span> Approve
+          </button>
         );
       }
     },
@@ -1570,109 +1453,6 @@ function CandidatesView({ state }) {
           emptyMessage="No candidate records match your selected criteria."
         />
       </div>
-
-      {/* Tamkeen Manual Approval Modal */}
-      {tamkeenModalCandidate && (
-        <div className="modal-backdrop" onClick={handleCloseTamkeenModal} style={{ zIndex: 1200 }}>
-          <div
-            className="modal-content"
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: '540px', width: '95%', padding: '1.25rem', borderRadius: 'var(--radius-lg)' }}
-          >
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <span>🏛️</span> Tamkeen Scheme Approval
-                </h3>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Record official Tamkeen placement and wage subsidy scheme approval.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                onClick={handleCloseTamkeenModal}
-                style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: 'var(--text-muted)' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitTamkeenApproval}>
-              {/* Candidate Quick Summary Card */}
-              <div style={{ background: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', border: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                    {tamkeenModalCandidate.full_name}
-                  </strong>
-                  <span className="badge badge-success" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
-                    🏬 Job Center: Approved
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.25rem' }}>
-                  <div><strong>CPR:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{tamkeenModalCandidate.cpr_no}</span></div>
-                  <div><strong>Ref:</strong> <span style={{ fontFamily: 'var(--font-mono)' }}>{tamkeenModalCandidate.ref_no}</span></div>
-                  <div><strong>Center:</strong> 🏬 {tamkeenModalCandidate.center || 'Enma Mall'}</div>
-                  <div><strong>Education:</strong> {tamkeenModalCandidate.education || 'High School'}</div>
-                </div>
-              </div>
-
-              {/* Form Input 1: Approval Date */}
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
-                  Approval Date *
-                </label>
-                <input
-                  type="date"
-                  className="input-control"
-                  style={{ width: '100%', padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
-                  value={tamkeenApprovalDate}
-                  onChange={e => setTamkeenApprovalDate(e.target.value)}
-                  required
-                />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
-                  Defaults to current date. Adjust if backdating historical Tamkeen committee decisions.
-                </span>
-              </div>
-
-              {/* Form Input 2: Approval Notes & Remarks */}
-              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
-                  Approval Notes / Remarks (Optional)
-                </label>
-                <textarea
-                  className="input-control"
-                  rows="3"
-                  placeholder="Enter committee reference, Tamkeen scheme tier, subsidy grant remarks, or eligibility notes..."
-                  style={{ width: '100%', padding: '0.5rem 0.65rem', fontSize: '0.82rem', resize: 'vertical' }}
-                  value={tamkeenApprovalNotes}
-                  onChange={e => setTamkeenApprovalNotes(e.target.value)}
-                />
-              </div>
-
-              {/* Modal Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={handleCloseTamkeenModal}
-                  disabled={isSubmittingTamkeen}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ background: '#059669', borderColor: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                  disabled={isSubmittingTamkeen}
-                >
-                  {isSubmittingTamkeen ? 'Recording Approval...' : '✓ Confirm Tamkeen Approval'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
