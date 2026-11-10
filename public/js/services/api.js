@@ -93,6 +93,8 @@ class ApiService {
     deleteDocument: (id, docId) => this.request(`/candidates/${id}/documents/${docId}`, { method: 'DELETE' }),
     updateChecklist: (id, checked) => this.request(`/candidates/${id}/checklist`, { method: 'POST', body: { checked } }),
     renew: (id, data) => this.request(`/candidates/${id}/renew`, { method: 'POST', body: data }),
+    approveTamkeen: (id, data) => this.request(`/candidates/${id}/tamkeen-approval`, { method: 'POST', body: data }),
+    updateApprovals: (id, data) => this.request(`/candidates/${id}/approvals`, { method: 'POST', body: data }),
     getActivities: (id) => this.request(`/candidates/${id}/activities`)
   };
 

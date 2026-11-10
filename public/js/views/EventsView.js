@@ -296,6 +296,9 @@ function EventsView({ state, moduleType = 'training' }) {
       'Center',
       'Education',
       'Gender',
+      'Approved by Job Center',
+      'Approved by Tamkeen',
+      'Tamkeen Approval Date',
       'Candidate Status in Pool',
       'Attendance Status',
       'Attended / Recorded At',
@@ -313,6 +316,9 @@ function EventsView({ state, moduleType = 'training' }) {
       escapeCell(a.center || defaultCenter),
       escapeCell(a.education || ''),
       escapeCell(a.gender || ''),
+      escapeCell(a.approved_by_job_center || 'Yes'),
+      escapeCell(a.approved_by_tamkeen || 'No'),
+      escapeCell(a.tamkeen_approval_date || ''),
       escapeCell(a.candidate_status || 'registered'),
       escapeCell(a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Attended'),
       escapeCell(a.attended_at || a.created_at || ''),
@@ -1235,6 +1241,41 @@ function EventsView({ state, moduleType = 'training' }) {
                                               🏬 {c.center}
                                             </span>
                                           )}
+                                          {(() => {
+                                            const isJc = c.approved_by_job_center === true || String(c.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
+                                            const isTamkeen = c.approved_by_tamkeen === true || String(c.approved_by_tamkeen || '').toLowerCase() === 'yes';
+                                            if (isJc && isTamkeen) {
+                                              return (
+                                                <span style={{
+                                                  fontSize: '0.68rem',
+                                                  fontWeight: 700,
+                                                  color: '#059669',
+                                                  background: 'rgba(16, 185, 129, 0.12)',
+                                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                                  padding: '0.05rem 0.35rem',
+                                                  borderRadius: '3px'
+                                                }} title="Approved by both Job Center & Tamkeen">
+                                                  ✓ Both Approved
+                                                </span>
+                                              );
+                                            }
+                                            if (isJc) {
+                                              return (
+                                                <span style={{
+                                                  fontSize: '0.68rem',
+                                                  fontWeight: 700,
+                                                  color: '#d97706',
+                                                  background: 'rgba(245, 158, 11, 0.14)',
+                                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                                  padding: '0.05rem 0.35rem',
+                                                  borderRadius: '3px'
+                                                }} title="Approved by Job Center only (Tamkeen Pending)">
+                                                  🏬 Job Center Only
+                                                </span>
+                                              );
+                                            }
+                                            return null;
+                                          })()}
                                         </div>
 
                                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '0.65rem', marginTop: '0.15rem' }}>
@@ -1479,9 +1520,52 @@ function EventsView({ state, moduleType = 'training' }) {
                             </td>
 
                             <td style={{ padding: '0.65rem 0.75rem' }}>
-                              <span style={{ textTransform: 'capitalize', fontWeight: 600, fontSize: '0.78rem' }}>
+                              <div style={{ textTransform: 'capitalize', fontWeight: 600, fontSize: '0.78rem' }}>
                                 {att.candidate_status || 'registered'}
-                              </span>
+                              </div>
+                              <div style={{ marginTop: '3px' }}>
+                                {(() => {
+                                  const isJc = att.approved_by_job_center === true || String(att.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
+                                  const isTamkeen = att.approved_by_tamkeen === true || String(att.approved_by_tamkeen || '').toLowerCase() === 'yes';
+                                  if (isJc && isTamkeen) {
+                                    return (
+                                      <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        color: '#059669',
+                                        background: 'rgba(16, 185, 129, 0.12)',
+                                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                                        padding: '0.05rem 0.35rem',
+                                        borderRadius: '3px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px'
+                                      }} title="Approved by both Job Center and Tamkeen">
+                                        ✓ Both Approved
+                                      </span>
+                                    );
+                                  }
+                                  if (isJc) {
+                                    return (
+                                      <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        color: '#d97706',
+                                        background: 'rgba(245, 158, 11, 0.14)',
+                                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                                        padding: '0.05rem 0.35rem',
+                                        borderRadius: '3px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px'
+                                      }} title="Approved by Job Center only (Tamkeen Pending)">
+                                        🏬 Job Center Only
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                             </td>
 
                             <td style={{ padding: '0.65rem 0.75rem' }}>

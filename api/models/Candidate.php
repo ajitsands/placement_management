@@ -28,8 +28,26 @@ class Candidate {
                        str_contains(strtolower($c['cpr_no'] ?? ''), $q) ||
                        str_contains(strtolower($c['company_name'] ?? ''), $q) ||
                        str_contains(strtolower($c['center'] ?? ''), $q) ||
-                       str_contains(strtolower($c['status'] ?? ''), $q);
+                       str_contains(strtolower($c['status'] ?? ''), $q) ||
+                       str_contains(strtolower($c['approved_by_job_center'] ?? ''), $q) ||
+                       str_contains(strtolower($c['approved_by_tamkeen'] ?? ''), $q);
             });
+        }
+
+        // Ensure approval defaults for all returned candidates
+        foreach ($candidates as &$c) {
+            if (!isset($c['approved_by_job_center'])) {
+                $c['approved_by_job_center'] = 'Yes';
+                $c['job_center_approved_at'] = $c['registration_date'] ?? ($c['created_at'] ?? date('Y-m-d H:i:s'));
+                $c['job_center_approved_by'] = $c['case_manager_name'] ?? 'Job Center';
+            }
+            if (!isset($c['approved_by_tamkeen'])) {
+                $c['approved_by_tamkeen'] = 'No';
+                $c['tamkeen_approval_date'] = null;
+                $c['tamkeen_approval_notes'] = null;
+                $c['tamkeen_approved_by'] = null;
+                $c['tamkeen_approved_at'] = null;
+            }
         }
 
         return array_values($candidates);
@@ -166,6 +184,14 @@ class Candidate {
             'job_code'                 => !empty($data['job_code']) ? trim($data['job_code']) : null,
             'checklist_completion_pct' => $checklistEval['percentage'],
             'checklist_items'          => $checklistEval['item_breakdown'],
+            'approved_by_job_center'   => 'Yes',
+            'job_center_approved_at'   => date('Y-m-d H:i:s'),
+            'job_center_approved_by'   => $caseManagerName,
+            'approved_by_tamkeen'      => 'No',
+            'tamkeen_approval_date'    => null,
+            'tamkeen_approval_notes'   => null,
+            'tamkeen_approved_by'      => null,
+            'tamkeen_approved_at'      => null,
             'created_at'               => date('Y-m-d H:i:s')
         ];
 
@@ -408,6 +434,78 @@ class Candidate {
         return null;
     }
 
+    public static function approveTamkeen(int $id, array $data, ?string $approvedBy = null, ?string $caseManagerScope = null): ?array {
+        $store = Database::getStore();
+        foreach ($store['candidates'] as &$c) {
+            if ((int)$c['id'] === $id) {
+                if ($caseManagerScope !== null && strcasecmp($c['case_manager_name'] ?? '', $caseManagerScope) !== 0) {
+                    return null;
+                }
+
+                $approvalDate = !empty($data['approval_date']) ? trim($data['approval_date']) : date('Y-m-d');
+                $notes = trim($data['notes'] ?? ($data['remarks'] ?? ''));
+
+                $c['approved_by_tamkeen'] = 'Yes';
+                $c['tamkeen_approval_date'] = $approvalDate;
+                $c['tamkeen_approval_notes'] = $notes;
+                $c['tamkeen_approved_by'] = $approvedBy ?: 'Tamkeen Officer';
+                $c['tamkeen_approved_at'] = date('Y-m-d H:i:s');
+                $c['updated_at'] = date('Y-m-d H:i:s');
+
+                if (empty($c['approved_by_job_center'])) {
+                    $c['approved_by_job_center'] = 'Yes';
+                    $c['job_center_approved_at'] = $c['registration_date'] ?? date('Y-m-d H:i:s');
+                    $c['job_center_approved_by'] = $c['case_manager_name'] ?? 'Job Center';
+                }
+
+                Database::saveStore($store);
+                return $c;
+            }
+        }
+        return null;
+    }
+
+    public static function updateApprovals(int $id, array $data, ?string $approvedBy = null, ?string $caseManagerScope = null): ?array {
+        $store = Database::getStore();
+        foreach ($store['candidates'] as &$c) {
+            if ((int)$c['id'] === $id) {
+                if ($caseManagerScope !== null && strcasecmp($c['case_manager_name'] ?? '', $caseManagerScope) !== 0) {
+                    return null;
+                }
+
+                if (isset($data['approved_by_job_center'])) {
+                    $isJc = ($data['approved_by_job_center'] === true || strtolower((string)$data['approved_by_job_center']) === 'yes');
+                    $c['approved_by_job_center'] = $isJc ? 'Yes' : 'No';
+                    if ($isJc && empty($c['job_center_approved_at'])) {
+                        $c['job_center_approved_at'] = date('Y-m-d H:i:s');
+                        $c['job_center_approved_by'] = $approvedBy ?: 'Job Center';
+                    }
+                }
+
+                if (isset($data['approved_by_tamkeen'])) {
+                    $isTamkeen = ($data['approved_by_tamkeen'] === true || strtolower((string)$data['approved_by_tamkeen']) === 'yes');
+                    $c['approved_by_tamkeen'] = $isTamkeen ? 'Yes' : 'No';
+                    if ($isTamkeen) {
+                        $c['tamkeen_approval_date'] = !empty($data['approval_date']) ? trim($data['approval_date']) : date('Y-m-d');
+                        $c['tamkeen_approval_notes'] = trim($data['notes'] ?? ($data['remarks'] ?? ''));
+                        $c['tamkeen_approved_by'] = $approvedBy ?: 'Tamkeen Officer';
+                        $c['tamkeen_approved_at'] = date('Y-m-d H:i:s');
+                    } else {
+                        $c['tamkeen_approval_date'] = null;
+                        $c['tamkeen_approval_notes'] = null;
+                        $c['tamkeen_approved_by'] = null;
+                        $c['tamkeen_approved_at'] = null;
+                    }
+                }
+
+                $c['updated_at'] = date('Y-m-d H:i:s');
+                Database::saveStore($store);
+                return $c;
+            }
+        }
+        return null;
+    }
+
     public static function renew(int $id, array $data, ?string $renewedBy = null): ?array {
         $store = Database::getStore();
         foreach ($store['candidates'] as &$c) {
@@ -564,6 +662,44 @@ class Candidate {
             'details'   => "Initial registration created with CPR {$candidate['cpr_no']}. Education level: {$candidate['education']}. Assigned Case Manager: {$candidate['case_manager_name']}.",
             'actor'     => $candidate['case_manager_name'] ?: 'System Registrar'
         ];
+
+        // 1.1 Job Center Approval
+        $jcApproved = $candidate['approved_by_job_center'] ?? 'Yes';
+        if (strtolower((string)$jcApproved) === 'yes' || $jcApproved === true) {
+            $jcDate = !empty($candidate['job_center_approved_at']) ? substr($candidate['job_center_approved_at'], 0, 10) : $regDate;
+            $activities[] = [
+                'id'        => 'act_jc_' . $candidateId,
+                'timestamp' => $candidate['job_center_approved_at'] ?? ($jcDate . ' 08:35:00'),
+                'date'      => $jcDate,
+                'category'  => 'approval',
+                'title'     => 'Job Center Talent Pool Registration Approved',
+                'ref'       => "JC-{$candidate['ref_no']}",
+                'amount'    => null,
+                'status'    => 'approved',
+                'details'   => "Candidate approved for Ministry Job Center pool matching upon registration at " . ($candidate['center'] ?? 'Enma Mall') . ".",
+                'actor'     => $candidate['job_center_approved_by'] ?? ($candidate['case_manager_name'] ?: 'Job Center')
+            ];
+        }
+
+        // 1.2 Tamkeen Scheme Approval
+        $tmkApproved = $candidate['approved_by_tamkeen'] ?? 'No';
+        if (strtolower((string)$tmkApproved) === 'yes' || $tmkApproved === true) {
+            $tDate = $candidate['tamkeen_approval_date'] ?? date('Y-m-d');
+            $tTime = $candidate['tamkeen_approved_at'] ?? ($tDate . ' 11:00:00');
+            $tNotes = !empty($candidate['tamkeen_approval_notes']) ? " Notes: {$candidate['tamkeen_approval_notes']}." : "";
+            $activities[] = [
+                'id'        => 'act_tmk_' . $candidateId,
+                'timestamp' => $tTime,
+                'date'      => $tDate,
+                'category'  => 'approval',
+                'title'     => 'Official Tamkeen Scheme Approval Recorded',
+                'ref'       => "TMK-{$candidate['ref_no']}",
+                'amount'    => null,
+                'status'    => 'approved',
+                'details'   => "Candidate officially approved under Tamkeen Labor Fund placement & subsidy scheme on {$tDate}.{$tNotes}",
+                'actor'     => $candidate['tamkeen_approved_by'] ?? 'Tamkeen Directorate'
+            ];
+        }
 
         // 2. Renewal Events
         $renewals = is_array($candidate['renewal_history'] ?? null) ? $candidate['renewal_history'] : [];

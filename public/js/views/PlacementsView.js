@@ -568,6 +568,49 @@ function PlacementsView({ state }) {
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
             CPR: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{row.cpr_no}</span> • {row.education}
           </div>
+          <div style={{ marginTop: '3px' }}>
+            {(() => {
+              const isJc = row.approved_by_job_center === true || String(row.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
+              const isTamkeen = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
+              if (isJc && isTamkeen) {
+                return (
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    color: '#059669',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '3px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }} title="Approved by both Job Center & Tamkeen">
+                    ✓ Both Approved
+                  </span>
+                );
+              }
+              if (isJc) {
+                return (
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    color: '#d97706',
+                    background: 'rgba(245, 158, 11, 0.14)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '3px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }} title="Approved by Job Center only (Tamkeen Pending)">
+                    🏬 Job Center Only
+                  </span>
+                );
+              }
+              return null;
+            })()}
+          </div>
         </div>
       )
     },

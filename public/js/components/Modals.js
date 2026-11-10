@@ -3424,6 +3424,44 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
         </div>
 
+        {/* Government & Tamkeen Approvals Status */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem', background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+              🏬 Ministry Job Center Approval
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span className="badge badge-success" style={{ fontSize: '0.74rem', fontWeight: 700 }}>
+                ✓ Approved (Yes)
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {window.formatAppDate(candidate.job_center_approved_at || candidate.registration_date || candidate.created_at)}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+              🏛️ Tamkeen Scheme Approval
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+              {(candidate.approved_by_tamkeen === true || String(candidate.approved_by_tamkeen || '').toLowerCase() === 'yes') ? (
+                <span className="badge badge-success" style={{ fontSize: '0.74rem', fontWeight: 800, background: 'rgba(16, 185, 129, 0.18)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                  ✓ Approved (Yes) {candidate.tamkeen_approval_date ? `• ${window.formatAppDate(candidate.tamkeen_approval_date)}` : ''}
+                </span>
+              ) : (
+                <span className="badge badge-warning" style={{ fontSize: '0.74rem', fontWeight: 700, background: 'rgba(245, 158, 11, 0.18)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                  ⏳ Pending Tamkeen Approval (No)
+                </span>
+              )}
+              {candidate.tamkeen_approval_notes && (
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  ({candidate.tamkeen_approval_notes})
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Linked Employer Placement Box */}
         <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
@@ -7432,6 +7470,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
   // Category Icon & Styling Helper
   const getCategoryMeta = (cat) => {
     switch (cat) {
+      case 'approval':     return { icon: '🏛️', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Government Approval' };
       case 'registration': return { icon: '👤', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Registration' };
       case 'renewal':      return { icon: '🔄', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)', label: 'Renewal' };
       case 'checklist':    return { icon: '📋', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', label: 'Checklist' };
@@ -7564,6 +7603,31 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
               {currentCandidate.renewals_count > 0 && (
                 <div style={{ marginTop: '2px', color: 'var(--success)', fontWeight: 600, fontSize: '0.72rem' }}>
                   🔄 Renewed {currentCandidate.renewals_count} time(s)
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Government Scheme Approvals
+              </div>
+              <div style={{ display: 'flex', gap: '0.35rem', marginTop: '3px', flexWrap: 'wrap' }}>
+                <span className="badge badge-success" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                  🏬 Job Center: Yes
+                </span>
+                {(currentCandidate.approved_by_tamkeen === true || String(currentCandidate.approved_by_tamkeen || '').toLowerCase() === 'yes') ? (
+                  <span className="badge badge-success" style={{ fontSize: '0.68rem', fontWeight: 800, background: 'rgba(16, 185, 129, 0.18)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.4)' }} title={`Approved by Tamkeen on ${currentCandidate.tamkeen_approval_date || ''}`}>
+                    🏛️ Tamkeen: Yes {currentCandidate.tamkeen_approval_date ? `(${currentCandidate.tamkeen_approval_date})` : ''}
+                  </span>
+                ) : (
+                  <span className="badge badge-warning" style={{ fontSize: '0.68rem', fontWeight: 700, background: 'rgba(245, 158, 11, 0.18)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                    🏛️ Tamkeen: Pending
+                  </span>
+                )}
+              </div>
+              {currentCandidate.tamkeen_approval_notes && (
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                  "{currentCandidate.tamkeen_approval_notes}"
                 </div>
               )}
             </div>

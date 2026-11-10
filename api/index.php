@@ -132,6 +132,8 @@ $router->post('/candidates/{id}/documents', [CandidateController::class, 'addDoc
 $router->delete('/candidates/{id}/documents/{docId}', [CandidateController::class, 'deleteDocument']);
 $router->post('/candidates/{id}/renew', [CandidateController::class, 'renew']);
 $router->get('/candidates/{id}/activities', [CandidateController::class, 'activities']);
+$router->post('/candidates/{id}/tamkeen-approval', [CandidateController::class, 'approveTamkeen']);
+$router->post('/candidates/{id}/approvals', [CandidateController::class, 'updateApprovals']);
 $router->post('/candidates', [CandidateController::class, 'create']);
 $router->put('/candidates/{id}', [CandidateController::class, 'update']);
 
