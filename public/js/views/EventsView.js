@@ -737,7 +737,7 @@ function EventsView({ state, moduleType = 'training' }) {
       {/* ==================== EVENT ATTENDEES STUDIO MODAL ==================== */}
       {isAttendeesModalOpen && attendeesEvent && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '960px', maxHeight: '92vh', overflowY: 'auto' }}>
+          <div className="modal-content" style={{ width: '96vw', maxWidth: '1440px', maxHeight: '94vh', overflowY: 'auto' }}>
             <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
@@ -1021,7 +1021,6 @@ function EventsView({ state, moduleType = 'training' }) {
                         <th style={{ padding: '0.65rem 0.75rem' }}>Candidate</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>CPR No.</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>Contact</th>
-                        <th style={{ padding: '0.65rem 0.75rem' }}>Center</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>Status in Pool</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>Attendance</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>Notes</th>
@@ -1053,19 +1052,6 @@ function EventsView({ state, moduleType = 'training' }) {
                             </td>
 
                             <td style={{ padding: '0.65rem 0.75rem' }}>
-                              <span style={{
-                                background: 'rgba(99,102,241,0.1)',
-                                color: '#4f46e5',
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '4px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700
-                              }}>
-                                🏬 {att.center || defaultCenter}
-                              </span>
-                            </td>
-
-                            <td style={{ padding: '0.65rem 0.75rem' }}>
                               <span style={{ textTransform: 'capitalize', fontWeight: 600, fontSize: '0.78rem' }}>
                                 {att.candidate_status || 'registered'}
                               </span>
@@ -1091,7 +1077,7 @@ function EventsView({ state, moduleType = 'training' }) {
                               </select>
                             </td>
 
-                            <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                            <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', fontSize: '0.75rem', maxWidth: '300px', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                               {att.notes || '—'}
                             </td>
 
