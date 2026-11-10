@@ -288,6 +288,86 @@ function EventsView({ state, moduleType = 'training' }) {
 
   return (
     <div className="view-container">
+      {/* Talent & Workforce Events Module Switcher */}
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        background: 'var(--bg-card)',
+        padding: '4px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-light)',
+        marginBottom: '1rem',
+        gap: '4px',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <button
+          type="button"
+          onClick={() => window.AppStore.setActiveTab('candidates')}
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            transition: 'var(--transition)'
+          }}
+          title="Return to Candidates Talent Pool"
+        >
+          <span>👥</span>
+          <span>Candidates Talent Pool</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => isTraining ? null : window.AppStore.setActiveTab('training')}
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: isTraining ? 'var(--primary)' : 'transparent',
+            color: isTraining ? '#ffffff' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: isTraining ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            transition: 'var(--transition)'
+          }}
+        >
+          <span>🎓</span>
+          <span>Training Module</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => !isTraining ? null : window.AppStore.setActiveTab('career_fair')}
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: !isTraining ? 'var(--primary)' : 'transparent',
+            color: !isTraining ? '#ffffff' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: !isTraining ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            transition: 'var(--transition)'
+          }}
+        >
+          <span>🎪</span>
+          <span>Career Fair Module</span>
+        </button>
+      </div>
+
       {/* View Header with Title, Actions & Search */}
       <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
         <div>

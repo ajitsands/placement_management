@@ -1365,6 +1365,53 @@ function DashboardView({ state }) {
                     {activeDisputedClaims.length} Active
                   </span>
                 </div>
+
+                {/* 4. Workforce Events Hub (Training & Career Fairs) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Access Training & Career Fair Events"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span style={{ fontSize: '1rem' }}>🎪</span>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Workforce Events Hub
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        Candidate training & recruitment drives
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', fontWeight: 700, borderColor: '#3b82f6', color: '#2563eb' }}
+                      onClick={() => window.AppStore.setActiveTab('training')}
+                      title="Open Training Module"
+                    >
+                      🎓 Training
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', fontWeight: 700, borderColor: '#10b981', color: '#059669' }}
+                      onClick={() => window.AppStore.setActiveTab('career_fair')}
+                      title="Open Career Fair Module"
+                    >
+                      🎪 Career Fair
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 

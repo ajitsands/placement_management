@@ -794,6 +794,85 @@ function CandidatesView({ state }) {
 
   return (
     <div>
+      {/* Talent & Workforce Events Module Switcher */}
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        background: 'var(--bg-card)',
+        padding: '4px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-light)',
+        marginBottom: '1rem',
+        gap: '4px',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <button
+          type="button"
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: 'var(--primary)',
+            color: '#ffffff',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'default',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem'
+          }}
+        >
+          <span>👥</span>
+          <span>Candidates Talent Pool</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => window.AppStore.setActiveTab('training')}
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            transition: 'var(--transition)'
+          }}
+          title="Go to Training Module"
+        >
+          <span>🎓</span>
+          <span>Training Module</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => window.AppStore.setActiveTab('career_fair')}
+          style={{
+            padding: '0.4rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            transition: 'var(--transition)'
+          }}
+          title="Go to Career Fair Module"
+        >
+          <span>🎪</span>
+          <span>Career Fair Module</span>
+        </button>
+      </div>
+
       <div className="page-header" style={{ marginBottom: '1.25rem' }}>
         <div className="page-title-group">
           <h1 className="view-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
