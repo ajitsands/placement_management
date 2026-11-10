@@ -878,7 +878,7 @@ function EventsView({ state, moduleType = 'training' }) {
                       setIsAddExistingOpen(true);
                       setCandSearchQuery('');
                       setSelectedCandidateIds([]);
-                      setIsDropdownOpen(true);
+                      setIsDropdownOpen(false);
                     }}
                   >
                     <span>👥</span>
