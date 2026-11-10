@@ -3650,38 +3650,101 @@ function TamkeenApprovalModal({ state, candidate }) {
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
-    try {
-      await window.api.candidates.approveTamkeen(candidate.id, {
-        approval_date: approvalDate || new Date().toISOString().split('T')[0],
-        notes: notes
-      });
 
-      if (window.AppStore && window.AppStore.refreshData) {
-        await window.AppStore.refreshData();
+    try {
+      const payload = {
+        approval_date: approvalDate || new Date().toISOString().split('T')[0],
+        notes: notes || ''
+      };
+
+      // 1. Invoke API method or fallback direct fetch
+      let updatedCandidate = null;
+      if (window.api && window.api.candidates && typeof window.api.candidates.approveTamkeen === 'function') {
+        updatedCandidate = await window.api.candidates.approveTamkeen(candidate.id, payload);
+      } else {
+        const base = window.location.pathname.includes('/Claims') ? '/Claims/api' : '/api';
+        const res = await fetch(`${base}/candidates/${candidate.id}/tamkeen-approval`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(window.AppStore?.getState()?.currentUser ? {
+              'X-User-Id': window.AppStore.getState().currentUser.id,
+              'X-User-Role': window.AppStore.getState().currentUser.role
+            } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        const resJson = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(resJson?.message || `HTTP Error ${res.status}`);
+        }
+        updatedCandidate = resJson?.data || resJson;
       }
 
-      window.AppStore.closeModal();
+      // 2. Immediately close the modal overlay
+      if (window.AppStore && window.AppStore.closeModal) {
+        window.AppStore.closeModal();
+      }
+
+      // 3. Instant optimistic update to store state so UI reflects changes immediately
+      if (window.AppStore) {
+        const appState = window.AppStore.getState();
+        const effectiveApprovalDate = payload.approval_date;
+        const effectiveNotes = payload.notes;
+        const currentOfficer = appState.currentUser?.full_name || 'Tamkeen Officer';
+
+        const updatedCandidates = (appState.candidates || []).map(c => {
+          if (c.id === candidate.id || c.ref_no === candidate.ref_no) {
+            return {
+              ...c,
+              ...(updatedCandidate && typeof updatedCandidate === 'object' ? updatedCandidate : {}),
+              approved_by_tamkeen: 'Yes',
+              tamkeen_approval_date: effectiveApprovalDate,
+              tamkeen_approval_notes: effectiveNotes,
+              tamkeen_approved_by: currentOfficer,
+              tamkeen_approved_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
+            };
+          }
+          return c;
+        });
+
+        window.AppStore.setState({ candidates: updatedCandidates });
+      }
+
+      // 4. Instant user notification
+      if (window.AppStore && window.AppStore.showNotification) {
+        window.AppStore.showNotification(`Candidate '${candidate.full_name}' approved by Tamkeen successfully!`, 'success');
+      }
 
       if (window.swal) {
         window.swal.fire({
           icon: 'success',
           title: 'Tamkeen Approved!',
           text: `Candidate '${candidate.full_name}' has been successfully approved for Tamkeen scheme.`,
-          timer: 2000,
+          timer: 2200,
           showConfirmButton: false
         });
-      } else if (window.AppStore?.showNotification) {
-        window.AppStore.showNotification(`Candidate '${candidate.full_name}' approved by Tamkeen!`, 'success');
+      }
+
+      // 5. Background re-fetch to sync KPIs, audit logs and relational data
+      if (window.AppStore && window.AppStore.refreshData) {
+        window.AppStore.refreshData().catch(err => console.warn('Background refreshData error:', err));
       }
     } catch (err) {
       console.error('Tamkeen approval failed:', err);
+      const errMsg = err.message || 'Could not record Tamkeen approval.';
+      if (window.AppStore && window.AppStore.showNotification) {
+        window.AppStore.showNotification('Approval Failed: ' + errMsg, 'error');
+      }
       if (window.swal) {
         window.swal.fire({
           icon: 'error',
           title: 'Approval Failed',
-          text: err.message || 'Could not record Tamkeen approval.'
+          text: errMsg
         });
       }
     } finally {
@@ -3767,9 +3830,10 @@ function TamkeenApprovalModal({ state, candidate }) {
             Cancel
           </button>
           <button
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
             className="btn btn-primary"
-            style={{ background: '#059669', borderColor: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            style={{ background: '#059669', borderColor: '#059669', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: submitting ? 'not-allowed' : 'pointer' }}
             disabled={submitting}
           >
             {submitting ? 'Recording Approval...' : '✓ Confirm Tamkeen Approval'}

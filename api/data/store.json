@@ -189,7 +189,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 11:13:00",
-            "updated_at": "2026-11-10 14:13:00",
+            "updated_at": "2026-11-10 15:23:49",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -248,7 +248,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_tamkeen": "Yes",
+            "tamkeen_approval_date": "2026-11-10",
+            "tamkeen_approval_notes": "CLI test approval",
+            "tamkeen_approved_by": "Super Administrator",
+            "tamkeen_approved_at": "2026-11-10 15:23:49",
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10",
+            "job_center_approved_by": "Husain"
         },
         {
             "id": 2,
@@ -1515,6 +1523,48 @@
             "details": "Candidate NISSAM (CPR: 232432434) approved by Tamkeen on 2026-11-10. Notes: test. Approved by Super Administrator.",
             "ip_address": "::1",
             "created_at": "2026-11-10 14:58:19"
+        },
+        {
+            "id": 20,
+            "user_id": 1,
+            "username": "superadmin",
+            "user_full_name": "Super Administrator",
+            "role": "superadmin",
+            "action": "CANDIDATE_TAMKEEN_APPROVED",
+            "entity_type": "candidate",
+            "entity_id": 7,
+            "entity_ref": "JCP\/26\/268507",
+            "details": "Candidate NISSAM (CPR: 232432434) approved by Tamkeen on 2026-11-10. Notes: . Approved by Super Administrator.",
+            "ip_address": "::1",
+            "created_at": "2026-11-10 15:14:39"
+        },
+        {
+            "id": 21,
+            "user_id": 1,
+            "username": "superadmin",
+            "user_full_name": "Super Administrator",
+            "role": "superadmin",
+            "action": "CANDIDATE_TAMKEEN_APPROVED",
+            "entity_type": "candidate",
+            "entity_id": 1,
+            "entity_ref": "JCP\/26\/268501",
+            "details": "Candidate ANU (CPR: 12121212) approved by Tamkeen on 2026-11-10. Notes: . Approved by Super Administrator.",
+            "ip_address": "::1",
+            "created_at": "2026-11-10 15:19:52"
+        },
+        {
+            "id": 22,
+            "user_id": 1,
+            "username": "superadmin",
+            "user_full_name": "Super Administrator",
+            "role": "superadmin",
+            "action": "CANDIDATE_TAMKEEN_APPROVED",
+            "entity_type": "candidate",
+            "entity_id": 1,
+            "entity_ref": "JCP\/26\/268501",
+            "details": "Candidate ANU (CPR: 12121212) approved by Tamkeen on 2026-11-10. Notes: CLI test approval. Approved by Super Administrator.",
+            "ip_address": "127.0.0.1",
+            "created_at": "2026-11-10 15:23:49"
         }
     ]
 }

@@ -44,6 +44,7 @@ class Database {
                         self::ensureDocumentCategoriesTable(self::$pdo);
                         self::ensureAuditLogsTable(self::$pdo);
                         self::ensureEventsTables(self::$pdo);
+                        self::ensureCandidateApprovalColumns(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -201,6 +202,35 @@ class Database {
         }
     }
 
+    private static function ensureCandidateApprovalColumns(PDO $pdo): void {
+        $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'candidates'");
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (!in_array('approved_by_job_center', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN approved_by_job_center VARCHAR(16) NOT NULL DEFAULT 'Yes'");
+        }
+        if (!in_array('job_center_approved_at', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN job_center_approved_at DATETIME NULL");
+        }
+        if (!in_array('job_center_approved_by', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN job_center_approved_by VARCHAR(191) NULL");
+        }
+        if (!in_array('approved_by_tamkeen', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN approved_by_tamkeen VARCHAR(16) NOT NULL DEFAULT 'No'");
+        }
+        if (!in_array('tamkeen_approval_date', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN tamkeen_approval_date DATE NULL");
+        }
+        if (!in_array('tamkeen_approval_notes', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN tamkeen_approval_notes TEXT NULL");
+        }
+        if (!in_array('tamkeen_approved_by', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN tamkeen_approved_by VARCHAR(191) NULL");
+        }
+        if (!in_array('tamkeen_approved_at', $existing, true)) {
+            $pdo->exec("ALTER TABLE candidates ADD COLUMN tamkeen_approved_at DATETIME NULL");
+        }
+    }
+
     private static function ensureEventsTables(PDO $pdo): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS `events` (
@@ -355,6 +385,14 @@ class Database {
             } else {
                 $c['documents'] = is_array($c['documents'] ?? null) ? $c['documents'] : [];
             }
+            $c['approved_by_job_center'] = !empty($c['approved_by_job_center']) ? $c['approved_by_job_center'] : 'Yes';
+            $c['job_center_approved_at'] = $c['job_center_approved_at'] ?? $c['registration_date'] ?? date('Y-m-d H:i:s');
+            $c['job_center_approved_by'] = $c['job_center_approved_by'] ?? $c['case_manager_name'] ?? 'Job Center';
+            $c['approved_by_tamkeen'] = !empty($c['approved_by_tamkeen']) ? $c['approved_by_tamkeen'] : 'No';
+            $c['tamkeen_approval_date'] = $c['tamkeen_approval_date'] ?? null;
+            $c['tamkeen_approval_notes'] = $c['tamkeen_approval_notes'] ?? null;
+            $c['tamkeen_approved_by'] = $c['tamkeen_approved_by'] ?? null;
+            $c['tamkeen_approved_at'] = $c['tamkeen_approved_at'] ?? null;
             return $c;
         }, $pdo->query("SELECT * FROM candidates ORDER BY id ASC")->fetchAll());
 
@@ -791,8 +829,8 @@ class Database {
 
             // 3. Candidates
             if (!empty($data['candidates']) && is_array($data['candidates'])) {
-                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, center, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, created_at)
-                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :center, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, center, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, approved_by_job_center, job_center_approved_at, job_center_approved_by, approved_by_tamkeen, tamkeen_approval_date, tamkeen_approval_notes, tamkeen_approved_by, tamkeen_approved_at, created_at)
+                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :center, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :approved_by_job_center, :job_center_approved_at, :job_center_approved_by, :approved_by_tamkeen, :tamkeen_approval_date, :tamkeen_approval_notes, :tamkeen_approved_by, :tamkeen_approved_at, :created_at)
                     ON DUPLICATE KEY UPDATE
                         full_name = VALUES(full_name),
                         cpr_no = VALUES(cpr_no),
@@ -823,7 +861,15 @@ class Database {
                         job_id = VALUES(job_id),
                         job_code = VALUES(job_code),
                         checklist_completion_pct = VALUES(checklist_completion_pct),
-                        checklist_items = VALUES(checklist_items)");
+                        checklist_items = VALUES(checklist_items),
+                        approved_by_job_center = VALUES(approved_by_job_center),
+                        job_center_approved_at = VALUES(job_center_approved_at),
+                        job_center_approved_by = VALUES(job_center_approved_by),
+                        approved_by_tamkeen = VALUES(approved_by_tamkeen),
+                        tamkeen_approval_date = VALUES(tamkeen_approval_date),
+                        tamkeen_approval_notes = VALUES(tamkeen_approval_notes),
+                        tamkeen_approved_by = VALUES(tamkeen_approved_by),
+                        tamkeen_approved_at = VALUES(tamkeen_approved_at)");
 
                 foreach ($data['candidates'] as $c) {
                     $docsJson = !empty($c['documents']) ? (is_string($c['documents']) ? $c['documents'] : json_encode($c['documents'], JSON_UNESCAPED_UNICODE)) : '[]';
@@ -862,6 +908,14 @@ class Database {
                         ':job_code' => !empty($c['job_code']) ? $c['job_code'] : null,
                         ':checklist_completion_pct' => (int)($c['checklist_completion_pct'] ?? 0),
                         ':checklist_items' => $chkItemsJson,
+                        ':approved_by_job_center' => $c['approved_by_job_center'] ?? 'Yes',
+                        ':job_center_approved_at' => $c['job_center_approved_at'] ?? null,
+                        ':job_center_approved_by' => $c['job_center_approved_by'] ?? null,
+                        ':approved_by_tamkeen' => $c['approved_by_tamkeen'] ?? 'No',
+                        ':tamkeen_approval_date' => $c['tamkeen_approval_date'] ?? null,
+                        ':tamkeen_approval_notes' => $c['tamkeen_approval_notes'] ?? null,
+                        ':tamkeen_approved_by' => $c['tamkeen_approved_by'] ?? null,
+                        ':tamkeen_approved_at' => $c['tamkeen_approved_at'] ?? null,
                         ':created_at' => $c['created_at'] ?? date('Y-m-d H:i:s')
                     ]);
                 }
