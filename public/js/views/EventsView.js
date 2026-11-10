@@ -907,7 +907,7 @@ function EventsView({ state, moduleType = 'training' }) {
                     border: '2px solid var(--primary)',
                     borderRadius: 'var(--radius-lg)',
                     boxShadow: '0 4px 20px rgba(37, 99, 235, 0.15)',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     marginBottom: '0.5rem',
                     transition: 'var(--transition)'
                   }}
@@ -919,7 +919,9 @@ function EventsView({ state, moduleType = 'training' }) {
                     padding: '0.75rem 1rem',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    borderTopLeftRadius: 'calc(var(--radius-lg) - 2px)',
+                    borderTopRightRadius: 'calc(var(--radius-lg) - 2px)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                       <span style={{ fontSize: '1.15rem' }}>👤</span>
@@ -989,7 +991,9 @@ function EventsView({ state, moduleType = 'training' }) {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', flex: 1, overflow: 'hidden' }}>
                             {selectedCandidateIds.length === 0 ? (
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                👥 Click to search and select candidates...
+                                👥 {existingCandidatesAvailable.length > 0
+                                     ? `Click to search and select candidates (${existingCandidatesAvailable.length} available in pool)...`
+                                     : 'All candidates in the pool are already attending this event'}
                               </span>
                             ) : (
                               <>
@@ -1160,13 +1164,13 @@ function EventsView({ state, moduleType = 'training' }) {
                                 </div>
 
                                 <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-                                  {filteredCandidatesToAdd.length} available
+                                  {filteredCandidatesToAdd.length} in talent pool
                                 </span>
                               </div>
                             </div>
 
                             {/* Scrollable List with Checkboxes */}
-                            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                            <div className="candidate-dropdown-scroll" style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden' }}>
                               {filteredCandidatesToAdd.length === 0 ? (
                                 <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                   {candSearchQuery 
@@ -1430,10 +1434,16 @@ function EventsView({ state, moduleType = 'training' }) {
                   </button>
                 </div>
               ) : (
-                <div style={{ overflowX: 'auto', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{
+                  maxHeight: '380px',
+                  overflowY: 'auto',
+                  overflowX: 'auto',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-md)'
+                }}>
                   <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--bg-tertiary)', textAlign: 'left', borderBottom: '1px solid var(--border-light)' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg-tertiary)' }}>
+                      <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-light)' }}>
                         <th style={{ padding: '0.65rem 0.75rem' }}>#</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>Candidate</th>
                         <th style={{ padding: '0.65rem 0.75rem' }}>CPR No.</th>
