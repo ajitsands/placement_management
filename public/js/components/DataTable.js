@@ -149,14 +149,16 @@ function DataTable({
       }).join(',');
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headerRow, ...rows].join('\r\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = '\uFEFF' + [headerRow, ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = url;
     link.setAttribute('download', exportFilename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 500);
   };
 
   // Generate page numbers to display

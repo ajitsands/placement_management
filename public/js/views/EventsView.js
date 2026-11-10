@@ -237,62 +237,93 @@ function EventsView({ state, moduleType = 'training' }) {
     });
   };
 
-  // Export Attendees to CSV
-  const handleExportAttendeesCSV = () => {
-    if (!attendeesList || attendeesList.length === 0) {
+  // Universal Excel-Compatible CSV Exporter (uses UTF-8 BOM, CRLF, and Blob for full Excel data fidelity)
+  const downloadAttendeesExport = (filename, eventObj, list) => {
+    if (!list || list.length === 0) {
       window.AppStore.showNotification('No attendees to export', 'warning');
       return;
     }
 
     const headers = [
-      '#',
+      'SL No.',
       'Event Code',
       'Event Title',
       'Event Date',
+      'Event Location',
       'Candidate Ref',
       'Candidate Full Name',
       'CPR Number',
       'Contact Phone',
       'Contact Email',
-      'Center',
+      'Gender',
       'Education',
-      'Candidate Status',
+      'Center',
+      'Candidate Status in Pool',
       'Attendance Status',
-      'Attended At',
+      'Attended / Recorded At',
       'Remarks / Notes'
     ];
 
-    const rows = attendeesList.map((a, idx) => [
-      idx + 1,
-      `"${attendeesEvent?.event_code || ''}"`,
-      `"${attendeesEvent?.title || ''}"`,
-      `"${attendeesEvent?.event_date || ''}"`,
-      `"${a.ref_no || ''}"`,
-      `"${a.full_name || ''}"`,
-      `"${a.cpr_no || ''}"`,
-      `"${a.phone || ''}"`,
-      `"${a.email || ''}"`,
-      `"${a.center || defaultCenter}"`,
-      `"${a.education || ''}"`,
-      `"${a.candidate_status || ''}"`,
-      `"${a.status || 'attended'}"`,
-      `"${a.attended_at || ''}"`,
-      `"${(a.notes || '').replace(/"/g, '""')}"`
+    const escapeCell = (val, isTextCode = false) => {
+      if (val === null || val === undefined) return '""';
+      let str = String(val).trim();
+      // Replace internal newlines with space to prevent row splitting in Excel
+      str = str.replace(/\r?\n|\r/g, ' ');
+      // Escape double quotes
+      str = str.replace(/"/g, '""');
+      // For numeric-like codes (CPR, Ref, Phone) wrap in ="..." formula so Excel preserves leading zeroes and prevents formula error on +
+      if (isTextCode && str) {
+        return `"=""${str}"""`;
+      }
+      return `"${str}"`;
+    };
+
+    const rows = list.map((a, idx) => [
+      escapeCell(idx + 1),
+      escapeCell(eventObj?.event_code || '', true),
+      escapeCell(eventObj?.title || ''),
+      escapeCell(eventObj?.event_date ? (window.formatAppDate ? window.formatAppDate(eventObj.event_date) : eventObj.event_date) : ''),
+      escapeCell(eventObj?.location || ''),
+      escapeCell(a.ref_no || '', true),
+      escapeCell(a.full_name || ''),
+      escapeCell(a.cpr_no || '', true),
+      escapeCell(a.phone || '', true),
+      escapeCell(a.email || ''),
+      escapeCell(a.gender || ''),
+      escapeCell(a.education || ''),
+      escapeCell(a.center || defaultCenter),
+      escapeCell(a.candidate_status || 'registered'),
+      escapeCell(a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Attended'),
+      escapeCell(a.attended_at || a.created_at || ''),
+      escapeCell(a.notes || '')
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const headerLine = headers.map(h => escapeCell(h)).join(',');
+    const dataLines = rows.map(r => r.join(','));
+    // Prepend UTF-8 BOM (\uFEFF) and use CRLF (\r\n) for native Windows Excel compatibility
+    const csvContent = '\uFEFF' + [headerLine, ...dataLines].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    const filename = `${moduleLabel.replace(/\s+/g, '_')}_${attendeesEvent?.event_code || 'Event'}_Attendees_${new Date().toISOString().split('T')[0]}.csv`;
+    link.href = url;
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.AppStore.showNotification(`Exported ${attendeesList.length} attendees to CSV`, 'success');
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+
+    window.AppStore.showNotification(`Successfully exported ${list.length} attendee(s) to Excel`, 'success');
   };
 
-  // Direct CSV Export from Event Card for attended candidates
+  // Export Attendees to Excel from Studio Modal
+  const handleExportAttendeesCSV = () => {
+    const safeCode = (attendeesEvent?.event_code || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${moduleLabel.replace(/\s+/g, '_')}_${safeCode}_Attendees_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadAttendeesExport(filename, attendeesEvent, attendeesList);
+  };
+
+  // Direct Excel Export from Event Card for attended candidates
   const handleExportEventAttendees = async (event) => {
     setExportingEventId(event.id);
     try {
@@ -304,56 +335,9 @@ function EventsView({ state, moduleType = 'training' }) {
         return;
       }
 
-      const headers = [
-        '#',
-        'Event Code',
-        'Event Title',
-        'Event Date',
-        'Candidate Ref',
-        'Candidate Full Name',
-        'CPR Number',
-        'Contact Phone',
-        'Contact Email',
-        'Center',
-        'Education',
-        'Gender',
-        'Candidate Status',
-        'Attendance Status',
-        'Attended At',
-        'Notes / Remarks'
-      ];
-
-      const rows = attendees.map((a, idx) => [
-        idx + 1,
-        `"${event.event_code || ''}"`,
-        `"${(event.title || '').replace(/"/g, '""')}"`,
-        `"${event.event_date || ''}"`,
-        `"${a.ref_no || ''}"`,
-        `"${(a.full_name || '').replace(/"/g, '""')}"`,
-        `"${a.cpr_no || ''}"`,
-        `"${a.phone || ''}"`,
-        `"${a.email || ''}"`,
-        `"${a.center || defaultCenter}"`,
-        `"${a.education || ''}"`,
-        `"${a.gender || ''}"`,
-        `"${a.candidate_status || ''}"`,
-        `"${a.status || 'attended'}"`,
-        `"${a.attended_at || ''}"`,
-        `"${(a.notes || '').replace(/"/g, '""')}"`
-      ]);
-
-      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement('a');
-      link.setAttribute('href', encodedUri);
       const safeTitle = (event.title || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
       const filename = `${moduleLabel.replace(/\s+/g, '_')}_${event.event_code || 'Event'}_${safeTitle}_Attendees.csv`;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      window.AppStore.showNotification(`Exported ${attendees.length} candidate attendee(s) for "${event.title}" to CSV`, 'success');
+      downloadAttendeesExport(filename, event, attendees);
     } catch (err) {
       window.AppStore.showNotification('Error exporting attendees: ' + err.message, 'error');
     } finally {
@@ -875,14 +859,15 @@ function EventsView({ state, moduleType = 'training' }) {
                     <span>Add Existing Candidates</span>
                   </button>
 
-                  {/* Button 3: Export Attendees to CSV */}
+                  {/* Button 3: Export Attendees to Excel */}
                   <button
                     className="btn btn-outline btn-sm"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}
                     onClick={handleExportAttendeesCSV}
+                    title="Export attendees list to Excel (.csv)"
                   >
-                    <span>📥</span>
-                    <span>Export CSV</span>
+                    <span>📊</span>
+                    <span>Export to Excel</span>
                   </button>
                 </div>
               </div>
