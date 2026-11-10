@@ -44,10 +44,11 @@ function EventsView({ state, moduleType = 'training' }) {
   const filteredEvents = useMemo(() => {
     return moduleEvents.filter(e => {
       const st = (e.status || 'active').toLowerCase();
+      const isEvCompleted = st === 'completed';
       if (statusFilter === 'active') {
-        if (st !== 'active' && st !== 'upcoming') return false;
+        if (isEvCompleted) return false;
       } else if (statusFilter === 'completed') {
-        if (st !== 'completed') return false;
+        if (!isEvCompleted) return false;
       }
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -64,25 +65,26 @@ function EventsView({ state, moduleType = 'training' }) {
   // Statistics (Active, Completed, All, Attended Candidates)
   const stats = useMemo(() => {
     const total = moduleEvents.length;
-    const active = moduleEvents.filter(e => {
-      const st = (e.status || 'active').toLowerCase();
-      return st === 'active' || st === 'upcoming';
-    }).length;
     const completed = moduleEvents.filter(e => (e.status || '').toLowerCase() === 'completed').length;
+    const active = total - completed;
     const totalAttendees = moduleEvents.reduce((acc, e) => acc + (parseInt(e.attendees_count, 10) || 0), 0);
     return { total, active, completed, totalAttendees };
   }, [moduleEvents]);
 
-  // Load attendees for an event
-  const loadAttendees = async (eventId) => {
-    setLoadingAttendees(true);
+  // Load attendees for an event (silent option keeps datatable mounted without loading spinner)
+  const loadAttendees = async (eventId, silent = false) => {
+    if (!silent) {
+      setLoadingAttendees(true);
+    }
     try {
       const res = await window.api.events.getAttendees(eventId);
       setAttendeesList(res?.attendees || []);
     } catch (err) {
       window.AppStore.showNotification('Error loading attendees: ' + err.message, 'error');
     } finally {
-      setLoadingAttendees(false);
+      if (!silent) {
+        setLoadingAttendees(false);
+      }
     }
   };
 
@@ -151,10 +153,14 @@ function EventsView({ state, moduleType = 'training' }) {
         notes: addAttendeeNotes.trim()
       });
       window.AppStore.showNotification('Candidate added to event attendees successfully', 'success');
+      // Reset form fields but keep panel open so user can immediately add another candidate
       setSelectedCandidateId('');
+      setCandSearchQuery('');
       setAddAttendeeNotes('');
-      setIsAddExistingOpen(false);
-      await loadAttendees(attendeesEvent.id);
+      setAddAttendeeStatus('attended');
+      setIsAddExistingOpen(true);
+      // Silent load so datatable updates in place without loading spinner jump
+      await loadAttendees(attendeesEvent.id, true);
       await window.AppStore.refreshData();
     } catch (err) {
       window.AppStore.showNotification('Error adding candidate: ' + err.message, 'error');
@@ -181,7 +187,7 @@ function EventsView({ state, moduleType = 'training' }) {
     try {
       await window.api.events.removeAttendee(attendeesEvent.id, candidateId);
       window.AppStore.showNotification('Attendee removed', 'info');
-      await loadAttendees(attendeesEvent.id);
+      await loadAttendees(attendeesEvent.id, true);
       await window.AppStore.refreshData();
     } catch (err) {
       window.AppStore.showNotification('Error removing attendee: ' + err.message, 'error');
@@ -193,7 +199,7 @@ function EventsView({ state, moduleType = 'training' }) {
     if (!attendeesEvent) return;
     try {
       await window.api.events.updateAttendee(attendeesEvent.id, candidateId, { status: newStatus });
-      await loadAttendees(attendeesEvent.id);
+      await loadAttendees(attendeesEvent.id, true);
       window.AppStore.showNotification('Attendance status updated to ' + newStatus, 'success');
     } catch (err) {
       window.AppStore.showNotification('Error updating status: ' + err.message, 'error');
@@ -651,11 +657,11 @@ function EventsView({ state, moduleType = 'training' }) {
                       <button
                         className="btn btn-outline btn-sm"
                         onClick={() => handleToggleEventStatus(event, 'active')}
-                        title="Reopen / reactivate this event"
+                        title="Reopen event as active"
                         style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', color: '#0284c7', borderColor: '#38bdf8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                       >
                         <span>🔄</span>
-                        <span>Reactivate</span>
+                        <span>Mark Active</span>
                       </button>
                     ) : (
                       <button
@@ -664,8 +670,8 @@ function EventsView({ state, moduleType = 'training' }) {
                         title="Mark event as completed"
                         style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', color: '#059669', borderColor: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                       >
-                        <span>✅</span>
-                        <span>Complete</span>
+                        <span>✓</span>
+                        <span>Mark Completed</span>
                       </button>
                     )}
 
