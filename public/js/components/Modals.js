@@ -2353,10 +2353,28 @@ function JobModal({ state, job }) {
       };
 
       if (isEditing) {
-        await window.api.jobs.update(job.id, payload);
+        const updated = await window.api.jobs.update(job.id, payload);
+        if (updated && window.AppStore) {
+          const curJobs = window.AppStore.getState().jobs || [];
+          window.AppStore.setState({
+            jobs: curJobs.map(j => (j.id === job.id ? { ...j, ...updated, ...payload } : j))
+          });
+        }
         window.AppStore.showNotification(`Job opening '${form.position_title}' updated successfully!`, 'success');
       } else {
-        await window.api.jobs.create(payload);
+        const created = await window.api.jobs.create(payload);
+        if (created && window.AppStore) {
+          const curJobs = window.AppStore.getState().jobs || [];
+          const exists = curJobs.some(j => j.id === created.id || (created.job_code && j.job_code === created.job_code));
+          if (!exists) {
+            window.AppStore.setState({ jobs: [created, ...curJobs] });
+          }
+        }
+        // Clear any leftover filter in sessionStorage that might hide this new job
+        sessionStorage.removeItem('sands_jobs_filter_employer');
+        sessionStorage.removeItem('sands_jobs_filter_department');
+        sessionStorage.removeItem('sands_jobs_filter_position');
+        sessionStorage.setItem('sands_jobs_filter_status', 'active');
         window.AppStore.showNotification(`Job opening '${form.position_title}' posted successfully!`, 'success');
       }
 

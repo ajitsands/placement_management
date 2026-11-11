@@ -105,22 +105,72 @@ class Job {
 
         $newId = count($jobs) > 0 ? max(array_column($jobs, 'id')) + 1 : 1;
         $jobCode = !empty($data['job_code']) ? trim($data['job_code']) : self::generateNextCode();
+        $title = trim($data['job_title'] ?? $data['position_title'] ?? 'Job Position');
+        $company = trim($data['company_name'] ?? 'Employer');
+        $cr = trim($data['employer_cr'] ?? '');
+        $dept = trim($data['department'] ?? 'General');
+        $salary = (float)($data['salary_offered_bhd'] ?? $data['salary_bhd'] ?? 500.0);
+        $vacancies = max(1, (int)($data['vacancies_count'] ?? 1));
+        $status = strtolower(trim($data['status'] ?? 'active'));
+        if ($status === 'open') $status = 'active';
+        if (!in_array($status, ['active', 'filled', 'closed'])) $status = 'active';
+        $requirements = trim($data['requirements'] ?? '');
+        $description = trim($data['description'] ?? '');
+        $now = date('Y-m-d H:i:s');
+
+        // Direct MySQL insert when database is connected to ensure immediate persistence and real ID
+        if (Database::isMySQL()) {
+            try {
+                $pdo = Database::getConnection();
+                if ($pdo) {
+                    $stmt = $pdo->prepare("INSERT INTO jobs (job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, created_by, created_at, updated_at)
+                        VALUES (:job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :created_by, :created_at, :updated_at)");
+                    $stmt->execute([
+                        ':job_code' => $jobCode,
+                        ':job_title' => $title,
+                        ':company_name' => $company,
+                        ':employer_cr' => $cr,
+                        ':department' => $dept,
+                        ':salary_offered_bhd' => $salary,
+                        ':vacancies_count' => $vacancies,
+                        ':status' => $status,
+                        ':requirements' => $requirements,
+                        ':description' => $description,
+                        ':created_by' => $user['id'] ?? null,
+                        ':created_at' => $now,
+                        ':updated_at' => $now
+                    ]);
+                    $mysqlId = (int)$pdo->lastInsertId();
+                    if ($mysqlId > 0) {
+                        $newId = $mysqlId;
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("Job::create direct MySQL error: " . $e->getMessage());
+            }
+        }
 
         $newJob = [
             'id' => $newId,
             'job_code' => $jobCode,
-            'job_title' => trim($data['job_title'] ?? $data['position_title'] ?? 'Job Position'),
-            'company_name' => trim($data['company_name'] ?? 'Employer'),
-            'employer_cr' => trim($data['employer_cr'] ?? ''),
-            'department' => trim($data['department'] ?? 'General'),
-            'salary_offered_bhd' => (float)($data['salary_offered_bhd'] ?? $data['salary_bhd'] ?? 500.0),
-            'vacancies_count' => max(1, (int)($data['vacancies_count'] ?? 1)),
-            'status' => trim($data['status'] ?? 'active'),
-            'requirements' => trim($data['requirements'] ?? ''),
-            'description' => trim($data['description'] ?? ''),
+            'job_title' => $title,
+            'position_title' => $title,
+            'company_name' => $company,
+            'employer_cr' => $cr,
+            'department' => $dept,
+            'salary_offered_bhd' => $salary,
+            'salary_bhd' => $salary,
+            'vacancies_count' => $vacancies,
+            'vacancies_remaining' => $vacancies,
+            'placed_count' => 0,
+            'placed_candidates' => [],
+            'status' => $status,
+            'computed_status' => $status,
+            'requirements' => $requirements,
+            'description' => $description,
             'created_by' => $user['id'] ?? null,
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s')
+            'created_at' => $now,
+            'updated_at' => $now
         ];
 
         $store['jobs'][] = $newJob;
@@ -134,28 +184,64 @@ class Job {
         $jobs = $store['jobs'] ?? [];
         $found = false;
 
+        $title = isset($data['job_title']) ? trim($data['job_title']) : (isset($data['position_title']) ? trim($data['position_title']) : null);
+        $company = isset($data['company_name']) ? trim($data['company_name']) : null;
+        $cr = isset($data['employer_cr']) ? trim($data['employer_cr']) : null;
+        $dept = isset($data['department']) ? trim($data['department']) : null;
+        $salary = isset($data['salary_offered_bhd']) ? (float)$data['salary_offered_bhd'] : (isset($data['salary_bhd']) ? (float)$data['salary_bhd'] : null);
+        $vacancies = isset($data['vacancies_count']) ? max(1, (int)$data['vacancies_count']) : null;
+        $status = isset($data['status']) ? strtolower(trim($data['status'])) : null;
+        if ($status && !in_array($status, ['active', 'filled', 'closed'])) $status = 'active';
+        $reqs = isset($data['requirements']) ? trim($data['requirements']) : null;
+        $desc = isset($data['description']) ? trim($data['description']) : null;
+        $now = date('Y-m-d H:i:s');
+
+        if (Database::isMySQL()) {
+            try {
+                $pdo = Database::getConnection();
+                if ($pdo) {
+                    $fields = [];
+                    $params = [':id' => $id];
+                    if ($title !== null) { $fields[] = "job_title = :job_title"; $params[':job_title'] = $title; }
+                    if ($company !== null) { $fields[] = "company_name = :company_name"; $params[':company_name'] = $company; }
+                    if ($cr !== null) { $fields[] = "employer_cr = :employer_cr"; $params[':employer_cr'] = $cr; }
+                    if ($dept !== null) { $fields[] = "department = :department"; $params[':department'] = $dept; }
+                    if ($salary !== null) { $fields[] = "salary_offered_bhd = :salary_offered_bhd"; $params[':salary_offered_bhd'] = $salary; }
+                    if ($vacancies !== null) { $fields[] = "vacancies_count = :vacancies_count"; $params[':vacancies_count'] = $vacancies; }
+                    if ($status !== null) { $fields[] = "status = :status"; $params[':status'] = $status; }
+                    if ($reqs !== null) { $fields[] = "requirements = :requirements"; $params[':requirements'] = $reqs; }
+                    if ($desc !== null) { $fields[] = "description = :description"; $params[':description'] = $desc; }
+                    if (!empty($fields)) {
+                        $fields[] = "updated_at = :updated_at";
+                        $params[':updated_at'] = $now;
+                        $sql = "UPDATE jobs SET " . implode(', ', $fields) . " WHERE id = :id";
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute($params);
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("Job::update direct MySQL error: " . $e->getMessage());
+            }
+        }
+
         foreach ($jobs as &$j) {
-            if ($j['id'] === $id) {
-                if (isset($data['job_title'])) $j['job_title'] = trim($data['job_title']);
-                else if (isset($data['position_title'])) $j['job_title'] = trim($data['position_title']);
-
-                if (isset($data['company_name'])) $j['company_name'] = trim($data['company_name']);
-                if (isset($data['employer_cr'])) $j['employer_cr'] = trim($data['employer_cr']);
-                if (isset($data['department'])) $j['department'] = trim($data['department']);
-
-                if (isset($data['salary_offered_bhd'])) $j['salary_offered_bhd'] = (float)$data['salary_offered_bhd'];
-                else if (isset($data['salary_bhd'])) $j['salary_offered_bhd'] = (float)$data['salary_bhd'];
-                if (isset($data['vacancies_count'])) $j['vacancies_count'] = max(1, (int)$data['vacancies_count']);
-                if (isset($data['status'])) $j['status'] = trim($data['status']);
-                if (isset($data['requirements'])) $j['requirements'] = trim($data['requirements']);
-                if (isset($data['description'])) $j['description'] = trim($data['description']);
-                $j['updated_at'] = date('Y-m-d H:i:s');
+            if ((int)$j['id'] === $id) {
+                if ($title !== null) $j['job_title'] = $title;
+                if ($company !== null) $j['company_name'] = $company;
+                if ($cr !== null) $j['employer_cr'] = $cr;
+                if ($dept !== null) $j['department'] = $dept;
+                if ($salary !== null) $j['salary_offered_bhd'] = $salary;
+                if ($vacancies !== null) $j['vacancies_count'] = $vacancies;
+                if ($status !== null) $j['status'] = $status;
+                if ($reqs !== null) $j['requirements'] = $reqs;
+                if ($desc !== null) $j['description'] = $desc;
+                $j['updated_at'] = $now;
                 $found = true;
                 break;
             }
         }
 
-        if (!$found) return null;
+        if (!$found && !Database::isMySQL()) return null;
 
         $store['jobs'] = $jobs;
         Database::saveStore($store);
@@ -168,8 +254,20 @@ class Job {
         $jobs = $store['jobs'] ?? [];
         $initial = count($jobs);
 
-        $jobs = array_values(array_filter($jobs, fn($j) => $j['id'] !== $id));
+        $jobs = array_values(array_filter($jobs, fn($j) => (int)$j['id'] !== $id));
         if (count($jobs) === $initial) return false;
+
+        if (Database::isMySQL()) {
+            try {
+                $pdo = Database::getConnection();
+                if ($pdo) {
+                    $delStmt = $pdo->prepare("DELETE FROM jobs WHERE id = :id");
+                    $delStmt->execute([':id' => $id]);
+                }
+            } catch (\Exception $e) {
+                error_log("Job::delete direct MySQL error: " . $e->getMessage());
+            }
+        }
 
         $store['jobs'] = $jobs;
         Database::saveStore($store);

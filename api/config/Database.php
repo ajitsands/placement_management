@@ -618,10 +618,10 @@ class Database {
 
     private static function saveJobsToMySQL(PDO $pdo, array $jobs): void {
         try {
-            self::ensureJobsTable($pdo);
             $stmt = $pdo->prepare("INSERT INTO jobs (id, job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, created_at)
                 VALUES (:id, :job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :created_at)
                 ON DUPLICATE KEY UPDATE
+                    job_code = VALUES(job_code),
                     job_title = VALUES(job_title),
                     company_name = VALUES(company_name),
                     employer_cr = VALUES(employer_cr),
@@ -633,29 +633,36 @@ class Database {
                     description = VALUES(description)");
 
             foreach ($jobs as $j) {
+                $status = strtolower(trim($j['status'] ?? 'active'));
+                if ($status === 'open') $status = 'active';
+                if (!in_array($status, ['active', 'filled', 'closed'])) $status = 'active';
+
+                $salary = (float)($j['salary_offered_bhd'] ?? $j['salary_bhd'] ?? 500.0);
+                $vacancies = max(1, (int)($j['vacancies_count'] ?? 1));
+                $code = !empty($j['job_code']) ? trim($j['job_code']) : ('JOB-' . date('Y') . '-' . sprintf('%03d', (int)$j['id']));
+
                 $stmt->execute([
                     ':id' => (int)$j['id'],
-                    ':job_code' => $j['job_code'],
-                    ':job_title' => $j['job_title'],
-                    ':company_name' => $j['company_name'],
+                    ':job_code' => $code,
+                    ':job_title' => trim($j['job_title'] ?? $j['position_title'] ?? 'Job Position'),
+                    ':company_name' => trim($j['company_name'] ?? 'Employer'),
                     ':employer_cr' => $j['employer_cr'] ?? '',
                     ':department' => $j['department'] ?? 'General',
-                    ':salary_offered_bhd' => (float)($j['salary_offered_bhd'] ?? 500.0),
-                    ':vacancies_count' => (int)($j['vacancies_count'] ?? 1),
-                    ':status' => $j['status'] ?? 'active',
+                    ':salary_offered_bhd' => $salary,
+                    ':vacancies_count' => $vacancies,
+                    ':status' => $status,
                     ':requirements' => $j['requirements'] ?? '',
                     ':description' => $j['description'] ?? '',
                     ':created_at' => $j['created_at'] ?? date('Y-m-d H:i:s')
                 ]);
             }
         } catch (Exception $e) {
-            // Ignore error if schema being populated
+            error_log("saveJobsToMySQL Error: " . $e->getMessage());
         }
     }
 
     private static function saveChecklistMastersToMySQL(PDO $pdo, array $items): void {
         try {
-            self::ensureChecklistTables($pdo);
             $stmt = $pdo->prepare("INSERT INTO checklist_masters (id, code, title, description, category, weight, is_mandatory, display_order, is_active, created_at)
                 VALUES (:id, :code, :title, :description, :category, :weight, :is_mandatory, :display_order, :is_active, :created_at)
                 ON DUPLICATE KEY UPDATE
@@ -688,7 +695,6 @@ class Database {
 
     private static function saveDocumentCategoriesToMySQL(PDO $pdo, array $items): void {
         try {
-            self::ensureDocumentCategoriesTable($pdo);
             $stmt = $pdo->prepare("INSERT INTO document_categories (id, code, name, icon, description, is_mandatory, display_order, is_active, created_at)
                 VALUES (:id, :code, :name, :icon, :description, :is_mandatory, :display_order, :is_active, :created_at)
                 ON DUPLICATE KEY UPDATE
@@ -1077,6 +1083,11 @@ class Database {
                 self::saveEventAttendeesToMySQL($pdo, $data['event_attendees']);
             }
 
+            // 12. Employer Jobs & Vacancies
+            if (!empty($data['jobs']) && is_array($data['jobs'])) {
+                self::saveJobsToMySQL($pdo, $data['jobs']);
+            }
+
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -1086,7 +1097,6 @@ class Database {
 
     private static function saveEventsToMySQL(PDO $pdo, array $events): void {
         try {
-            self::ensureEventsTables($pdo);
             $stmt = $pdo->prepare("INSERT INTO events (id, event_code, module_type, title, event_date, event_time, location, remarks, status, created_by, created_at)
                 VALUES (:id, :event_code, :module_type, :title, :event_date, :event_time, :location, :remarks, :status, :created_by, :created_at)
                 ON DUPLICATE KEY UPDATE
