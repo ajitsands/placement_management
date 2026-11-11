@@ -7675,6 +7675,9 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
     switch (cat) {
       case 'approval':     return { icon: '🏛️', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Government Approval' };
       case 'registration': return { icon: '👤', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', label: 'Registration' };
+      case 'event':        return { icon: '🎓', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.12)', label: 'Training / Career Fair' };
+      case 'training':     return { icon: '🎓', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.12)', label: 'Training Session' };
+      case 'career_fair':  return { icon: '🎪', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', label: 'Career Fair' };
       case 'renewal':      return { icon: '🔄', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)', label: 'Renewal' };
       case 'checklist':    return { icon: '📋', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', label: 'Checklist' };
       case 'document':     return { icon: '📄', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', label: 'Document' };
@@ -7697,7 +7700,7 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
             <span>📜</span> Candidate Activity Log & Lifecycle Audit
           </h2>
           <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
-            Unified chronological audit trail across registrations, renewals, placements, retention milestones, subsidy claims, disbursements, and disputes.
+            Unified chronological audit trail across registrations, training sessions & career fairs attended, renewals, placements, retention milestones, subsidy claims, disbursements, and disputes.
           </p>
         </div>
         <button
@@ -7893,6 +7896,8 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
             {[
               { key: 'all', label: 'All Activities' },
+              { key: 'event', label: '🎓 Training & Career Fairs' },
+              { key: 'approval', label: '🏛️ Approvals' },
               { key: 'registration', label: 'Registration' },
               { key: 'renewal', label: 'Renewals' },
               { key: 'checklist', label: 'Checklist' },
@@ -8029,11 +8034,29 @@ function CandidateActivityLogModal({ state, initialCandidateId }) {
                           </span>
                         )}
 
-                        {act.status && (
-                          <span className="badge badge-neutral" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', textTransform: 'capitalize' }}>
-                            {act.status}
-                          </span>
-                        )}
+                        {act.status && (() => {
+                          const st = String(act.status).toLowerCase();
+                          const isAttended = st === 'attended' || st === 'present';
+                          const isRegistered = st === 'registered';
+                          const isAbsent = st === 'absent';
+                          let badgeBg = 'var(--bg-tertiary)';
+                          let badgeColor = 'var(--text-secondary)';
+                          if (isAttended) {
+                            badgeBg = 'rgba(16, 185, 129, 0.15)';
+                            badgeColor = '#059669';
+                          } else if (isRegistered) {
+                            badgeBg = 'rgba(2, 132, 199, 0.15)';
+                            badgeColor = '#0284c7';
+                          } else if (isAbsent) {
+                            badgeBg = 'rgba(239, 68, 68, 0.15)';
+                            badgeColor = '#dc2626';
+                          }
+                          return (
+                            <span className="badge" style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem', textTransform: 'capitalize', background: badgeBg, color: badgeColor, fontWeight: 700 }}>
+                              {act.status}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

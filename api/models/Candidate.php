@@ -890,6 +890,63 @@ class Candidate {
             }
         }
 
+        // 11. Training Sessions & Career Fair Events (Attended / Registered)
+        $eventsMap = [];
+        foreach ($store['events'] ?? [] as $ev) {
+            $eventsMap[(int)$ev['id']] = $ev;
+        }
+
+        foreach ($store['event_attendees'] ?? [] as $ea) {
+            if ((int)$ea['candidate_id'] === $candidateId) {
+                $eventId = (int)$ea['event_id'];
+                $ev = $eventsMap[$eventId] ?? null;
+                $evModule = strtolower($ev['module_type'] ?? 'training');
+                $isTraining = $evModule === 'training';
+                $moduleName = $isTraining ? 'Training Session' : 'Career Fair';
+                $moduleIcon = $isTraining ? '🎓' : '🎪';
+
+                $attStatus = strtolower($ea['status'] ?? 'attended');
+                $statusLabel = ucfirst($attStatus);
+                $evDate = $ev['event_date'] ?? substr($ea['attended_at'] ?? $ea['created_at'] ?? date('Y-m-d'), 0, 10);
+                $attTime = $ea['attended_at'] ?? $ea['created_at'] ?? ($evDate . ' 10:00:00');
+
+                $evTitle = $ev['title'] ?? ($moduleName . ' #' . $eventId);
+                $title = "{$moduleIcon} {$moduleName}: {$evTitle}";
+
+                $descParts = [];
+                $descParts[] = "Candidate {$statusLabel} official {$moduleName} '{$evTitle}'";
+                if (!empty($ev['event_code'])) {
+                    $descParts[] = "Code: {$ev['event_code']}";
+                }
+                if (!empty($ev['location'])) {
+                    $descParts[] = "Location: {$ev['location']}";
+                }
+                if (!empty($ev['center'])) {
+                    $descParts[] = "Center: {$ev['center']}";
+                }
+                if (!empty($ev['event_time'])) {
+                    $descParts[] = "Time: {$ev['event_time']}";
+                }
+                $descParts[] = "Attendance Status: {$statusLabel}";
+                if (!empty($ea['notes'])) {
+                    $descParts[] = "Notes: {$ea['notes']}";
+                }
+
+                $activities[] = [
+                    'id'        => 'act_evt_' . $ea['id'],
+                    'timestamp' => $attTime,
+                    'date'      => $evDate,
+                    'category'  => 'event',
+                    'title'     => $title,
+                    'ref'       => $ev['event_code'] ?? ("EVT-{$eventId}"),
+                    'amount'    => null,
+                    'status'    => $attStatus,
+                    'details'   => implode(' • ', $descParts) . '.',
+                    'actor'     => $ev['created_by_name'] ?? ($candidate['case_manager_name'] ?: 'Job Center Coordinator')
+                ];
+            }
+        }
+
         // Sort descending by timestamp
         usort($activities, function($a, $b) {
             return strcmp($b['timestamp'], $a['timestamp']);
