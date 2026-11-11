@@ -26,3 +26,4 @@ WHERE `approved_by_job_center` IS NULL OR `approved_by_job_center` = '';
 UPDATE `candidates`
 SET `approved_by_tamkeen` = 'No'
 WHERE `approved_by_tamkeen` IS NULL OR `approved_by_tamkeen` = '';
+
