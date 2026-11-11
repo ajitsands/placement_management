@@ -16,9 +16,8 @@ function JobsView({ state }) {
   };
 
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
-  const [selectedDepartment, setSelectedDepartment] = useState(() => readSaved('department'));
-  const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
   const [selectedCaseManager, setSelectedCaseManager] = useState(() => readSaved('case_manager'));
+  const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
   const [myJobsOnly, setMyJobsOnly] = useState(() => readSaved('my_jobs_only') === 'true');
 
@@ -28,9 +27,8 @@ function JobsView({ state }) {
   };
 
   const handleEmployerChange = persist(setSelectedEmployer, 'employer');
-  const handleDepartmentChange = persist(setSelectedDepartment, 'department');
-  const handlePositionChange = persist(setSelectedPosition, 'position');
   const handleCaseManagerChange = persist(setSelectedCaseManager, 'case_manager');
+  const handlePositionChange = persist(setSelectedPosition, 'position');
   const handleStatusChange = persist(setStatusFilter, 'status');
   const handleMyJobsToggle = (val) => {
     setMyJobsOnly(val);
@@ -39,9 +37,8 @@ function JobsView({ state }) {
 
   const handleResetAll = () => {
     handleEmployerChange('');
-    handleDepartmentChange('');
-    handlePositionChange('');
     handleCaseManagerChange('');
+    handlePositionChange('');
     handleStatusChange('active');
     handleMyJobsToggle(false);
   };
@@ -57,7 +54,7 @@ function JobsView({ state }) {
     );
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (myJobsOnly ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (myJobsOnly ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -76,17 +73,6 @@ function JobsView({ state }) {
     });
     const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: '', label: `All Employers (${list.length})`, subLabel: 'Filter by employer' }, ...list];
-  }, [jobs]);
-
-  // Department Filter Options
-  const departmentOptions = useMemo(() => {
-    const set = new Set();
-    (jobs || []).forEach(j => {
-      const dep = (j.department || '').trim();
-      if (dep) set.add(dep);
-    });
-    const list = Array.from(set).sort().map(d => ({ value: d, label: d, subLabel: 'Department / Division' }));
-    return [{ value: '', label: `All Departments (${list.length})`, subLabel: 'Filter by department' }, ...list];
   }, [jobs]);
 
   // Position / Job Title Filter Options
@@ -213,9 +199,8 @@ function JobsView({ state }) {
         if (!match) return false;
       }
 
-      // 3. Employer, Department, Position Filters
+      // 3. Employer & Position Filters
       if (selectedEmployer && strcasecmp(j.company_name, selectedEmployer) !== 0) return false;
-      if (selectedDepartment && strcasecmp(j.department, selectedDepartment) !== 0) return false;
       if (selectedPosition && strcasecmp(j.job_title, selectedPosition) !== 0) return false;
 
       // 4. Status Filter
@@ -241,7 +226,7 @@ function JobsView({ state }) {
       }
       return true;
     });
-  }, [jobs, selectedEmployer, selectedDepartment, selectedPosition, selectedCaseManager, statusFilter, myJobsOnly, currentUser]);
+  }, [jobs, selectedEmployer, selectedPosition, selectedCaseManager, statusFilter, myJobsOnly, currentUser]);
 
   function strcasecmp(a, b) {
     return String(a || '').toLowerCase().localeCompare(String(b || '').toLowerCase());
@@ -688,7 +673,7 @@ function JobsView({ state }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem' }}>
           {/* Employer Filter */}
-          <div style={filterBox('1 1 230px', '200px')}>
+          <div style={filterBox('1 1 240px', '210px')}>
             <label style={labelStyle}><span>🏢</span> Employer:</label>
             <div style={{ flex: 1, minWidth: '140px' }}>
               {SearchableSelect ? (
@@ -707,50 +692,10 @@ function JobsView({ state }) {
             </div>
           </div>
 
-          {/* Department Filter */}
-          <div style={filterBox('1 1 200px', '180px')}>
-            <label style={labelStyle}><span>🏷️</span> Department:</label>
-            <div style={{ flex: 1, minWidth: '120px' }}>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={departmentOptions}
-                  value={selectedDepartment}
-                  onChange={handleDepartmentChange}
-                  placeholder="All Departments"
-                  searchPlaceholder="Search department..."
-                />
-              ) : (
-                <select className="select-control" value={selectedDepartment} onChange={e => handleDepartmentChange(e.target.value)}>
-                  {departmentOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-              )}
-            </div>
-          </div>
-
-          {/* Position Filter */}
-          <div style={filterBox('1 1 210px', '190px')}>
-            <label style={labelStyle}><span>💼</span> Position:</label>
-            <div style={{ flex: 1, minWidth: '130px' }}>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={positionOptions}
-                  value={selectedPosition}
-                  onChange={handlePositionChange}
-                  placeholder="All Positions"
-                  searchPlaceholder="Search job position..."
-                />
-              ) : (
-                <select className="select-control" value={selectedPosition} onChange={e => handlePositionChange(e.target.value)}>
-                  {positionOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-              )}
-            </div>
-          </div>
-
-          {/* Case Manager Filter */}
-          <div style={filterBox('1 1 220px', '190px')}>
+          {/* Case Manager Filter (Instead of Department Filter) */}
+          <div style={filterBox('1 1 240px', '210px')}>
             <label style={labelStyle}><span>👔</span> Case Manager:</label>
-            <div style={{ flex: 1, minWidth: '130px' }}>
+            <div style={{ flex: 1, minWidth: '140px' }}>
               {SearchableSelect ? (
                 <SearchableSelect
                   options={caseManagerOptions}
@@ -762,6 +707,26 @@ function JobsView({ state }) {
               ) : (
                 <select className="select-control" value={selectedCaseManager} onChange={e => handleCaseManagerChange(e.target.value)}>
                   {caseManagerOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Position Filter */}
+          <div style={filterBox('1 1 240px', '210px')}>
+            <label style={labelStyle}><span>💼</span> Position:</label>
+            <div style={{ flex: 1, minWidth: '140px' }}>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={positionOptions}
+                  value={selectedPosition}
+                  onChange={handlePositionChange}
+                  placeholder="All Positions"
+                  searchPlaceholder="Search job position..."
+                />
+              ) : (
+                <select className="select-control" value={selectedPosition} onChange={e => handlePositionChange(e.target.value)}>
+                  {positionOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               )}
             </div>
