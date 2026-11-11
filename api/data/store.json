@@ -189,7 +189,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 11:13:00",
-            "updated_at": "2026-11-10 15:23:49",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -249,14 +249,14 @@
                     "completed": false
                 }
             ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
             "approved_by_tamkeen": "Yes",
             "tamkeen_approval_date": "2026-11-10",
-            "tamkeen_approval_notes": "CLI test approval",
+            "tamkeen_approval_notes": "",
             "tamkeen_approved_by": "Super Administrator",
-            "tamkeen_approved_at": "2026-11-10 15:23:49",
-            "approved_by_job_center": "Yes",
-            "job_center_approved_at": "2026-11-10",
-            "job_center_approved_by": "Husain"
+            "tamkeen_approved_at": "2026-11-10 15:48:28"
         },
         {
             "id": 2,
@@ -290,7 +290,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 11:15:24",
-            "updated_at": "2026-11-10 14:15:24",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -349,7 +349,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         },
         {
             "id": 3,
@@ -383,7 +391,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 11:40:28",
-            "updated_at": "2026-11-10 14:40:28",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -442,7 +450,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         },
         {
             "id": 4,
@@ -476,7 +492,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 13:05:20",
-            "updated_at": "2026-11-10 16:05:20",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -535,7 +551,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         },
         {
             "id": 5,
@@ -569,7 +593,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 13:06:06",
-            "updated_at": "2026-11-10 16:06:06",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -628,7 +652,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         },
         {
             "id": 6,
@@ -662,7 +694,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 13:21:19",
-            "updated_at": "2026-11-10 16:21:19",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -721,7 +753,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         },
         {
             "id": 7,
@@ -755,7 +795,7 @@
             "documents": [],
             "created_by": null,
             "created_at": "2026-11-10 13:27:25",
-            "updated_at": "2026-11-10 16:27:25",
+            "updated_at": "2026-11-10 18:48:28",
             "job_id": null,
             "job_code": null,
             "checklist_completion_pct": 0,
@@ -814,7 +854,15 @@
                     "is_mandatory": true,
                     "completed": false
                 }
-            ]
+            ],
+            "approved_by_job_center": "Yes",
+            "job_center_approved_at": "2026-11-10 00:00:00",
+            "job_center_approved_by": "Husain",
+            "approved_by_tamkeen": "No",
+            "tamkeen_approval_date": null,
+            "tamkeen_approval_notes": null,
+            "tamkeen_approved_by": null,
+            "tamkeen_approved_at": null
         }
     ],
     "jobs": [
@@ -1562,9 +1610,9 @@
             "entity_type": "candidate",
             "entity_id": 1,
             "entity_ref": "JCP\/26\/268501",
-            "details": "Candidate ANU (CPR: 12121212) approved by Tamkeen on 2026-11-10. Notes: CLI test approval. Approved by Super Administrator.",
-            "ip_address": "127.0.0.1",
-            "created_at": "2026-11-10 15:23:49"
+            "details": "Candidate ANU (CPR: 12121212) approved by Tamkeen on 2026-11-10. Notes: . Approved by Super Administrator.",
+            "ip_address": "::1",
+            "created_at": "2026-11-10 15:48:28"
         }
     ]
 }
