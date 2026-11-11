@@ -266,6 +266,20 @@ function EventsView({ state, moduleType = 'training' }) {
       ? eventObj.status.charAt(0).toUpperCase() + eventObj.status.slice(1)
       : 'Active';
 
+    const totalCandidates = list.length;
+    const attendedCandidates = list.filter(a => {
+      const st = a.status ? String(a.status).trim().toLowerCase() : 'attended';
+      return st === 'attended' || st === 'present';
+    }).length;
+    const registeredCandidates = list.filter(a => {
+      const st = a.status ? String(a.status).trim().toLowerCase() : '';
+      return st === 'registered';
+    }).length;
+    const absentCandidates = list.filter(a => {
+      const st = a.status ? String(a.status).trim().toLowerCase() : '';
+      return st === 'absent';
+    }).length;
+
     // 1. Event Details Header Metadata Block (Key-Value rows at the top of the sheet)
     const metaLines = [
       [escapeCell(`EVENT ATTENDANCE REPORT - ${moduleLabel.toUpperCase()}`)].join(','),
@@ -280,7 +294,10 @@ function EventsView({ state, moduleType = 'training' }) {
       [escapeCell('Location:'), escapeCell(eventObj?.location || '—')].join(','),
       [escapeCell('Event Status:'), escapeCell(eventStatusLabel)].join(','),
       [escapeCell('Remarks / Agenda:'), escapeCell(eventObj?.remarks || '—')].join(','),
-      [escapeCell('Total Candidates Attended:'), escapeCell(list.length)].join(','),
+      [escapeCell('Total Candidates:'), escapeCell(totalCandidates)].join(','),
+      [escapeCell('Total Candidates Attended:'), escapeCell(attendedCandidates)].join(','),
+      [escapeCell('Total Candidates Registered:'), escapeCell(registeredCandidates)].join(','),
+      [escapeCell('Total Candidates Absent:'), escapeCell(absentCandidates)].join(','),
       '',
       [escapeCell('--- CANDIDATE ATTENDEES LIST ---')].join(',')
     ];
@@ -341,13 +358,13 @@ function EventsView({ state, moduleType = 'training' }) {
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 500);
 
-    window.AppStore.showNotification(`Successfully exported ${list.length} attendee(s) to Excel`, 'success');
+    window.AppStore.showNotification(`Successfully exported ${list.length} candidate(s) to Excel`, 'success');
   };
 
   // Export Attendees to Excel from Studio Modal
   const handleExportAttendeesCSV = () => {
     if (!attendeesList || attendeesList.length === 0) {
-      window.AppStore.showNotification(`No candidates have attended "${attendeesEvent?.title || 'this event'}" yet.`, 'warning');
+      window.AppStore.showNotification(`No candidates recorded for "${attendeesEvent?.title || 'this event'}" yet.`, 'warning');
       return;
     }
     const safeCode = (attendeesEvent?.event_code || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -363,7 +380,7 @@ function EventsView({ state, moduleType = 'training' }) {
       const attendees = res?.attendees || [];
 
       if (!attendees || attendees.length === 0) {
-        window.AppStore.showNotification(`No candidates have attended "${event.title}" yet.`, 'warning');
+        window.AppStore.showNotification(`No candidates recorded for "${event.title}" yet.`, 'warning');
         return;
       }
 
@@ -717,7 +734,7 @@ function EventsView({ state, moduleType = 'training' }) {
                     title="View attendee details & register talent"
                   >
                     <span>👥</span>
-                    <span>{attendeesCount} Attended Candidate{attendeesCount === 1 ? '' : 's'}</span>
+                    <span>{attendeesCount} Candidate{attendeesCount === 1 ? '' : 's'}</span>
                     <span style={{ fontSize: '0.7rem' }}>→</span>
                   </button>
 
@@ -1611,10 +1628,15 @@ function EventsView({ state, moduleType = 'training' }) {
               )}
             </div>
 
-            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Total Attendees Recorded: <strong>{attendeesList.length}</strong>
-              </span>
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
+                <span>Total Candidates: <strong>{attendeesList.length}</strong></span>
+                <span>Attended: <strong style={{ color: '#10b981' }}>{attendeesList.filter(a => (a.status ? String(a.status).toLowerCase() : 'attended') === 'attended').length}</strong></span>
+                <span>Registered: <strong style={{ color: '#0284c7' }}>{attendeesList.filter(a => String(a.status || '').toLowerCase() === 'registered').length}</strong></span>
+                {attendeesList.some(a => String(a.status || '').toLowerCase() === 'absent') && (
+                  <span>Absent: <strong style={{ color: '#ef4444' }}>{attendeesList.filter(a => String(a.status || '').toLowerCase() === 'absent').length}</strong></span>
+                )}
+              </div>
               <button className="btn btn-outline btn-sm" onClick={() => setIsAttendeesModalOpen(false)}>
                 Close Studio
               </button>
