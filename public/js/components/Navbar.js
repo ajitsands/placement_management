@@ -178,28 +178,8 @@ function getUserInitials(name) {
 
 function Navbar({ state }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [eventsMenuOpen, setEventsMenuOpen] = useState(false);
-  const eventsMenuRef = useRef(null);
-
   const { currentUser = {}, activeTab, theme, settings = {}, databaseStatus, language = 'en', events = [] } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
-
-  // Count active events for badge
-  const activeEventsCount = (events || []).filter(e => {
-    const s = (e.status || 'active').toLowerCase();
-    return s === 'active' || s === 'upcoming';
-  }).length;
-
-  // Close events dropdown when clicking outside
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (eventsMenuRef.current && !eventsMenuRef.current.contains(e.target)) {
-        setEventsMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
 
   // Dedicated horizontal menu items (clean 10 core operational modules for seamless laptop resolution fit)
   const navItems = [
@@ -325,84 +305,6 @@ function Navbar({ state }) {
               )}
             </button>
 
-            {/* Events Hub Dropdown (Training & Career Fair) */}
-            <div className="top-events-dropdown-wrapper" ref={eventsMenuRef} style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className={`top-events-hub-btn ${activeTab === 'training' || activeTab === 'career_fair' ? 'active' : ''}`}
-                onClick={() => setEventsMenuOpen(!eventsMenuOpen)}
-                title="Workforce Events Hub (Training Sessions & Career Fairs)"
-                aria-label="Events Hub"
-              >
-                <span style={{ fontSize: '0.95rem' }}>🎪</span>
-                <span className="events-hub-label">Events Hub</span>
-                {activeEventsCount > 0 && (
-                  <span className="events-hub-badge">{activeEventsCount}</span>
-                )}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    width: '11px',
-                    height: '11px',
-                    transition: 'transform 0.15s ease',
-                    transform: eventsMenuOpen ? 'rotate(180deg)' : 'none'
-                  }}
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-
-              {eventsMenuOpen && (
-                <div className="top-events-dropdown-menu">
-                  <div className="top-events-dropdown-header">
-                    <span style={{ fontWeight: 800, fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Workforce Events Hub
-                    </span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 700 }}>
-                      {activeEventsCount} Active
-                    </span>
-                  </div>
-
-                  <div
-                    className={`top-events-item ${activeTab === 'training' ? 'active' : ''}`}
-                    onClick={() => {
-                      handleNavClick('training');
-                      setEventsMenuOpen(false);
-                    }}
-                  >
-                    <div className="top-events-item-icon" style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}>
-                      🎓
-                    </div>
-                    <div className="top-events-item-info">
-                      <div className="top-events-item-title">Training Module</div>
-                      <div className="top-events-item-desc">Workforce readiness workshops & candidate attendance</div>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`top-events-item ${activeTab === 'career_fair' ? 'active' : ''}`}
-                    onClick={() => {
-                      handleNavClick('career_fair');
-                      setEventsMenuOpen(false);
-                    }}
-                  >
-                    <div className="top-events-item-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#059669' }}>
-                      🎪
-                    </div>
-                    <div className="top-events-item-info">
-                      <div className="top-events-item-title">Career Fair Module</div>
-                      <div className="top-events-item-desc">Hiring drives, direct candidate intake & interviews</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Settings (Icon Only with Tooltip, No Text) */}
             <button
               type="button"
@@ -497,26 +399,6 @@ function Navbar({ state }) {
                 </li>
               );
             })}
-
-            {/* Mobile-only Events links inside slide-down drawer */}
-            {mobileOpen && (
-              <>
-                <li
-                  className={`horizontal-menu-item ${activeTab === 'training' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('training')}
-                >
-                  <span className="menu-icon"><NavIcon type="training" /></span>
-                  <span className="menu-label">Training Module</span>
-                </li>
-                <li
-                  className={`horizontal-menu-item ${activeTab === 'career_fair' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('career_fair')}
-                >
-                  <span className="menu-icon"><NavIcon type="career_fair" /></span>
-                  <span className="menu-label">Career Fair Module</span>
-                </li>
-              </>
-            )}
           </ul>
         </div>
       </nav>

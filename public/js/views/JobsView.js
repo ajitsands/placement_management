@@ -15,11 +15,18 @@ function JobsView({ state }) {
     return v !== null ? v : d;
   };
 
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
+
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
   const [selectedCaseManager, setSelectedCaseManager] = useState(() => readSaved('case_manager'));
   const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
-  const [myJobsOnly, setMyJobsOnly] = useState(() => readSaved('my_jobs_only') === 'true');
+  // Default is "My Assigned Jobs" (true) for Case Managers; Admins have only Global View (false)
+  const [myJobsOnly, setMyJobsOnly] = useState(() => {
+    if (isAdminOrSuper) return false;
+    const saved = sessionStorage.getItem('sands_jobs_filter_my_jobs_only');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   const persist = (setter, key) => (val) => {
     setter(val);
@@ -40,7 +47,9 @@ function JobsView({ state }) {
     handleCaseManagerChange('');
     handlePositionChange('');
     handleStatusChange('active');
-    handleMyJobsToggle(false);
+    if (!isAdminOrSuper) {
+      handleMyJobsToggle(true);
+    }
   };
 
   const isJobAssignedToUser = (job, user) => {
@@ -54,7 +63,7 @@ function JobsView({ state }) {
     );
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (myJobsOnly ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (!isAdminOrSuper && !myJobsOnly ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -189,8 +198,8 @@ function JobsView({ state }) {
       const cmNames = cms.map(cm => `${cm.name || cm.full_name || cm.username || ''} ${cm.code || ''}`).join(' ');
       return { ...j, assigned_cm_names: cmNames };
     }).filter(j => {
-      // 1. My Jobs Scope Filter
-      if (myJobsOnly && !isJobAssignedToUser(j, currentUser)) return false;
+      // 1. My Jobs Scope Filter (Case Managers only; Admins always have Global View)
+      if (!isAdminOrSuper && myJobsOnly && !isJobAssignedToUser(j, currentUser)) return false;
 
       // 2. Case Manager Dropdown Filter
       if (selectedCaseManager) {
@@ -226,7 +235,7 @@ function JobsView({ state }) {
       }
       return true;
     });
-  }, [jobs, selectedEmployer, selectedPosition, selectedCaseManager, statusFilter, myJobsOnly, currentUser]);
+  }, [jobs, selectedEmployer, selectedPosition, selectedCaseManager, statusFilter, myJobsOnly, currentUser, isAdminOrSuper]);
 
   function strcasecmp(a, b) {
     return String(a || '').toLowerCase().localeCompare(String(b || '').toLowerCase());
@@ -593,59 +602,71 @@ function JobsView({ state }) {
           <p className="page-subtitle">
             Employer job openings, qualifications, basic wage subsidy gates, and candidate allocations
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className={`btn btn-sm ${!myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
-              style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-              onClick={() => handleMyJobsToggle(false)}
-            >
-              <span>🌐</span> Global View: All Jobs
-              <span style={{
-                background: !myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
-                color: !myJobsOnly ? '#ffffff' : 'var(--text-primary)',
-                borderRadius: '10px',
-                padding: '0.05rem 0.45rem',
-                fontSize: '0.74rem'
-              }}>
-                {jobs.length}
-              </span>
-            </button>
+          {!isAdminOrSuper && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+              {/* Tab 1: My Assigned Jobs (Default for Case Manager) */}
+              <button
+                type="button"
+                className={`btn btn-sm ${myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
+                style={{
+                  fontSize: '0.82rem',
+                  padding: '0.35rem 0.9rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  borderColor: myJobsOnly ? 'var(--primary)' : 'var(--border-dark, #cbd5e1)'
+                }}
+                onClick={() => handleMyJobsToggle(true)}
+                title="Focus on job vacancies assigned to your profile for task management"
+              >
+                <span>👤</span> My Assigned Jobs
+                <span style={{
+                  background: myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
+                  color: '#ffffff',
+                  borderRadius: '10px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700
+                }}>
+                  {myAssignedJobsCount}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              className={`btn btn-sm ${myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
-              style={{
-                fontSize: '0.82rem',
-                padding: '0.35rem 0.9rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                borderColor: myJobsOnly ? 'var(--primary)' : 'var(--border-dark, #cbd5e1)'
-              }}
-              onClick={() => handleMyJobsToggle(true)}
-              title="Focus only on job vacancies assigned to your profile for task management"
-            >
-              <span>👤</span> My Assigned Jobs
-              <span style={{
-                background: myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
-                color: '#ffffff',
-                borderRadius: '10px',
-                padding: '0.05rem 0.45rem',
-                fontSize: '0.74rem',
-                fontWeight: 700
-              }}>
-                {myAssignedJobsCount}
-              </span>
-            </button>
+              {/* Tab 2: Global View */}
+              <button
+                type="button"
+                className={`btn btn-sm ${!myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
+                style={{
+                  fontSize: '0.82rem',
+                  padding: '0.35rem 0.9rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+                onClick={() => handleMyJobsToggle(false)}
+                title="View all employer job vacancies across all case managers"
+              >
+                <span>🌐</span> Global View
+                <span style={{
+                  background: !myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                  color: !myJobsOnly ? '#ffffff' : 'var(--text-primary)',
+                  borderRadius: '10px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.74rem'
+                }}>
+                  {jobs.length}
+                </span>
+              </button>
 
-            {myJobsOnly && (
-              <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600, marginLeft: '0.25rem' }}>
-                ⚡ Focused on your assigned vacancies for task management
-              </span>
-            )}
-          </div>
+              {myJobsOnly && (
+                <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600, marginLeft: '0.25rem' }}>
+                  ⚡ Focused on your assigned vacancies
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="header-actions">
           <button
