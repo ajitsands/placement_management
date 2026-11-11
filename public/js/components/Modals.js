@@ -2388,11 +2388,11 @@ function JobModal({ state, job }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '680px' }}>
-      <div className="modal-header">
+    <div className="modal-content" style={{ maxWidth: '880px', width: '92%', maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="modal-header" style={{ padding: '1.1rem 1.4rem' }}>
         <div>
-          <h2 className="modal-title">{isEditing ? '✏️ Edit Job Vacancy' : '➕ Post New Employer Job Vacancy'}</h2>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          <h2 className="modal-title" style={{ fontSize: '1.25rem' }}>{isEditing ? '✏️ Edit Job Vacancy' : '➕ Post New Employer Job Vacancy'}</h2>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             {isEditing ? `Job Code: ${job.job_code}` : 'Define an employer job position to link with national candidates'}
           </span>
         </div>
@@ -2400,15 +2400,16 @@ function JobModal({ state, job }) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', padding: '1.25rem 1.4rem' }}>
           
           {/* Row 1: Employer Company Name & CR */}
-          <div className="form-row">
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Employer Company Name *</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Employer Company Name *</label>
               <input
                 type="text"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.company_name}
                 onChange={e => handleCompanyChange(e.target.value)}
                 list="existing-job-employers-list"
@@ -2422,10 +2423,11 @@ function JobModal({ state, job }) {
               </datalist>
             </div>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Commercial Registration (CR)</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Commercial Registration (CR)</label>
               <input
                 type="text"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.employer_cr}
                 onChange={e => setForm({ ...form, employer_cr: e.target.value })}
                 list="existing-job-crs-list"
@@ -2440,12 +2442,13 @@ function JobModal({ state, job }) {
           </div>
 
           {/* Row 2: Position Title & Department */}
-          <div className="form-row">
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Position / Job Title *</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Position / Job Title *</label>
               <input
                 type="text"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.position_title}
                 onChange={e => setForm({ ...form, position_title: e.target.value })}
                 list="existing-job-positions-list"
@@ -2459,10 +2462,11 @@ function JobModal({ state, job }) {
               </datalist>
             </div>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Department / Division</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Department / Division</label>
               <input
                 type="text"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.department}
                 onChange={e => setForm({ ...form, department: e.target.value })}
                 list="existing-job-departments-list"
@@ -2477,37 +2481,40 @@ function JobModal({ state, job }) {
           </div>
 
           {/* Row 3: Salary, Vacancies & Status */}
-          <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Salary Offered ({currency}) *</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Salary Offered ({currency}) *</label>
               <input
                 type="number"
                 step="0.001"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.salary_bhd}
                 onChange={e => setForm({ ...form, salary_bhd: e.target.value })}
                 required
               />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Total Vacancies *</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Total Vacancies *</label>
               <input
                 type="number"
                 min="1"
                 className="input-control"
+                style={{ height: '40px', fontSize: '0.88rem' }}
                 value={form.vacancies_count}
                 onChange={e => setForm({ ...form, vacancies_count: e.target.value })}
                 required
               />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Vacancy Status</label>
+              <label className="form-label" style={{ fontWeight: 700 }}>Vacancy Status</label>
               <select
                 className="select-control"
+                style={{ height: '40px', fontSize: '0.88rem', fontWeight: 600 }}
                 value={form.status === 'closed' ? 'closed' : 'active'}
                 onChange={e => setForm({ ...form, status: e.target.value })}
               >
-                <option value="active">Active</option>
+                <option value="active">Active (Open for Placement)</option>
                 <option value="closed">Closed</option>
               </select>
             </div>
@@ -2515,31 +2522,35 @@ function JobModal({ state, job }) {
 
           {/* Row 4: Job Requirements */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Candidate Requirements / Qualifications</label>
+            <label className="form-label" style={{ fontWeight: 700 }}>Candidate Requirements / Qualifications</label>
             <textarea
               className="input-control"
-              rows="2"
+              rows="3"
+              style={{ fontSize: '0.86rem', resize: 'vertical', minHeight: '75px', padding: '0.55rem 0.75rem' }}
               value={form.requirements}
               onChange={e => setForm({ ...form, requirements: e.target.value })}
+              placeholder="e.g. Minimum education level, technical skills, years of experience, certifications..."
             ></textarea>
           </div>
 
           {/* Row 5: Job Description */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Job Overview & Responsibilities</label>
+            <label className="form-label" style={{ fontWeight: 700 }}>Job Overview & Responsibilities</label>
             <textarea
               className="input-control"
-              rows="2"
+              rows="4"
+              style={{ fontSize: '0.86rem', resize: 'vertical', minHeight: '95px', padding: '0.55rem 0.75rem' }}
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
+              placeholder="e.g. Scope of work, key responsibilities, daily duties, reporting lines..."
             ></textarea>
           </div>
 
         </div>
 
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ padding: '0.9rem 1.4rem' }}>
           <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn-primary" style={{ padding: '0.5rem 1.25rem', fontWeight: 700 }} disabled={saving}>
             {saving ? 'Saving Job...' : (isEditing ? 'Save Changes' : 'Post Job Vacancy')}
           </button>
         </div>
