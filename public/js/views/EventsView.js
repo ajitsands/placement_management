@@ -267,18 +267,6 @@ function EventsView({ state, moduleType = 'training' }) {
       : 'Active';
 
     const totalCandidates = list.length;
-    const attendedCandidates = list.filter(a => {
-      const st = a.status ? String(a.status).trim().toLowerCase() : 'attended';
-      return st === 'attended' || st === 'present';
-    }).length;
-    const registeredCandidates = list.filter(a => {
-      const st = a.status ? String(a.status).trim().toLowerCase() : '';
-      return st === 'registered';
-    }).length;
-    const absentCandidates = list.filter(a => {
-      const st = a.status ? String(a.status).trim().toLowerCase() : '';
-      return st === 'absent';
-    }).length;
 
     // 1. Event Details Header Metadata Block (Key-Value rows at the top of the sheet)
     const metaLines = [
@@ -295,9 +283,6 @@ function EventsView({ state, moduleType = 'training' }) {
       [escapeCell('Event Status:'), escapeCell(eventStatusLabel)].join(','),
       [escapeCell('Remarks / Agenda:'), escapeCell(eventObj?.remarks || '—')].join(','),
       [escapeCell('Total Candidates:'), escapeCell(totalCandidates)].join(','),
-      [escapeCell('Total Candidates Attended:'), escapeCell(attendedCandidates)].join(','),
-      [escapeCell('Total Candidates Registered:'), escapeCell(registeredCandidates)].join(','),
-      [escapeCell('Total Candidates Absent:'), escapeCell(absentCandidates)].join(','),
       '',
       [escapeCell('--- CANDIDATE ATTENDEES LIST ---')].join(',')
     ];
