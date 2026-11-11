@@ -5,7 +5,7 @@
 
 function DisputesView({ state }) {
   const { disputes = [], candidates = [], currentUser } = state;
-  const { useState, useMemo } = React;
+  const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
 
   const readSaved = (k, d = '') => {
@@ -22,6 +22,17 @@ function DisputesView({ state }) {
   const [selectedCategory, setSelectedCategory] = useState(() => readSaved('category'));
   const [dateFrom, setDateFrom] = useState(() => readSaved('date_from'));
   const [dateTo, setDateTo] = useState(() => readSaved('date_to'));
+
+  // Reset all dispute filters to default on user switch or login
+  useEffect(() => {
+    setStatusFilter('active_dispute');
+    setSelectedCandidate('');
+    setSelectedEmployer('');
+    setSelectedMilestone('');
+    setSelectedCategory('');
+    setDateFrom('');
+    setDateTo('');
+  }, [currentUser?.id, currentUser?.role]);
 
   const persist = (setter, key) => (val) => {
     setter(val);

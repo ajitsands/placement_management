@@ -6,7 +6,7 @@
 function PaymentsView({ state }) {
   const { payments = [], kpis = {}, settings = {}, candidates = [], claims = [], milestones = [], users = [] } = state;
   const currency = settings.currency || 'BHD';
-  const { useState, useMemo } = React;
+  const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
 
   // Session storage filter persistence
@@ -20,6 +20,15 @@ function PaymentsView({ state }) {
   const [selectedMilestone, setSelectedMilestone] = useState(() => readSaved('milestone'));
   const [dateFrom, setDateFrom] = useState(() => readSaved('date_from'));
   const [dateTo, setDateTo] = useState(() => readSaved('date_to'));
+
+  // Reset all payment filters to default on user switch or login
+  useEffect(() => {
+    setSelectedCandidate('');
+    setSelectedCaseManager('');
+    setSelectedMilestone('');
+    setDateFrom('');
+    setDateTo('');
+  }, [state?.currentUser?.id, state?.currentUser?.role]);
 
   const persist = (setter, key) => (val) => {
     setter(val);

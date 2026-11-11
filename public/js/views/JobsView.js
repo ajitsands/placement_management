@@ -8,48 +8,29 @@ function JobsView({ state }) {
   const currency = settings.currency || 'BHD';
   const { useState, useMemo } = React;
   const SearchableSelect = window.SearchableSelect;
-
-  // Session storage filter persistence
-  const readSaved = (k, d = '') => {
-    const v = sessionStorage.getItem('sands_jobs_filter_' + k);
-    return v !== null ? v : d;
-  };
-
   const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
 
-  const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
-  const [selectedCaseManager, setSelectedCaseManager] = useState(() => readSaved('case_manager'));
-  const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
-  const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
+  const [selectedEmployer, setSelectedEmployer] = useState('');
+  const [selectedCaseManager, setSelectedCaseManager] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   // Default is "My Assigned Jobs" (true) for Case Managers; Admins have only Global View (false)
-  const [myJobsOnly, setMyJobsOnly] = useState(() => {
-    if (isAdminOrSuper) return false;
-    const saved = sessionStorage.getItem('sands_jobs_filter_my_jobs_only');
-    return saved !== null ? saved === 'true' : true;
-  });
+  const [myJobsOnly, setMyJobsOnly] = useState(!isAdminOrSuper);
 
+  // Reset all filters to default on user switch or login
   useEffect(() => {
-    if (isAdminOrSuper) {
-      setMyJobsOnly(false);
-    } else {
-      const saved = sessionStorage.getItem('sands_jobs_filter_my_jobs_only');
-      setMyJobsOnly(saved !== null ? saved === 'true' : true);
-    }
-  }, [isAdminOrSuper, currentUser?.id]);
+    setSelectedEmployer('');
+    setSelectedCaseManager('');
+    setSelectedPosition('');
+    setStatusFilter('active');
+    setMyJobsOnly(!isAdminOrSuper);
+  }, [isAdminOrSuper, currentUser?.id, currentUser?.role]);
 
-  const persist = (setter, key) => (val) => {
-    setter(val);
-    sessionStorage.setItem('sands_jobs_filter_' + key, val);
-  };
-
-  const handleEmployerChange = persist(setSelectedEmployer, 'employer');
-  const handleCaseManagerChange = persist(setSelectedCaseManager, 'case_manager');
-  const handlePositionChange = persist(setSelectedPosition, 'position');
-  const handleStatusChange = persist(setStatusFilter, 'status');
-  const handleMyJobsToggle = (val) => {
-    setMyJobsOnly(val);
-    sessionStorage.setItem('sands_jobs_filter_my_jobs_only', val ? 'true' : 'false');
-  };
+  const handleEmployerChange = (val) => setSelectedEmployer(val);
+  const handleCaseManagerChange = (val) => setSelectedCaseManager(val);
+  const handlePositionChange = (val) => setSelectedPosition(val);
+  const handleStatusChange = (val) => setStatusFilter(val);
+  const handleMyJobsToggle = (val) => setMyJobsOnly(val);
 
   const handleResetAll = () => {
     handleEmployerChange('');

@@ -81,6 +81,7 @@ function LoginView({ state, onLoginSuccess }) {
     try {
       const response = await window.api.auth.login(username.trim(), password);
       if (response && response.user) {
+        if (window.clearAppFiltersStorage) window.clearAppFiltersStorage();
         window.AppStore.setAuthenticatedUser(response.user);
         window.AppStore.showNotification(`Welcome back, ${response.user.full_name}!`, 'success');
         if (onLoginSuccess) onLoginSuccess(response.user);

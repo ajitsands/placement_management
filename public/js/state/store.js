@@ -68,6 +68,45 @@ function calculateAge(dob) {
 }
 window.calculateAge = calculateAge;
 
+/**
+ * Reset all view filter states across the application:
+ * Clears any filter keys from sessionStorage so every view defaults cleanly
+ * on page reload, user login, logout, and role switch.
+ */
+function clearAppFiltersStorage() {
+  try {
+    const filterPrefixes = [
+      'sands_jobs_filter_',
+      'sands_claims_cand_',
+      'sands_placements_filter_',
+      'sands_claims_filter_',
+      'sands_claims_ms_',
+      'sands_payments_filter_',
+      'sands_disputes_filter_',
+      'sands_events_'
+    ];
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (
+        filterPrefixes.some(p => key.startsWith(p)) ||
+        key.includes('_filter_') ||
+        key.includes('_cand_') ||
+        key.includes('_ms_')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => sessionStorage.removeItem(k));
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Reset all filters to default on page load / reload
+clearAppFiltersStorage();
+window.clearAppFiltersStorage = clearAppFiltersStorage;
+
 const APP_VALID_TABS = [
   'dashboard',
   'candidates',
@@ -308,6 +347,7 @@ class AppStoreClass {
   }
 
   setAuthenticatedUser(user) {
+    clearAppFiltersStorage();
     localStorage.setItem('sands_claims_auth', 'true');
     this.state.currentUser = user;
     this.state.isAuthenticated = true;
@@ -323,6 +363,7 @@ class AppStoreClass {
   }
 
   async logout() {
+    clearAppFiltersStorage();
     try {
       await window.api.auth.logout();
     } catch (e) {
@@ -445,6 +486,7 @@ class AppStoreClass {
   }
 
   async switchRole(userId) {
+    clearAppFiltersStorage();
     this.setState({ loading: true });
     try {
       const res = await window.api.auth.switchRole({ user_id: userId });

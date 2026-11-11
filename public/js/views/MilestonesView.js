@@ -377,6 +377,16 @@ function MilestonesView({ state }) {
     return sessionStorage.getItem('sands_claims_ms_join_to') || '';
   });
 
+  // Reset all milestone filters to default on user switch or login
+  useEffect(() => {
+    setStatusFilter('due_or_overdue');
+    setSelectedCandidate('');
+    setSelectedEmployer('');
+    setSelectedMilestone('');
+    setJoinDateFrom('');
+    setJoinDateTo('');
+  }, [currentUser?.id, currentUser?.role]);
+
   // Candidate Lookup Map
   const candidateMap = useMemo(() => {
     const map = {};

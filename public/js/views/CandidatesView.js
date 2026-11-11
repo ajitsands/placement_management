@@ -36,6 +36,18 @@ function CandidatesView({ state }) {
     return sessionStorage.getItem('sands_claims_cand_tamkeen') || 'all';
   });
 
+  // Reset all candidate filters to default on user switch or login
+  useEffect(() => {
+    setSelectedCaseManager('');
+    setStatusFilter('registered');
+    setSelectedGender('all');
+    setSelectedEducation('all');
+    setSelectedCenter('all');
+    setRegDateFrom('');
+    setRegDateTo('');
+    setSelectedTamkeenFilter('all');
+  }, [currentUser?.id, currentUser?.role]);
+
   const handleTamkeenFilterChange = (val) => {
     setSelectedTamkeenFilter(val);
     sessionStorage.setItem('sands_claims_cand_tamkeen', val);

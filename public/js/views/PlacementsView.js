@@ -7,7 +7,7 @@ function PlacementsView({ state }) {
   const { candidates = [], jobs = [], milestones = [], claims = [], payments = [], settings = {}, currentUser, caseManagers = [] } = state;
   const currency = settings.currency || 'BHD';
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
-  const { useState, useMemo } = React;
+  const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
 
   // Session storage filter persistence
@@ -26,6 +26,20 @@ function PlacementsView({ state }) {
   const [filingDateFrom, setFilingDateFrom] = useState(() => readSaved('filing_from'));
   const [filingDateTo, setFilingDateTo] = useState(() => readSaved('filing_to'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
+
+  // Reset all placement filters to default on user switch or login
+  useEffect(() => {
+    setSelectedEmployer('');
+    setSelectedCandidate('');
+    setSelectedPosition('');
+    setSelectedDepartment('');
+    setSelectedCaseManager('');
+    setJoinDateFrom('');
+    setJoinDateTo('');
+    setFilingDateFrom('');
+    setFilingDateTo('');
+    setStatusFilter('active');
+  }, [currentUser?.id, currentUser?.role]);
 
   const persist = (setter, key) => (val) => {
     setter(val);

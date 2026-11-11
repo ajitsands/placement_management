@@ -331,6 +331,16 @@ function ClaimsView({ state }) {
     return sessionStorage.getItem('sands_claims_filter_date_to') || '';
   });
 
+  // Reset all claim filters to default on user switch or login
+  useEffect(() => {
+    setStatusFilter('unsettled');
+    setSelectedCandidate('');
+    setSelectedEmployer('');
+    setSelectedMilestone('');
+    setClaimDateFrom('');
+    setClaimDateTo('');
+  }, [currentUser?.id, currentUser?.role]);
+
   // Filter change handlers
   const handleStatusFilterChange = (id) => {
     setStatusFilter(id);
