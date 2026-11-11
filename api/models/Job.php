@@ -60,6 +60,15 @@ class Job {
             $job['placed_candidates'] = $placedCandidates[$jobId] ?? [];
             $job['position_title'] = $job['job_title'] ?? '';
             $job['salary_bhd'] = (float)($job['salary_offered_bhd'] ?? 0);
+
+            // Normalize assigned_case_managers
+            $assignedCms = $job['assigned_case_managers'] ?? [];
+            if (is_string($assignedCms)) {
+                $decoded = json_decode($assignedCms, true);
+                $assignedCms = is_array($decoded) ? $decoded : [];
+            }
+            $job['assigned_case_managers'] = is_array($assignedCms) ? $assignedCms : [];
+
             if ($remaining === 0 && ($job['status'] === 'active' || $job['status'] === 'open')) {
                 $job['computed_status'] = 'filled';
             } else {
@@ -116,6 +125,12 @@ class Job {
         if (!in_array($status, ['active', 'filled', 'closed'])) $status = 'active';
         $requirements = trim($data['requirements'] ?? '');
         $description = trim($data['description'] ?? '');
+        $assignedCms = $data['assigned_case_managers'] ?? [];
+        if (is_string($assignedCms)) {
+            $decoded = json_decode($assignedCms, true);
+            $assignedCms = is_array($decoded) ? $decoded : [];
+        }
+        $cmsJson = !empty($assignedCms) ? json_encode($assignedCms, JSON_UNESCAPED_UNICODE) : null;
         $now = date('Y-m-d H:i:s');
 
         // Direct MySQL insert when database is connected to ensure immediate persistence and real ID
@@ -123,8 +138,8 @@ class Job {
             try {
                 $pdo = Database::getConnection();
                 if ($pdo) {
-                    $stmt = $pdo->prepare("INSERT INTO jobs (job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, created_by, created_at, updated_at)
-                        VALUES (:job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :created_by, :created_at, :updated_at)");
+                    $stmt = $pdo->prepare("INSERT INTO jobs (job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, assigned_case_managers, created_by, created_at, updated_at)
+                        VALUES (:job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :assigned_case_managers, :created_by, :created_at, :updated_at)");
                     $stmt->execute([
                         ':job_code' => $jobCode,
                         ':job_title' => $title,
@@ -136,6 +151,7 @@ class Job {
                         ':status' => $status,
                         ':requirements' => $requirements,
                         ':description' => $description,
+                        ':assigned_case_managers' => $cmsJson,
                         ':created_by' => $user['id'] ?? null,
                         ':created_at' => $now,
                         ':updated_at' => $now
@@ -168,6 +184,7 @@ class Job {
             'computed_status' => $status,
             'requirements' => $requirements,
             'description' => $description,
+            'assigned_case_managers' => $assignedCms,
             'created_by' => $user['id'] ?? null,
             'created_at' => $now,
             'updated_at' => $now
@@ -194,6 +211,15 @@ class Job {
         if ($status && !in_array($status, ['active', 'filled', 'closed'])) $status = 'active';
         $reqs = isset($data['requirements']) ? trim($data['requirements']) : null;
         $desc = isset($data['description']) ? trim($data['description']) : null;
+        $assignedCms = null;
+        if (array_key_exists('assigned_case_managers', $data)) {
+            $assignedCms = $data['assigned_case_managers'];
+            if (is_string($assignedCms)) {
+                $decoded = json_decode($assignedCms, true);
+                $assignedCms = is_array($decoded) ? $decoded : [];
+            }
+            if (!is_array($assignedCms)) $assignedCms = [];
+        }
         $now = date('Y-m-d H:i:s');
 
         if (Database::isMySQL()) {
@@ -211,6 +237,10 @@ class Job {
                     if ($status !== null) { $fields[] = "status = :status"; $params[':status'] = $status; }
                     if ($reqs !== null) { $fields[] = "requirements = :requirements"; $params[':requirements'] = $reqs; }
                     if ($desc !== null) { $fields[] = "description = :description"; $params[':description'] = $desc; }
+                    if ($assignedCms !== null) {
+                        $fields[] = "assigned_case_managers = :assigned_case_managers";
+                        $params[':assigned_case_managers'] = !empty($assignedCms) ? json_encode($assignedCms, JSON_UNESCAPED_UNICODE) : null;
+                    }
                     if (!empty($fields)) {
                         $fields[] = "updated_at = :updated_at";
                         $params[':updated_at'] = $now;
@@ -235,6 +265,7 @@ class Job {
                 if ($status !== null) $j['status'] = $status;
                 if ($reqs !== null) $j['requirements'] = $reqs;
                 if ($desc !== null) $j['description'] = $desc;
+                if ($assignedCms !== null) $j['assigned_case_managers'] = $assignedCms;
                 $j['updated_at'] = $now;
                 $found = true;
                 break;

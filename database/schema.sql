@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
     `status` ENUM('active', 'filled', 'closed') NOT NULL DEFAULT 'active',
     `requirements` TEXT NULL,
     `description` TEXT NULL,
+    `assigned_case_managers` TEXT NULL,
     `created_by` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -4,7 +4,7 @@
  */
 
 function JobsView({ state }) {
-  const { jobs = [], candidates = [], settings = {}, currentUser } = state;
+  const { jobs = [], candidates = [], settings = {}, currentUser, caseManagers = [], users = [] } = state;
   const currency = settings.currency || 'BHD';
   const { useState, useMemo } = React;
   const SearchableSelect = window.SearchableSelect;
@@ -18,7 +18,9 @@ function JobsView({ state }) {
   const [selectedEmployer, setSelectedEmployer] = useState(() => readSaved('employer'));
   const [selectedDepartment, setSelectedDepartment] = useState(() => readSaved('department'));
   const [selectedPosition, setSelectedPosition] = useState(() => readSaved('position'));
+  const [selectedCaseManager, setSelectedCaseManager] = useState(() => readSaved('case_manager'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
+  const [myJobsOnly, setMyJobsOnly] = useState(() => readSaved('my_jobs_only') === 'true');
 
   const persist = (setter, key) => (val) => {
     setter(val);
@@ -28,15 +30,34 @@ function JobsView({ state }) {
   const handleEmployerChange = persist(setSelectedEmployer, 'employer');
   const handleDepartmentChange = persist(setSelectedDepartment, 'department');
   const handlePositionChange = persist(setSelectedPosition, 'position');
+  const handleCaseManagerChange = persist(setSelectedCaseManager, 'case_manager');
   const handleStatusChange = persist(setStatusFilter, 'status');
+  const handleMyJobsToggle = (val) => {
+    setMyJobsOnly(val);
+    sessionStorage.setItem('sands_jobs_filter_my_jobs_only', val ? 'true' : 'false');
+  };
+
   const handleResetAll = () => {
     handleEmployerChange('');
     handleDepartmentChange('');
     handlePositionChange('');
+    handleCaseManagerChange('');
     handleStatusChange('active');
+    handleMyJobsToggle(false);
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0);
+  const isJobAssignedToUser = (job, user) => {
+    if (!job || !user) return false;
+    const cms = Array.isArray(job.assigned_case_managers) ? job.assigned_case_managers : [];
+    return cms.some(cm => 
+      (cm.id !== undefined && cm.id !== null && user.id !== undefined && user.id !== null && String(cm.id) === String(user.id)) ||
+      (cm.username && user.username && String(cm.username).toLowerCase() === String(user.username).toLowerCase()) ||
+      (cm.name && user.full_name && String(cm.name).toLowerCase() === String(user.full_name).toLowerCase()) ||
+      (cm.code && user.case_manager_code && String(cm.code).toLowerCase() === String(user.case_manager_code).toLowerCase())
+    );
+  };
+
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedDepartment ? 1 : 0) + (selectedPosition ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (myJobsOnly ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -86,6 +107,55 @@ function JobsView({ state }) {
     return [{ value: '', label: `All Positions (${list.length})`, subLabel: 'Filter by job position' }, ...list];
   }, [jobs]);
 
+  // Case Manager Filter Options
+  const caseManagerOptions = useMemo(() => {
+    const map = new Map();
+    (jobs || []).forEach(j => {
+      const cms = Array.isArray(j.assigned_case_managers) ? j.assigned_case_managers : [];
+      cms.forEach(cm => {
+        const name = (cm.name || cm.full_name || cm.username || '').trim();
+        if (name) {
+          const key = name.toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, { name, code: cm.code || cm.case_manager_code || '', count: 1 });
+          } else {
+            map.get(key).count++;
+          }
+        }
+      });
+    });
+
+    const staffList = (caseManagers && caseManagers.length > 0)
+      ? caseManagers
+      : (users || []).filter(u => u.role === 'case_manager');
+    staffList.forEach(cm => {
+      const name = (cm.full_name || cm.username || '').trim();
+      if (name) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, { name, code: cm.case_manager_code || '', count: 0 });
+        }
+      }
+    });
+
+    const list = Array.from(map.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(cm => ({
+        value: cm.name,
+        label: `${cm.name} (${cm.count} open vacanc${cm.count === 1 ? 'y' : 'ies'})`,
+        subLabel: cm.code ? `Code: ${cm.code}` : 'Case Manager',
+        searchKeywords: `${cm.name} ${cm.code || ''}`
+      }));
+
+    return [{ value: '', label: `All Case Managers (${list.length})`, subLabel: 'Filter by assigned Case Manager' }, ...list];
+  }, [jobs, caseManagers, users]);
+
+  // Count of jobs specifically assigned to logged-in user
+  const myAssignedJobsCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return (jobs || []).filter(j => isJobAssignedToUser(j, currentUser)).length;
+  }, [jobs, currentUser]);
+
   // Compute live counts for status tabs
   const statusCounts = useMemo(() => {
     let openCount = 0;
@@ -128,10 +198,27 @@ function JobsView({ state }) {
 
   // Filtered Jobs
   const displayData = useMemo(() => {
-    return (jobs || []).filter(j => {
+    return (jobs || []).map(j => {
+      const cms = Array.isArray(j.assigned_case_managers) ? j.assigned_case_managers : [];
+      const cmNames = cms.map(cm => `${cm.name || cm.full_name || cm.username || ''} ${cm.code || ''}`).join(' ');
+      return { ...j, assigned_cm_names: cmNames };
+    }).filter(j => {
+      // 1. My Jobs Scope Filter
+      if (myJobsOnly && !isJobAssignedToUser(j, currentUser)) return false;
+
+      // 2. Case Manager Dropdown Filter
+      if (selectedCaseManager) {
+        const cms = Array.isArray(j.assigned_case_managers) ? j.assigned_case_managers : [];
+        const match = cms.some(cm => (cm.name || cm.full_name || cm.username || '').toLowerCase() === selectedCaseManager.toLowerCase());
+        if (!match) return false;
+      }
+
+      // 3. Employer, Department, Position Filters
       if (selectedEmployer && strcasecmp(j.company_name, selectedEmployer) !== 0) return false;
       if (selectedDepartment && strcasecmp(j.department, selectedDepartment) !== 0) return false;
       if (selectedPosition && strcasecmp(j.job_title, selectedPosition) !== 0) return false;
+
+      // 4. Status Filter
       if (statusFilter !== 'all') {
         const total = parseInt(j.vacancies_count, 10) || 1;
         const placed = parseInt(j.placed_count, 10) || 0;
@@ -154,7 +241,7 @@ function JobsView({ state }) {
       }
       return true;
     });
-  }, [jobs, selectedEmployer, selectedDepartment, selectedPosition, statusFilter]);
+  }, [jobs, selectedEmployer, selectedDepartment, selectedPosition, selectedCaseManager, statusFilter, myJobsOnly, currentUser]);
 
   function strcasecmp(a, b) {
     return String(a || '').toLowerCase().localeCompare(String(b || '').toLowerCase());
@@ -298,6 +385,25 @@ function JobsView({ state }) {
             </div>
           </div>
 
+          <div style={{ marginTop: '0.4rem', paddingTop: '0.45rem', borderTop: '1px solid var(--border-light)' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span>👔</span> Assigned Case Managers:
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.3rem' }}>
+              {(job.assigned_case_managers && job.assigned_case_managers.length > 0) ? (
+                job.assigned_case_managers.map((cm, i) => (
+                  <span key={i} className="badge badge-info" style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem' }}>
+                    👤 {cm.name || cm.full_name || cm.username} {cm.code ? `(${cm.code})` : ''}
+                  </span>
+                ))
+              ) : (
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No case managers assigned yet.
+                </span>
+              )}
+            </div>
+          </div>
+
           <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', gap: '0.4rem' }}>
             <button
               type="button"
@@ -405,6 +511,56 @@ function JobsView({ state }) {
       }
     },
     {
+      key: 'assigned_case_managers',
+      label: 'Assigned Case Managers',
+      sortable: false,
+      render: (val, row) => {
+        const cms = Array.isArray(val) ? val : [];
+        if (cms.length === 0) {
+          return (
+            <span
+              className="badge"
+              style={{
+                fontSize: '0.7rem',
+                color: 'var(--text-muted)',
+                background: 'var(--bg-tertiary, #f1f5f9)',
+                border: '1px dashed var(--border-light, #cbd5e1)',
+                padding: '0.15rem 0.45rem'
+              }}
+            >
+              Unassigned
+            </span>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxWidth: '210px' }}>
+            {cms.map((cm, i) => {
+              const isMe = currentUser && (
+                (cm.id !== undefined && cm.id !== null && currentUser.id !== undefined && currentUser.id !== null && String(cm.id) === String(currentUser.id)) ||
+                (cm.username && currentUser.username && String(cm.username).toLowerCase() === String(currentUser.username).toLowerCase()) ||
+                (cm.name && currentUser.full_name && String(cm.name).toLowerCase() === String(currentUser.full_name).toLowerCase())
+              );
+              return (
+                <span
+                  key={cm.id || cm.username || i}
+                  className={`badge ${isMe ? 'badge-primary' : 'badge-neutral'}`}
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '0.15rem 0.45rem',
+                    fontWeight: isMe ? 800 : 600,
+                    boxShadow: isMe ? '0 0 0 1.5px var(--primary)' : 'none'
+                  }}
+                  title={cm.code ? `Case Manager Code: ${cm.code}` : (cm.name || cm.username)}
+                >
+                  👤 {cm.name || cm.username} {isMe ? '★' : ''}
+                </span>
+              );
+            })}
+          </div>
+        );
+      }
+    },
+    {
       key: 'status',
       label: 'Status',
       sortable: true,
@@ -452,6 +608,59 @@ function JobsView({ state }) {
           <p className="page-subtitle">
             Employer job openings, qualifications, basic wage subsidy gates, and candidate allocations
           </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${!myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
+              style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              onClick={() => handleMyJobsToggle(false)}
+            >
+              <span>🌐</span> Global View: All Jobs
+              <span style={{
+                background: !myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                color: !myJobsOnly ? '#ffffff' : 'var(--text-primary)',
+                borderRadius: '10px',
+                padding: '0.05rem 0.45rem',
+                fontSize: '0.74rem'
+              }}>
+                {jobs.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`btn btn-sm ${myJobsOnly ? 'btn-primary' : 'btn-outline'}`}
+              style={{
+                fontSize: '0.82rem',
+                padding: '0.35rem 0.9rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                borderColor: myJobsOnly ? 'var(--primary)' : 'var(--border-dark, #cbd5e1)'
+              }}
+              onClick={() => handleMyJobsToggle(true)}
+              title="Focus only on job vacancies assigned to your profile for task management"
+            >
+              <span>👤</span> My Assigned Jobs
+              <span style={{
+                background: myJobsOnly ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
+                color: '#ffffff',
+                borderRadius: '10px',
+                padding: '0.05rem 0.45rem',
+                fontSize: '0.74rem',
+                fontWeight: 700
+              }}>
+                {myAssignedJobsCount}
+              </span>
+            </button>
+
+            {myJobsOnly && (
+              <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600, marginLeft: '0.25rem' }}>
+                ⚡ Focused on your assigned vacancies for task management
+              </span>
+            )}
+          </div>
         </div>
         <div className="header-actions">
           <button
@@ -479,9 +688,9 @@ function JobsView({ state }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem' }}>
           {/* Employer Filter */}
-          <div style={filterBox('1 1 250px', '220px')}>
+          <div style={filterBox('1 1 230px', '200px')}>
             <label style={labelStyle}><span>🏢</span> Employer:</label>
-            <div style={{ flex: 1, minWidth: '150px' }}>
+            <div style={{ flex: 1, minWidth: '140px' }}>
               {SearchableSelect ? (
                 <SearchableSelect
                   options={employerOptions}
@@ -499,9 +708,9 @@ function JobsView({ state }) {
           </div>
 
           {/* Department Filter */}
-          <div style={filterBox('1 1 220px', '190px')}>
+          <div style={filterBox('1 1 200px', '180px')}>
             <label style={labelStyle}><span>🏷️</span> Department:</label>
-            <div style={{ flex: 1, minWidth: '130px' }}>
+            <div style={{ flex: 1, minWidth: '120px' }}>
               {SearchableSelect ? (
                 <SearchableSelect
                   options={departmentOptions}
@@ -519,9 +728,9 @@ function JobsView({ state }) {
           </div>
 
           {/* Position Filter */}
-          <div style={filterBox('1 1 230px', '200px')}>
+          <div style={filterBox('1 1 210px', '190px')}>
             <label style={labelStyle}><span>💼</span> Position:</label>
-            <div style={{ flex: 1, minWidth: '140px' }}>
+            <div style={{ flex: 1, minWidth: '130px' }}>
               {SearchableSelect ? (
                 <SearchableSelect
                   options={positionOptions}
@@ -533,6 +742,26 @@ function JobsView({ state }) {
               ) : (
                 <select className="select-control" value={selectedPosition} onChange={e => handlePositionChange(e.target.value)}>
                   {positionOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Case Manager Filter */}
+          <div style={filterBox('1 1 220px', '190px')}>
+            <label style={labelStyle}><span>👔</span> Case Manager:</label>
+            <div style={{ flex: 1, minWidth: '130px' }}>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={caseManagerOptions}
+                  value={selectedCaseManager}
+                  onChange={handleCaseManagerChange}
+                  placeholder={caseManagerOptions[0]?.label || 'All Case Managers'}
+                  searchPlaceholder="Search case manager..."
+                />
+              ) : (
+                <select className="select-control" value={selectedCaseManager} onChange={e => handleCaseManagerChange(e.target.value)}>
+                  {caseManagerOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               )}
             </div>
@@ -577,7 +806,7 @@ function JobsView({ state }) {
           data={displayData}
           expandable={true}
           renderChildRow={renderJobChildRow}
-          searchPlaceholder="🔍 Search Job Title, Code, Employer, CR, Department, Requirements..."
+          searchPlaceholder="🔍 Search Job Title, Code, Employer, CR, Department, Case Manager, Requirements..."
           searchKeys={[
             'job_title',
             'job_code',
@@ -586,7 +815,8 @@ function JobsView({ state }) {
             'department',
             'status',
             'requirements',
-            'description'
+            'description',
+            'assigned_cm_names'
           ]}
           exportFilename="Employer_Jobs_Vacancies_SaNDS.csv"
           emptyMessage="No job openings found matching your criteria."

@@ -99,6 +99,7 @@ class Database {
                 `status` ENUM('active', 'filled', 'closed') NOT NULL DEFAULT 'active',
                 `requirements` TEXT NULL,
                 `description` TEXT NULL,
+                `assigned_case_managers` TEXT NULL,
                 `created_by` INT NULL,
                 `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -106,6 +107,16 @@ class Database {
                 INDEX `idx_jobs_status` (`status`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
+
+        try {
+            $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'jobs'");
+            $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+            if (!in_array('assigned_case_managers', $existing, true)) {
+                $pdo->exec("ALTER TABLE `jobs` ADD COLUMN `assigned_case_managers` TEXT NULL");
+            }
+        } catch (\Exception $e) {
+            // Column check fallback
+        }
     }
 
     private static function ensureCandidateJobColumn(PDO $pdo): void {
@@ -458,6 +469,12 @@ class Database {
                 $j['id'] = (int)$j['id'];
                 $j['salary_offered_bhd'] = (float)$j['salary_offered_bhd'];
                 $j['vacancies_count'] = (int)$j['vacancies_count'];
+                if (!empty($j['assigned_case_managers'])) {
+                    $decoded = is_string($j['assigned_case_managers']) ? json_decode($j['assigned_case_managers'], true) : $j['assigned_case_managers'];
+                    $j['assigned_case_managers'] = is_array($decoded) ? $decoded : [];
+                } else {
+                    $j['assigned_case_managers'] = [];
+                }
                 return $j;
             }, $pdo->query("SELECT * FROM jobs ORDER BY id ASC")->fetchAll());
         } catch (Exception $e) {
@@ -618,8 +635,8 @@ class Database {
 
     private static function saveJobsToMySQL(PDO $pdo, array $jobs): void {
         try {
-            $stmt = $pdo->prepare("INSERT INTO jobs (id, job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, created_at)
-                VALUES (:id, :job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :created_at)
+            $stmt = $pdo->prepare("INSERT INTO jobs (id, job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, assigned_case_managers, created_at)
+                VALUES (:id, :job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :assigned_case_managers, :created_at)
                 ON DUPLICATE KEY UPDATE
                     job_code = VALUES(job_code),
                     job_title = VALUES(job_title),
@@ -630,7 +647,8 @@ class Database {
                     vacancies_count = VALUES(vacancies_count),
                     status = VALUES(status),
                     requirements = VALUES(requirements),
-                    description = VALUES(description)");
+                    description = VALUES(description),
+                    assigned_case_managers = VALUES(assigned_case_managers)");
 
             foreach ($jobs as $j) {
                 $status = strtolower(trim($j['status'] ?? 'active'));
@@ -640,6 +658,9 @@ class Database {
                 $salary = (float)($j['salary_offered_bhd'] ?? $j['salary_bhd'] ?? 500.0);
                 $vacancies = max(1, (int)($j['vacancies_count'] ?? 1));
                 $code = !empty($j['job_code']) ? trim($j['job_code']) : ('JOB-' . date('Y') . '-' . sprintf('%03d', (int)$j['id']));
+
+                $assignedCms = $j['assigned_case_managers'] ?? [];
+                $cmsJson = !empty($assignedCms) ? (is_string($assignedCms) ? $assignedCms : json_encode($assignedCms, JSON_UNESCAPED_UNICODE)) : null;
 
                 $stmt->execute([
                     ':id' => (int)$j['id'],
@@ -653,6 +674,7 @@ class Database {
                     ':status' => $status,
                     ':requirements' => $j['requirements'] ?? '',
                     ':description' => $j['description'] ?? '',
+                    ':assigned_case_managers' => $cmsJson,
                     ':created_at' => $j['created_at'] ?? date('Y-m-d H:i:s')
                 ]);
             }
