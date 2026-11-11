@@ -28,6 +28,15 @@ function JobsView({ state }) {
     return saved !== null ? saved === 'true' : true;
   });
 
+  useEffect(() => {
+    if (isAdminOrSuper) {
+      setMyJobsOnly(false);
+    } else {
+      const saved = sessionStorage.getItem('sands_jobs_filter_my_jobs_only');
+      setMyJobsOnly(saved !== null ? saved === 'true' : true);
+    }
+  }, [isAdminOrSuper, currentUser?.id]);
+
   const persist = (setter, key) => (val) => {
     setter(val);
     sessionStorage.setItem('sands_jobs_filter_' + key, val);
@@ -44,7 +53,9 @@ function JobsView({ state }) {
 
   const handleResetAll = () => {
     handleEmployerChange('');
-    handleCaseManagerChange('');
+    if (isAdminOrSuper) {
+      handleCaseManagerChange('');
+    }
     handlePositionChange('');
     handleStatusChange('active');
     if (!isAdminOrSuper) {
@@ -63,7 +74,7 @@ function JobsView({ state }) {
     );
   };
 
-  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (selectedCaseManager ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0) + (!isAdminOrSuper && !myJobsOnly ? 1 : 0);
+  const activeFiltersCount = (selectedEmployer ? 1 : 0) + (isAdminOrSuper && selectedCaseManager ? 1 : 0) + (selectedPosition ? 1 : 0) + (statusFilter !== 'active' ? 1 : 0);
   const hasActiveFilters = activeFiltersCount > 0;
 
   // Employer Filter Options
@@ -198,11 +209,11 @@ function JobsView({ state }) {
       const cmNames = cms.map(cm => `${cm.name || cm.full_name || cm.username || ''} ${cm.code || ''}`).join(' ');
       return { ...j, assigned_cm_names: cmNames };
     }).filter(j => {
-      // 1. My Jobs Scope Filter (Case Managers only; Admins always have Global View)
+      // 1. My Jobs Scope Filter (Applied only when Case Manager is in "My Assigned Jobs" tab; In Global View all jobs are listed)
       if (!isAdminOrSuper && myJobsOnly && !isJobAssignedToUser(j, currentUser)) return false;
 
-      // 2. Case Manager Dropdown Filter
-      if (selectedCaseManager) {
+      // 2. Case Manager Dropdown Filter (For Administrators to filter all jobs by Case Manager)
+      if (isAdminOrSuper && selectedCaseManager) {
         const cms = Array.isArray(j.assigned_case_managers) ? j.assigned_case_managers : [];
         const match = cms.some(cm => (cm.name || cm.full_name || cm.username || '').toLowerCase() === selectedCaseManager.toLowerCase());
         if (!match) return false;
@@ -532,7 +543,8 @@ function JobsView({ state }) {
               const isMe = currentUser && (
                 (cm.id !== undefined && cm.id !== null && currentUser.id !== undefined && currentUser.id !== null && String(cm.id) === String(currentUser.id)) ||
                 (cm.username && currentUser.username && String(cm.username).toLowerCase() === String(currentUser.username).toLowerCase()) ||
-                (cm.name && currentUser.full_name && String(cm.name).toLowerCase() === String(currentUser.full_name).toLowerCase())
+                (cm.name && currentUser.full_name && String(cm.name).toLowerCase() === String(currentUser.full_name).toLowerCase()) ||
+                (cm.code && currentUser.case_manager_code && String(cm.code).toLowerCase() === String(currentUser.case_manager_code).toLowerCase())
               );
               return (
                 <span
@@ -660,9 +672,13 @@ function JobsView({ state }) {
                 </span>
               </button>
 
-              {myJobsOnly && (
+              {myJobsOnly ? (
                 <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600, marginLeft: '0.25rem' }}>
                   ⚡ Focused on your assigned vacancies
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600, marginLeft: '0.25rem' }}>
+                  🌐 Global View: Listing your jobs and all other vacancies
                 </span>
               )}
             </div>
@@ -713,25 +729,27 @@ function JobsView({ state }) {
             </div>
           </div>
 
-          {/* Case Manager Filter (Instead of Department Filter) */}
-          <div style={filterBox('1 1 240px', '210px')}>
-            <label style={labelStyle}><span>👔</span> Case Manager:</label>
-            <div style={{ flex: 1, minWidth: '140px' }}>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={caseManagerOptions}
-                  value={selectedCaseManager}
-                  onChange={handleCaseManagerChange}
-                  placeholder={caseManagerOptions[0]?.label || 'All Case Managers'}
-                  searchPlaceholder="Search case manager..."
-                />
-              ) : (
-                <select className="select-control" value={selectedCaseManager} onChange={e => handleCaseManagerChange(e.target.value)}>
-                  {caseManagerOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-              )}
+          {/* Case Manager Filter (Only for Administrators to filter all jobs by Case Manager) */}
+          {isAdminOrSuper && (
+            <div style={filterBox('1 1 240px', '210px')}>
+              <label style={labelStyle}><span>👔</span> Case Manager:</label>
+              <div style={{ flex: 1, minWidth: '140px' }}>
+                {SearchableSelect ? (
+                  <SearchableSelect
+                    options={caseManagerOptions}
+                    value={selectedCaseManager}
+                    onChange={handleCaseManagerChange}
+                    placeholder={caseManagerOptions[0]?.label || 'All Case Managers'}
+                    searchPlaceholder="Search case manager..."
+                  />
+                ) : (
+                  <select className="select-control" value={selectedCaseManager} onChange={e => handleCaseManagerChange(e.target.value)}>
+                    {caseManagerOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Position Filter */}
           <div style={filterBox('1 1 240px', '210px')}>
