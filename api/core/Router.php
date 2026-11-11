@@ -78,13 +78,19 @@ class Router {
                 }
 
                 $handler = $route['handler'];
-                if (is_array($handler)) {
-                    [$class, $action] = $handler;
-                    $controller = new $class();
-                    $controller->$action($requestData, $params);
-                    return;
-                } elseif (is_callable($handler)) {
-                    $handler($requestData, $params);
+                try {
+                    if (is_array($handler)) {
+                        [$class, $action] = $handler;
+                        $controller = new $class();
+                        $controller->$action($requestData, $params);
+                        return;
+                    } elseif (is_callable($handler)) {
+                        $handler($requestData, $params);
+                        return;
+                    }
+                } catch (\Throwable $e) {
+                    error_log("Router dispatch error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+                    Response::error($e->getMessage(), 500);
                     return;
                 }
             }

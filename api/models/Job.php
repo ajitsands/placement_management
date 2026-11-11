@@ -138,6 +138,13 @@ class Job {
             try {
                 $pdo = Database::getConnection();
                 if ($pdo) {
+                    try {
+                        $check = $pdo->query("SHOW COLUMNS FROM `jobs` LIKE 'assigned_case_managers'")->fetch();
+                        if (!$check) {
+                            $pdo->exec("ALTER TABLE `jobs` ADD COLUMN `assigned_case_managers` TEXT NULL");
+                        }
+                    } catch (\Exception $ce) {}
+
                     $stmt = $pdo->prepare("INSERT INTO jobs (job_code, job_title, company_name, employer_cr, department, salary_offered_bhd, vacancies_count, status, requirements, description, assigned_case_managers, created_by, created_at, updated_at)
                         VALUES (:job_code, :job_title, :company_name, :employer_cr, :department, :salary_offered_bhd, :vacancies_count, :status, :requirements, :description, :assigned_case_managers, :created_by, :created_at, :updated_at)");
                     $stmt->execute([
@@ -238,6 +245,13 @@ class Job {
                     if ($reqs !== null) { $fields[] = "requirements = :requirements"; $params[':requirements'] = $reqs; }
                     if ($desc !== null) { $fields[] = "description = :description"; $params[':description'] = $desc; }
                     if ($assignedCms !== null) {
+                        try {
+                            $check = $pdo->query("SHOW COLUMNS FROM `jobs` LIKE 'assigned_case_managers'")->fetch();
+                            if (!$check) {
+                                $pdo->exec("ALTER TABLE `jobs` ADD COLUMN `assigned_case_managers` TEXT NULL");
+                            }
+                        } catch (\Exception $ce) {}
+
                         $fields[] = "assigned_case_managers = :assigned_case_managers";
                         $params[':assigned_case_managers'] = !empty($assignedCms) ? json_encode($assignedCms, JSON_UNESCAPED_UNICODE) : null;
                     }

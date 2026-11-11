@@ -109,13 +109,20 @@ class Database {
         ");
 
         try {
-            $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'jobs'");
-            $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
-            if (!in_array('assigned_case_managers', $existing, true)) {
+            $colCheck = $pdo->query("SHOW COLUMNS FROM `jobs` LIKE 'assigned_case_managers'")->fetch();
+            if (!$colCheck) {
                 $pdo->exec("ALTER TABLE `jobs` ADD COLUMN `assigned_case_managers` TEXT NULL");
             }
         } catch (\Exception $e) {
-            // Column check fallback
+            try {
+                $stmt = $pdo->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'jobs'");
+                $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+                if (!in_array('assigned_case_managers', $existing, true)) {
+                    $pdo->exec("ALTER TABLE `jobs` ADD COLUMN `assigned_case_managers` TEXT NULL");
+                }
+            } catch (\Exception $e2) {
+                // Column check fallback
+            }
         }
     }
 

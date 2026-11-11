@@ -28,7 +28,11 @@ class JobController {
         ]);
     }
 
-    public function show(int $id): void {
+    public function show($arg1, $arg2 = []): void {
+        $data = is_array($arg1) ? $arg1 : (is_array($arg2) ? $arg2 : []);
+        $params = is_array($arg2) ? $arg2 : [];
+        $id = is_numeric($arg1) ? (int)$arg1 : (int)($params['id'] ?? ($data['id'] ?? 0));
+
         $job = Job::find($id);
         if (!$job) {
             Response::notFound("Job position with ID {$id} not found");
@@ -60,7 +64,15 @@ class JobController {
         Response::json($job, 201, "Job '{$job['job_title']}' under {$job['company_name']} created successfully");
     }
 
-    public function update(int $id, array $data): void {
+    public function update($arg1, $arg2 = []): void {
+        $data = is_array($arg1) ? $arg1 : (is_array($arg2) ? $arg2 : []);
+        $params = is_array($arg2) ? $arg2 : [];
+        $id = is_numeric($arg1) ? (int)$arg1 : (int)($params['id'] ?? ($data['id'] ?? 0));
+
+        if ($id <= 0) {
+            Response::error('Invalid Job ID', 400);
+        }
+
         if (isset($data['position_title']) && !isset($data['job_title'])) {
             $data['job_title'] = trim($data['position_title']);
         }
@@ -75,7 +87,15 @@ class JobController {
         Response::json($job, 200, "Job position updated successfully");
     }
 
-    public function delete(int $id): void {
+    public function delete($arg1, $arg2 = []): void {
+        $data = is_array($arg1) ? $arg1 : (is_array($arg2) ? $arg2 : []);
+        $params = is_array($arg2) ? $arg2 : [];
+        $id = is_numeric($arg1) ? (int)$arg1 : (int)($params['id'] ?? ($data['id'] ?? 0));
+
+        if ($id <= 0) {
+            Response::error('Invalid Job ID', 400);
+        }
+
         $job = Job::find($id);
         if (!$job) {
             Response::notFound("Job with ID {$id} not found");

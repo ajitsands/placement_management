@@ -55,6 +55,7 @@ require_once __DIR__ . '/core/Router.php';
 
 require_once __DIR__ . '/models/User.php';
 require_once __DIR__ . '/models/Candidate.php';
+require_once __DIR__ . '/models/Job.php';
 require_once __DIR__ . '/models/Milestone.php';
 require_once __DIR__ . '/models/Claim.php';
 require_once __DIR__ . '/models/Dispute.php';
