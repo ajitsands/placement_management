@@ -892,84 +892,144 @@ function CandidatesView({ state }) {
       render: (_, row) => {
         const ren = getCandidateRenewalInfo(row);
         const isTamkeenApproved = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
+        const hasPrimaryActions = !isTamkeenApproved || ren.isAwaitingRenewal || ren.isPlaced || (String(row.status || '').toLowerCase() === 'resigned' && !ren.isAwaitingRenewal);
 
         return (
-          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-            {/* Tamkeen Approve Action Button */}
-            {!isTamkeenApproved && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                title={`Approve ${row.full_name} for Tamkeen Scheme`}
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '0.25rem 0.55rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  whiteSpace: 'nowrap',
-                  background: '#059669',
-                  borderColor: '#059669'
-                }}
-                onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
-              >
-                <span>🏛️</span> Tamkeen Approve
-              </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '190px', maxWidth: '230px', marginLeft: 'auto' }}>
+            {/* Row 1: Primary Action Buttons */}
+            {hasPrimaryActions && (
+              <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
+                {/* Tamkeen Approve Action Button */}
+                {!isTamkeenApproved && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    title={`Approve ${row.full_name} for Tamkeen Scheme`}
+                    style={{
+                      flex: 1,
+                      fontSize: '0.72rem',
+                      padding: '0.22rem 0.45rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      whiteSpace: 'nowrap',
+                      background: '#059669',
+                      borderColor: '#059669'
+                    }}
+                    onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
+                  >
+                    <span>🏛️</span> Tamkeen Approve
+                  </button>
+                )}
+
+                {ren.isAwaitingRenewal && (
+                  <button
+                    className="btn btn-warning btn-sm"
+                    title={`Renew Candidate Registration (Overdue by ${ren.daysPast12m} days)`}
+                    style={{
+                      flex: 1,
+                      fontSize: '0.72rem',
+                      padding: '0.22rem 0.45rem',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row })}
+                  >
+                    <span>🔄</span> Renew
+                  </button>
+                )}
+
+                {/* Placed candidate exit or renewal option */}
+                {ren.isPlaced && (
+                  <button
+                    className="btn btn-outline btn-sm"
+                    title="If candidate exited or resigned, renew registration and return to available pool"
+                    style={{
+                      flex: 1,
+                      fontSize: '0.72rem',
+                      padding: '0.22rem 0.45rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--primary)',
+                      borderColor: 'var(--primary)'
+                    }}
+                    onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+                  >
+                    <span>🔄</span> Renew / Exit
+                  </button>
+                )}
+
+                {/* Resigned candidate direct renewal option */}
+                {String(row.status || '').toLowerCase() === 'resigned' && !ren.isAwaitingRenewal && (
+                  <button
+                    className="btn btn-warning btn-sm"
+                    title="Renew resigned candidate registration and return to available pool"
+                    style={{
+                      flex: 1,
+                      fontSize: '0.72rem',
+                      padding: '0.22rem 0.45rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+                  >
+                    <span>🔄</span> Renew to Pool
+                  </button>
+                )}
+              </div>
             )}
 
-            {ren.isAwaitingRenewal && (
-              <button
-                className="btn btn-warning btn-sm"
-                title={`Renew Candidate Registration (Overdue by ${ren.daysPast12m} days)`}
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}
-                onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row })}
-              >
-                <span>🔄</span> Renew
-              </button>
-            )}
-
-            {/* Placed candidate exit or renewal option */}
-            {ren.isPlaced && (
+            {/* Row 2: Inspection & Log Buttons */}
+            <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
               <button
                 className="btn btn-outline btn-sm"
-                title="If candidate exited or resigned, renew registration and return to available pool"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', display: 'flex', alignItems: 'center', gap: '3px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
-                onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+                title="Candidate Full Activity Log & Export to Excel"
+                style={{
+                  flex: 1,
+                  fontSize: '0.72rem',
+                  padding: '0.22rem 0.45rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  whiteSpace: 'nowrap'
+                }}
+                onClick={() => window.AppStore.openModal('CANDIDATE_ACTIVITY_LOG', { candidate: row })}
               >
-                <span>🔄</span> Renew / Exit
+                <span>📜</span> Log
               </button>
-            )}
 
-            {/* Resigned candidate direct renewal option */}
-            {String(row.status || '').toLowerCase() === 'resigned' && !ren.isAwaitingRenewal && (
               <button
-                className="btn btn-warning btn-sm"
-                title="Renew resigned candidate registration and return to available pool"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}
-                onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+                className="btn btn-outline btn-sm"
+                title="Candidate Dossier & Timeline"
+                style={{
+                  flex: 1,
+                  fontSize: '0.72rem',
+                  padding: '0.22rem 0.45rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  whiteSpace: 'nowrap'
+                }}
+                onClick={() => window.AppStore.openModal('CANDIDATE_DETAIL', { candidate: row })}
               >
-                <span>🔄</span> Renew to Pool
+                <span>👁️</span> Dossier
               </button>
-            )}
-
-            <button
-              className="btn btn-outline btn-sm"
-              title="Candidate Full Activity Log & Export to Excel"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', display: 'flex', alignItems: 'center', gap: '3px' }}
-              onClick={() => window.AppStore.openModal('CANDIDATE_ACTIVITY_LOG', { candidate: row })}
-            >
-              <span>📜</span> Log
-            </button>
-
-            <button
-              className="btn btn-outline btn-sm"
-              title="Candidate Dossier & Timeline"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-              onClick={() => window.AppStore.openModal('CANDIDATE_DETAIL', { candidate: row })}
-            >
-              👁️ Dossier
-            </button>
+            </div>
           </div>
         );
       }
