@@ -3812,7 +3812,6 @@ function TamkeenApprovalModal({ state, candidate }) {
             <textarea
               className="input-control"
               rows="3"
-              placeholder="Enter committee reference, Tamkeen program code, subsidy rate confirmation, or verification notes..."
               style={{ width: '100%', padding: '0.5rem 0.65rem', fontSize: '0.82rem', resize: 'vertical' }}
               value={notes}
               onChange={e => setNotes(e.target.value)}

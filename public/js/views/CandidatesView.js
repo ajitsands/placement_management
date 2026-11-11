@@ -466,15 +466,8 @@ function CandidatesView({ state }) {
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <div>Currently unplaced. Available in the national talent pool for corporate matching.</div>
-                <button
-                  className="btn btn-primary btn-sm"
-                  style={{ width: 'fit-content', fontSize: '0.74rem', padding: '0.25rem 0.65rem' }}
-                  onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { candidate: row })}
-                >
-                  🔗 Link to Job Vacancy
-                </button>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Currently unplaced. Available in the national talent pool for corporate matching.
               </div>
             )}
           </div>
