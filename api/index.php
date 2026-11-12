@@ -65,6 +65,7 @@ require_once __DIR__ . '/models/Report.php';
 require_once __DIR__ . '/models/DocumentCategory.php';
 require_once __DIR__ . '/models/AuditLog.php';
 require_once __DIR__ . '/models/Event.php';
+require_once __DIR__ . '/models/Interview.php';
 
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UserController.php';
@@ -80,6 +81,7 @@ require_once __DIR__ . '/controllers/ChecklistMasterController.php';
 require_once __DIR__ . '/controllers/DocumentCategoryController.php';
 require_once __DIR__ . '/controllers/ActivityController.php';
 require_once __DIR__ . '/controllers/EventController.php';
+require_once __DIR__ . '/controllers/InterviewController.php';
 
 use App\Core\Router;
 use App\Controllers\AuthController;
@@ -96,6 +98,7 @@ use App\Controllers\ChecklistMasterController;
 use App\Controllers\DocumentCategoryController;
 use App\Controllers\ActivityController;
 use App\Controllers\EventController;
+use App\Controllers\InterviewController;
 
 $router = new Router();
 
@@ -160,6 +163,22 @@ $router->post('/jobs', [JobController::class, 'create']);
 $router->put('/jobs/{id}', [JobController::class, 'update']);
 $router->post('/jobs/{id}', [JobController::class, 'update']);
 $router->delete('/jobs/{id}', [JobController::class, 'delete']);
+
+// ==================== JOB INTERVIEWS & CANDIDATE EVALUATION MICRO ROUTES ====================
+$router->get('/interviews', [InterviewController::class, 'index']);
+$router->get('/interviews/next-code', [InterviewController::class, 'nextCode']);
+$router->get('/interviews/{id}', [InterviewController::class, 'show']);
+$router->post('/interviews', [InterviewController::class, 'create']);
+$router->put('/interviews/{id}', [InterviewController::class, 'update']);
+$router->post('/interviews/{id}', [InterviewController::class, 'update']);
+$router->delete('/interviews/{id}', [InterviewController::class, 'delete']);
+$router->get('/interviews/{id}/candidates', [InterviewController::class, 'candidates']);
+$router->post('/interviews/{id}/candidates', [InterviewController::class, 'addCandidate']);
+$router->post('/interviews/{id}/candidates/batch', [InterviewController::class, 'addCandidatesBatch']);
+$router->delete('/interviews/{id}/candidates/{candidateId}', [InterviewController::class, 'removeCandidate']);
+$router->put('/interviews/{id}/candidates/{candidateId}', [InterviewController::class, 'updateCandidateOutcome']);
+$router->post('/interviews/{id}/candidates/{candidateId}', [InterviewController::class, 'updateCandidateOutcome']);
+$router->post('/interviews/{id}/candidates/{candidateId}/place', [InterviewController::class, 'placeCandidate']);
 
 // ==================== RETENTION MILESTONE MICRO ROUTES (+0d, +180d, +365d) ====================
 $router->get('/milestones', [MilestoneController::class, 'index']);

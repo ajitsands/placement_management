@@ -245,6 +245,7 @@ function JobsView({ state }) {
   // Child Row renderer
   const renderJobChildRow = (job) => {
     const placed = job.placed_candidates || [];
+    const jobInterviews = (state.interviews || []).filter(inv => Number(inv.job_id) === Number(job.id));
 
     return (
       <div style={{
@@ -398,6 +399,82 @@ function JobsView({ state }) {
               onClick={() => window.AppStore.openModal('EDIT_JOB', { job })}
             >
               ✏️ Edit Job Opening
+            </button>
+          </div>
+        </div>
+
+        {/* Panel 4: Scheduled Interviews & Candidate Evaluation */}
+        <div style={{
+          background: 'var(--bg-card, #ffffff)',
+          border: '1px solid var(--border-light, #e2e8f0)',
+          borderRadius: '8px',
+          padding: '0.85rem 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.55rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span>🤝</span> Scheduled Interviews ({jobInterviews.length})
+            </div>
+          </div>
+
+          {jobInterviews.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '140px', overflowY: 'auto' }}>
+              {jobInterviews.map((inv, idx) => (
+                <div
+                  key={inv.id || idx}
+                  style={{
+                    background: 'var(--bg-tertiary, #f8fafc)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '6px',
+                    padding: '0.45rem 0.65rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{inv.interview_code}</strong>
+                      <span className="badge" style={{ fontSize: '0.66rem', padding: '0.05rem 0.35rem', background: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', fontWeight: 700 }}>
+                        {inv.candidates_count || (inv.candidates ? inv.candidates.length : 0)} Candidate(s)
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      📅 {window.formatAppDate ? window.formatAppDate(inv.interview_date) : inv.interview_date} at {inv.interview_time || '10:00'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span className="badge" style={{ fontSize: '0.68rem', textTransform: 'capitalize' }}>
+                      {inv.status || 'Scheduled'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
+              No interview sessions scheduled for this opening yet.
+            </div>
+          )}
+
+          <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', gap: '0.4rem' }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              style={{ flex: 1, fontSize: '0.74rem', borderColor: '#0284c7', color: '#0284c7' }}
+              onClick={() => window.AppStore.openModal('JOB_INTERVIEWS', { job })}
+            >
+              <span>🤝</span> View / Evaluate
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              style={{ flex: 1, fontSize: '0.74rem' }}
+              onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job })}
+            >
+              <span>📅</span> Schedule
             </button>
           </div>
         </div>
@@ -571,15 +648,47 @@ function JobsView({ state }) {
       label: 'Actions',
       sortable: false,
       render: (_, row) => (
-        <button
-          type="button"
-          className="btn btn-sm btn-outline"
-          style={{ fontSize: '0.74rem', padding: '0.25rem 0.55rem' }}
-          onClick={() => window.AppStore.openModal('EDIT_JOB', { job: row })}
-          title="Edit Job Details"
-        >
-          ✏️ Edit
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            style={{
+              fontSize: '0.74rem',
+              padding: '0.25rem 0.55rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              borderColor: '#0284c7',
+              color: '#0284c7',
+              fontWeight: 600
+            }}
+            onClick={() => window.AppStore.openModal('JOB_INTERVIEWS', { job: row })}
+            title="View & Evaluate Candidate Interviews"
+          >
+            <span>🤝</span> Interviews
+            <span
+              className="badge"
+              style={{
+                fontSize: '0.66rem',
+                padding: '0.05rem 0.35rem',
+                background: (row.interviews_count || 0) > 0 ? 'rgba(2, 132, 199, 0.15)' : 'var(--bg-tertiary)',
+                color: (row.interviews_count || 0) > 0 ? '#0284c7' : 'var(--text-muted)',
+                fontWeight: 700
+              }}
+            >
+              {row.interviews_count || 0}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            style={{ fontSize: '0.74rem', padding: '0.25rem 0.55rem' }}
+            onClick={() => window.AppStore.openModal('EDIT_JOB', { job: row })}
+            title="Edit Job Details"
+          >
+            ✏️ Edit
+          </button>
+        </div>
       )
     }
   ];
@@ -665,8 +774,17 @@ function JobsView({ state }) {
             </div>
           )}
         </div>
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
+            type="button"
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#0284c7', color: '#0284c7', fontWeight: 600 }}
+            onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW')}
+          >
+            <span>🤝</span> Schedule Interview
+          </button>
+          <button
+            type="button"
             className="btn btn-primary"
             onClick={() => window.AppStore.openModal('NEW_JOB')}
           >

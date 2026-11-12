@@ -13,6 +13,14 @@ class Job {
         $store = Database::getStore();
         $jobs = $store['jobs'] ?? [];
         $candidates = $store['candidates'] ?? [];
+        $interviews = $store['job_interviews'] ?? [];
+
+        // Count interviews per job
+        $interviewsCounts = [];
+        foreach ($interviews as $int) {
+            $jId = (int)$int['job_id'];
+            $interviewsCounts[$jId] = ($interviewsCounts[$jId] ?? 0) + 1;
+        }
 
         // Count placed candidates per job
         $placedCounts = [];
@@ -57,6 +65,7 @@ class Job {
 
             $job['placed_count'] = $placed;
             $job['vacancies_remaining'] = $remaining;
+            $job['interviews_count'] = $interviewsCounts[$jobId] ?? 0;
             $job['placed_candidates'] = $placedCandidates[$jobId] ?? [];
             $job['position_title'] = $job['job_title'] ?? '';
             $job['salary_bhd'] = (float)($job['salary_offered_bhd'] ?? 0);

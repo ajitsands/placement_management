@@ -197,6 +197,7 @@ class AppStoreClass {
       candidates: [],
       jobs: [],
       events: [],
+      interviews: [],
       checklistMasters: [],
       documentCategories: [],
       milestones: [],
@@ -447,11 +448,12 @@ class AppStoreClass {
         ? (activeUser.case_manager_code || activeUser.full_name)
         : null;
 
-      const [kpisRes, candRes, jobsRes, eventsRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes, actRes] = await Promise.all([
+      const [kpisRes, candRes, jobsRes, eventsRes, intRes, chkRes, docCatsRes, msRes, claimsRes, dispRes, payRes, actRes] = await Promise.all([
         window.api.reports.getKPIs(),
         window.api.candidates.getAll(),
         window.api.jobs.getAll().catch(() => ({ jobs: [] })),
         window.api.events.getAll().catch(() => ({ events: [] })),
+        window.api.interviews ? window.api.interviews.getAll().catch(() => ({ interviews: [] })) : Promise.resolve({ interviews: [] }),
         window.api.checklistMaster.getAll().catch(() => ({ items: [] })),
         window.api.documentCategories.getAll().catch(() => ({ items: [] })),
         window.api.milestones.getAll(),
@@ -471,6 +473,7 @@ class AppStoreClass {
         candidates: candRes?.candidates || [],
         jobs: jobsRes?.jobs || [],
         events: eventsRes?.events || [],
+        interviews: intRes?.interviews || [],
         checklistMasters: chkRes?.items || [],
         documentCategories: docCatsRes?.items || [],
         milestones: msRes?.milestones || [],

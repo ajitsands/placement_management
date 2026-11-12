@@ -947,6 +947,80 @@ class Candidate {
             }
         }
 
+        // 12. Job Interviews (Scheduled, Attended, Passed/Selected, Rejected, Absent)
+        $interviewsMap = [];
+        foreach ($store['job_interviews'] ?? [] as $int) {
+            $interviewsMap[(int)$int['id']] = $int;
+        }
+        $jobsMap = [];
+        foreach ($store['jobs'] ?? [] as $jb) {
+            $jobsMap[(int)$jb['id']] = $jb;
+        }
+
+        foreach ($store['job_interview_candidates'] ?? [] as $ic) {
+            if ((int)$ic['candidate_id'] === $candidateId) {
+                $intId = (int)$ic['interview_id'];
+                $interview = $interviewsMap[$intId] ?? null;
+                $jobId = (int)($interview['job_id'] ?? 0);
+                $job = $jobsMap[$jobId] ?? null;
+
+                $jobTitle = $job['job_title'] ?? $job['position_title'] ?? ($interview['job_title'] ?? 'Job Position');
+                $companyName = $job['company_name'] ?? ($interview['company_name'] ?? 'Employer Enterprise');
+                $jobCode = $job['job_code'] ?? ($interview['job_code'] ?? '');
+
+                $candStatus = strtolower($ic['status'] ?? 'scheduled');
+                $statusLabels = [
+                    'scheduled' => 'Interview Scheduled',
+                    'attended'  => 'Interview Attended',
+                    'passed'    => 'Interview Passed (Selected)',
+                    'selected'  => 'Interview Passed (Selected)',
+                    'rejected'  => 'Interview Rejected',
+                    'absent'    => 'Absent / No Show',
+                    'cancelled' => 'Interview Cancelled'
+                ];
+                $statusLabel = $statusLabels[$candStatus] ?? ucfirst($candStatus);
+
+                $intDate = $interview['interview_date'] ?? substr($ic['created_at'] ?? date('Y-m-d'), 0, 10);
+                $intTime = $interview['interview_time'] ?? '';
+                $timestamp = $intDate . ' ' . (!empty($intTime) ? date('H:i:s', strtotime($intTime)) : '09:30:00');
+
+                $title = "🤝 Job Interview: {$jobTitle} at {$companyName}";
+
+                $descParts = [];
+                $descParts[] = "Status: {$statusLabel}";
+                $descParts[] = "Job Opening: {$jobTitle}" . (!empty($jobCode) ? " ({$jobCode})" : "");
+                $descParts[] = "Employer: {$companyName}";
+                $descParts[] = "Scheduled Date & Time: {$intDate}" . (!empty($intTime) ? " at {$intTime}" : "");
+                if (!empty($interview['location'])) {
+                    $descParts[] = "Location: {$interview['location']}";
+                }
+                if (!empty($ic['remarks'])) {
+                    $descParts[] = "Interview Outcome Remarks: {$ic['remarks']}";
+                } elseif (!empty($interview['remarks'])) {
+                    $descParts[] = "Session Notes: {$interview['remarks']}";
+                }
+
+                $activities[] = [
+                    'id'        => 'act_int_' . ($ic['id'] ?? $intId),
+                    'timestamp' => $timestamp,
+                    'date'      => $intDate,
+                    'category'  => 'interview',
+                    'title'     => $title,
+                    'ref'       => $interview['interview_code'] ?? ($jobCode ?: "INT-{$intId}"),
+                    'amount'    => null,
+                    'status'    => $candStatus,
+                    'details'   => implode(' • ', $descParts),
+                    'actor'     => $ic['updated_by_name'] ?? $interview['created_by_name'] ?? ($candidate['case_manager_name'] ?: 'Case Manager'),
+                    'location'  => $interview['location'] ?? '',
+                    'time'      => $intTime,
+                    'remarks'   => $ic['remarks'] ?? ($interview['remarks'] ?? ''),
+                    'job_title' => $jobTitle,
+                    'company_name' => $companyName,
+                    'job_code'  => $jobCode
+                ];
+            }
+        }
+
         // Sort descending by timestamp
         usort($activities, function($a, $b) {
             return strcmp($b['timestamp'], $a['timestamp']);

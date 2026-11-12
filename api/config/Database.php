@@ -45,6 +45,7 @@ class Database {
                         self::ensureAuditLogsTable(self::$pdo);
                         self::ensureEventsTables(self::$pdo);
                         self::ensureCandidateApprovalColumns(self::$pdo);
+                        self::ensureInterviewTables(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -287,6 +288,46 @@ class Database {
         ");
     }
 
+    private static function ensureInterviewTables(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `job_interviews` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `interview_code` VARCHAR(64) NOT NULL UNIQUE,
+                `job_id` INT NOT NULL,
+                `interview_date` DATE NOT NULL,
+                `interview_time` VARCHAR(64) NULL,
+                `location` VARCHAR(255) NOT NULL,
+                `remarks` TEXT NULL,
+                `status` ENUM('scheduled', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'scheduled',
+                `created_by` INT NULL,
+                `created_by_name` VARCHAR(150) NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_ji_job` (`job_id`),
+                INDEX `idx_ji_date` (`interview_date`),
+                INDEX `idx_ji_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `job_interview_candidates` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `interview_id` INT NOT NULL,
+                `candidate_id` INT NOT NULL,
+                `status` ENUM('scheduled', 'attended', 'passed', 'rejected', 'absent', 'cancelled') NOT NULL DEFAULT 'scheduled',
+                `remarks` TEXT NULL,
+                `attended_at` DATETIME NULL,
+                `updated_by_name` VARCHAR(150) NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uk_interview_candidate` (`interview_id`, `candidate_id`),
+                INDEX `idx_jic_interview` (`interview_id`),
+                INDEX `idx_jic_candidate` (`candidate_id`),
+                INDEX `idx_jic_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
     public static function isMySQL(): bool {
         self::getConnection();
         return self::$useMySQL;
@@ -315,6 +356,12 @@ class Database {
         }
         if (!isset($decoded['event_attendees'])) {
             $decoded['event_attendees'] = [];
+        }
+        if (!isset($decoded['job_interviews'])) {
+            $decoded['job_interviews'] = self::getDefaultInterviews();
+        }
+        if (!isset($decoded['job_interview_candidates'])) {
+            $decoded['job_interview_candidates'] = self::getDefaultInterviewCandidates();
         }
         if (!empty($decoded['candidates']) && is_array($decoded['candidates'])) {
             foreach ($decoded['candidates'] as &$c) {
@@ -590,20 +637,70 @@ class Database {
             }
         }
 
+        // Job Interviews
+        try {
+            $jobInterviews = array_map(function($ji) {
+                $ji['id'] = (int)$ji['id'];
+                $ji['job_id'] = (int)$ji['job_id'];
+                $ji['created_by'] = $ji['created_by'] !== null ? (int)$ji['created_by'] : null;
+                return $ji;
+            }, $pdo->query("SELECT * FROM job_interviews ORDER BY interview_date DESC, id DESC")->fetchAll());
+        } catch (Exception $e) {
+            $jobInterviews = [];
+        }
+
+        if (empty($jobInterviews) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['job_interviews'])) {
+                $jobInterviews = $jsonRaw['job_interviews'];
+                self::saveInterviewsToMySQL($pdo, $jobInterviews);
+            }
+        }
+        if (empty($jobInterviews)) {
+            $jobInterviews = self::getDefaultInterviews();
+            self::saveInterviewsToMySQL($pdo, $jobInterviews);
+        }
+
+        // Job Interview Candidates
+        try {
+            $interviewCandidates = array_map(function($jic) {
+                $jic['id'] = (int)$jic['id'];
+                $jic['interview_id'] = (int)$jic['interview_id'];
+                $jic['candidate_id'] = (int)$jic['candidate_id'];
+                return $jic;
+            }, $pdo->query("SELECT * FROM job_interview_candidates ORDER BY id DESC")->fetchAll());
+        } catch (Exception $e) {
+            $interviewCandidates = [];
+        }
+
+        if (empty($interviewCandidates) && file_exists(self::$storeFile)) {
+            $jsonRaw = json_decode(file_get_contents(self::$storeFile), true);
+            if (!empty($jsonRaw['job_interview_candidates'])) {
+                $interviewCandidates = $jsonRaw['job_interview_candidates'];
+                self::saveInterviewCandidatesToMySQL($pdo, $interviewCandidates);
+            }
+        }
+        if (empty($interviewCandidates)) {
+            $interviewCandidates = self::getDefaultInterviewCandidates();
+            self::saveInterviewCandidatesToMySQL($pdo, $interviewCandidates);
+        }
+
         return [
-            'settings'            => $settings,
-            'users'               => $users,
-            'candidates'          => $candidates,
-            'jobs'                => $jobs,
-            'checklist_masters'   => $checklistMasters,
-            'document_categories' => $docCategories,
-            'events'              => $events,
-            'event_attendees'     => $eventAttendees,
-            'milestones'          => $milestones,
-            'claims'              => $claims,
-            'disputes'            => $disputes,
-            'payments'            => $payments,
-            'audit_logs'          => $auditLogs
+            'settings'                 => $settings,
+            'users'                    => $users,
+            'candidates'               => $candidates,
+            'jobs'                     => $jobs,
+            'checklist_masters'        => $checklistMasters,
+            'document_categories'      => $docCategories,
+            'events'                   => $events,
+            'event_attendees'          => $eventAttendees,
+            'job_interviews'           => $jobInterviews,
+            'job_interview_candidates' => $interviewCandidates,
+            'milestones'               => $milestones,
+            'claims'                   => $claims,
+            'disputes'                 => $disputes,
+            'payments'                 => $payments,
+            'audit_logs'               => $auditLogs
         ];
     }
 
@@ -636,6 +733,72 @@ class Database {
                 'created_by' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
+            ]
+        ];
+    }
+
+    public static function getDefaultInterviews(): array {
+        return [
+            [
+                'id'              => 1,
+                'interview_code'  => 'INT-2026-001',
+                'job_id'          => 1, // QC Laboratory Analyst at BAHRAIN PHARMA
+                'interview_date'  => date('Y-m-d', strtotime('+3 days')),
+                'interview_time'  => '10:00 AM',
+                'location'        => 'Bahrain Pharma HQ - Plant 2, Hidd Industrial Area',
+                'remarks'         => 'Technical evaluation and lab safety compliance test. Please bring original degree certificate.',
+                'status'          => 'scheduled',
+                'created_by'      => 1,
+                'created_by_name' => 'Super Administrator',
+                'created_at'      => date('Y-m-d 09:00:00')
+            ],
+            [
+                'id'              => 2,
+                'interview_code'  => 'INT-2026-002',
+                'job_id'          => 2, // Graphic Designer at CENTRE POINT COLOUR
+                'interview_date'  => date('Y-m-d', strtotime('-2 days')),
+                'interview_time'  => '11:30 AM',
+                'location'        => 'Enma Mall Ministry Job Center - Interview Room 1',
+                'remarks'         => 'Portfolio presentation and practical design test (InDesign / Photoshop).',
+                'status'          => 'completed',
+                'created_by'      => 4,
+                'created_by_name' => 'Meaad Al-Alawi',
+                'created_at'      => date('Y-m-d 10:00:00', strtotime('-3 days'))
+            ]
+        ];
+    }
+
+    public static function getDefaultInterviewCandidates(): array {
+        return [
+            [
+                'id'              => 1,
+                'interview_id'    => 1,
+                'candidate_id'    => 3, // TANU
+                'status'          => 'scheduled',
+                'remarks'         => 'Candidate shortlisted based on BSc Degree match. Notified via phone and SMS.',
+                'attended_at'     => null,
+                'updated_by_name' => 'Super Administrator',
+                'created_at'      => date('Y-m-d 09:15:00')
+            ],
+            [
+                'id'              => 2,
+                'interview_id'    => 2,
+                'candidate_id'    => 2, // Fatima
+                'status'          => 'passed',
+                'remarks'         => 'Demonstrated excellent graphic portfolio and prepress knowledge. Approved for wage subsidy placement offer.',
+                'attended_at'     => date('Y-m-d 12:15:00', strtotime('-2 days')),
+                'updated_by_name' => 'Meaad Al-Alawi',
+                'created_at'      => date('Y-m-d 10:30:00', strtotime('-3 days'))
+            ],
+            [
+                'id'              => 3,
+                'interview_id'    => 2,
+                'candidate_id'    => 6, // Noor
+                'status'          => 'attended',
+                'remarks'         => 'Attended interview. Portfolio under secondary review by production supervisor.',
+                'attended_at'     => date('Y-m-d 12:45:00', strtotime('-2 days')),
+                'updated_by_name' => 'Meaad Al-Alawi',
+                'created_at'      => date('Y-m-d 10:30:00', strtotime('-3 days'))
             ]
         ];
     }
@@ -1117,6 +1280,16 @@ class Database {
                 self::saveJobsToMySQL($pdo, $data['jobs']);
             }
 
+            // 13. Job Interviews
+            if (isset($data['job_interviews']) && is_array($data['job_interviews'])) {
+                self::saveInterviewsToMySQL($pdo, $data['job_interviews']);
+            }
+
+            // 14. Job Interview Candidates
+            if (isset($data['job_interview_candidates']) && is_array($data['job_interview_candidates'])) {
+                self::saveInterviewCandidatesToMySQL($pdo, $data['job_interview_candidates']);
+            }
+
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -1176,6 +1349,68 @@ class Database {
                     ':attended_at'  => $ea['attended_at'] ?? null,
                     ':notes'        => $ea['notes'] ?? '',
                     ':created_at'   => $ea['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Non-fatal
+        }
+    }
+
+    private static function saveInterviewsToMySQL(PDO $pdo, array $interviews): void {
+        try {
+            self::ensureInterviewTables($pdo);
+            $stmt = $pdo->prepare("INSERT INTO job_interviews (id, interview_code, job_id, interview_date, interview_time, location, remarks, status, created_by, created_by_name, created_at)
+                VALUES (:id, :interview_code, :job_id, :interview_date, :interview_time, :location, :remarks, :status, :created_by, :created_by_name, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    job_id = VALUES(job_id),
+                    interview_date = VALUES(interview_date),
+                    interview_time = VALUES(interview_time),
+                    location = VALUES(location),
+                    remarks = VALUES(remarks),
+                    status = VALUES(status),
+                    created_by_name = VALUES(created_by_name)");
+
+            foreach ($interviews as $int) {
+                $stmt->execute([
+                    ':id'              => (int)$int['id'],
+                    ':interview_code'  => $int['interview_code'],
+                    ':job_id'          => (int)$int['job_id'],
+                    ':interview_date'  => $int['interview_date'],
+                    ':interview_time'  => $int['interview_time'] ?? null,
+                    ':location'        => $int['location'] ?? 'Job Center',
+                    ':remarks'         => $int['remarks'] ?? '',
+                    ':status'          => $int['status'] ?? 'scheduled',
+                    ':created_by'      => !empty($int['created_by']) ? (int)$int['created_by'] : null,
+                    ':created_by_name' => $int['created_by_name'] ?? 'Case Manager',
+                    ':created_at'      => $int['created_at'] ?? date('Y-m-d H:i:s')
+                ]);
+            }
+        } catch (Exception $e) {
+            // Non-fatal
+        }
+    }
+
+    private static function saveInterviewCandidatesToMySQL(PDO $pdo, array $candidates): void {
+        try {
+            self::ensureInterviewTables($pdo);
+            $stmt = $pdo->prepare("INSERT INTO job_interview_candidates (id, interview_id, candidate_id, status, remarks, attended_at, updated_by_name, created_at)
+                VALUES (:id, :interview_id, :candidate_id, :status, :remarks, :attended_at, :updated_by_name, :created_at)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    remarks = VALUES(remarks),
+                    attended_at = VALUES(attended_at),
+                    updated_by_name = VALUES(updated_by_name)");
+
+            foreach ($candidates as $jic) {
+                $stmt->execute([
+                    ':id'              => (int)$jic['id'],
+                    ':interview_id'    => (int)$jic['interview_id'],
+                    ':candidate_id'    => (int)$jic['candidate_id'],
+                    ':status'          => $jic['status'] ?? 'scheduled',
+                    ':remarks'         => $jic['remarks'] ?? '',
+                    ':attended_at'     => $jic['attended_at'] ?? null,
+                    ':updated_by_name' => $jic['updated_by_name'] ?? 'Case Manager',
+                    ':created_at'      => $jic['created_at'] ?? date('Y-m-d H:i:s')
                 ]);
             }
         } catch (Exception $e) {

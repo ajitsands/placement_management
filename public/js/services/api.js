@@ -229,6 +229,24 @@ class ApiService {
     removeAttendee: (eventId, candidateId) => this.request(`/events/${eventId}/attendees/${candidateId}`, { method: 'DELETE' }),
     updateAttendee: (eventId, candidateId, data) => this.request(`/events/${eventId}/attendees/${candidateId}`, { method: 'PUT', body: data })
   };
+
+  interviews = {
+    getAll: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/interviews${qs ? '?' + qs : ''}`);
+    },
+    getNextCode: () => this.request('/interviews/next-code'),
+    getOne: (id) => this.request(`/interviews/${id}`),
+    create: (data) => this.request('/interviews', { method: 'POST', body: data }),
+    update: (id, data) => this.request(`/interviews/${id}`, { method: 'PUT', body: data }),
+    delete: (id) => this.request(`/interviews/${id}`, { method: 'DELETE' }),
+    getCandidates: (id) => this.request(`/interviews/${id}/candidates`),
+    addCandidate: (interviewId, data) => this.request(`/interviews/${interviewId}/candidates`, { method: 'POST', body: data }),
+    addCandidatesBatch: (interviewId, candidateIds, remarks = '') => this.request(`/interviews/${interviewId}/candidates/batch`, { method: 'POST', body: { candidate_ids: candidateIds, remarks } }),
+    removeCandidate: (interviewId, candidateId) => this.request(`/interviews/${interviewId}/candidates/${candidateId}`, { method: 'DELETE' }),
+    updateCandidateOutcome: (interviewId, candidateId, data) => this.request(`/interviews/${interviewId}/candidates/${candidateId}`, { method: 'PUT', body: data }),
+    placeCandidate: (interviewId, candidateId, data = {}) => this.request(`/interviews/${interviewId}/candidates/${candidateId}/place`, { method: 'POST', body: data })
+  };
 }
 
 window.api = new ApiService();
