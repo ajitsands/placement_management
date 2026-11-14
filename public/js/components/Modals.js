@@ -9179,7 +9179,6 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
                 rows="2"
                 value={remarks}
                 onChange={e => setRemarks(e.target.value)}
-                placeholder="Notes for interviewers, dress code, documents candidates should bring, panel names..."
                 style={{ width: '100%', fontSize: '0.82rem', resize: 'vertical' }}
               />
             </div>
