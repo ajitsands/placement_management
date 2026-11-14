@@ -32,6 +32,18 @@
 
   <!-- Babel Standalone for JSX Compilation -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    // Suppress Babel code generator non-fatal formatting/styling notes for large files
+    (function() {
+      var origError = console.error;
+      console.error = function() {
+        if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('The code generator has deoptimised the styling') !== -1) {
+          return;
+        }
+        origError.apply(console, arguments);
+      };
+    })();
+  </script>
 </head>
 <body>
   <!-- React App Root Container -->
@@ -41,28 +53,29 @@
   <script src="js/services/api.js?v=8.7"></script>
 
   <!-- Central State Management Store -->
-  <script src="js/state/store.js?v=8.8"></script>
+  <script src="js/state/store.js?v=8.9"></script>
 
   <!-- React Components & Views -->
-  <script type="text/babel" src="js/components/DataTable.js?v=8.1"></script>
-  <script type="text/babel" src="js/components/Navbar.js?v=8.4"></script>
-  <script type="text/babel" src="js/components/Modals.js?v=9.10"></script>
-  <script type="text/babel" src="js/views/LoginView.js?v=8.2"></script>
-  <script type="text/babel" src="js/views/DashboardView.js?v=8.5"></script>
-  <script type="text/babel" src="js/views/CandidatesView.js?v=9.0"></script>
-  <script type="text/babel" src="js/views/JobsView.js?v=9.2"></script>
-  <script type="text/babel" src="js/views/EventsView.js?v=1.6"></script>
-  <script type="text/babel" src="js/views/PlacementsView.js?v=9.0"></script>
-  <script type="text/babel" src="js/views/MilestonesView.js?v=8.2"></script>
-  <script type="text/babel" src="js/views/ClaimsView.js?v=8.2"></script>
-  <script type="text/babel" src="js/views/DisputesView.js?v=8.2"></script>
-  <script type="text/babel" src="js/views/PaymentsView.js?v=8.2"></script>
-  <script type="text/babel" src="js/views/ReportsView.js?v=8.3"></script>
-  <script type="text/babel" src="js/views/UsersView.js?v=8.1"></script>
-  <script type="text/babel" src="js/views/SettingsView.js?v=8.1"></script>
-  <script type="text/babel" src="js/views/ProfileView.js?v=8.1"></script>
+  <script type="text/babel" data-presets="react" src="js/components/DataTable.js?v=8.1"></script>
+  <script type="text/babel" data-presets="react" src="js/components/Navbar.js?v=8.4"></script>
+  <script type="text/babel" data-presets="react" src="js/components/InterviewModals.js?v=1.0"></script>
+  <script type="text/babel" data-presets="react" src="js/components/Modals.js?v=9.11"></script>
+  <script type="text/babel" data-presets="react" src="js/views/LoginView.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/DashboardView.js?v=8.5"></script>
+  <script type="text/babel" data-presets="react" src="js/views/CandidatesView.js?v=9.0"></script>
+  <script type="text/babel" data-presets="react" src="js/views/JobsView.js?v=9.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/EventsView.js?v=1.6"></script>
+  <script type="text/babel" data-presets="react" src="js/views/PlacementsView.js?v=9.0"></script>
+  <script type="text/babel" data-presets="react" src="js/views/MilestonesView.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/ClaimsView.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/DisputesView.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/PaymentsView.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/views/ReportsView.js?v=8.3"></script>
+  <script type="text/babel" data-presets="react" src="js/views/UsersView.js?v=8.1"></script>
+  <script type="text/babel" data-presets="react" src="js/views/SettingsView.js?v=8.1"></script>
+  <script type="text/babel" data-presets="react" src="js/views/ProfileView.js?v=8.1"></script>
 
   <!-- Main Application Orchestrator -->
-  <script type="text/babel" src="js/app.js?v=8.2"></script>
+  <script type="text/babel" data-presets="react" src="js/app.js?v=8.2"></script>
 </body>
 </html>

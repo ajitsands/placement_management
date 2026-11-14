@@ -386,8 +386,13 @@ class AppStoreClass {
     try {
       const savedAuth = localStorage.getItem('sands_claims_auth');
 
-      // 1. Fetch current profile
-      const authData = await window.api.auth.me().catch(() => null);
+      // 1. Fetch current profile, settings & case managers in parallel for fastest boot time
+      const [authData, settingsData, cms] = await Promise.all([
+        window.api.auth.me().catch(() => null),
+        window.api.settings.get().catch(() => null),
+        window.api.users.getCaseManagers().catch(() => [])
+      ]);
+
       if (authData?.user) {
         this.state.currentUser = authData.user;
         // If auth was explicitly set or active session exists
@@ -398,7 +403,6 @@ class AppStoreClass {
       }
 
       // 2. Load Settings & GCC specs
-      const settingsData = await window.api.settings.get().catch(() => null);
       if (settingsData) {
         this.state.settings = settingsData.values || this.state.settings;
         this.state.supportedTimezones = settingsData.supportedTimezones || [];
@@ -408,8 +412,7 @@ class AppStoreClass {
         this.state.databaseStatus = settingsData.databaseStatus || null;
       }
 
-      // 3. Load Case Managers list
-      const cms = await window.api.users.getCaseManagers().catch(() => []);
+      // 3. Set Case Managers list
       this.state.caseManagers = cms || [];
 
       // 4. Load all transactions scoped to current user if authenticated
