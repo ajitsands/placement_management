@@ -9678,16 +9678,243 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     }
   };
 
-  // Outcome changes
-  const handleStatusChange = (candidateId, newStatus) => {
+  // Recommended evaluation remarks presets based on outcome status
+  const getRemarkPresets = (st) => {
+    const s = String(st || 'scheduled').toLowerCase();
+    switch (s) {
+      case 'passed':
+      case 'selected':
+        return [
+          'Candidate demonstrated strong technical competency and recommended for job placement.',
+          'Strong domain knowledge, great communication skills, and relevant experience.',
+          'Candidate selected based on qualification, interview performance, and role fit.'
+        ];
+      case 'rejected':
+        return [
+          'Candidate does not meet required experience / qualifications for this position.',
+          'Lacks required domain knowledge and core technical competencies.',
+          'Unsuccessful in interview assessment; retained in general talent pool.'
+        ];
+      case 'attended':
+      case 'present':
+        return [
+          'Candidate attended interview on time; panel evaluation under final review.',
+          'Initial interview screening completed; awaiting secondary assessment decision.',
+          'Attended interview session; submitted credentials and certificates for verification.'
+        ];
+      case 'absent':
+        return [
+          'Candidate failed to attend scheduled interview session without prior notice (No Show).',
+          'Candidate requested reschedule due to emergency / personal circumstances.',
+          'Candidate unreachable by phone and email during scheduled interview window.'
+        ];
+      case 'scheduled':
+      default:
+        return [
+          'Candidate scheduled for interview session; instructions and venue details confirmed.',
+          'Interview scheduled; pending candidate attendance.'
+        ];
+    }
+  };
+
+  // Prompt dialog for mandatory evaluation remarks when changing candidate status
+  const promptForEvaluationRemarks = async (candidate, targetStatus, currentRemarks) => {
+    const cName = candidate.full_name || 'Candidate';
+    const cpr = candidate.cpr_no ? `CPR: ${candidate.cpr_no}` : (candidate.ref_no || '');
+    const badge = getStatusBadge(targetStatus);
+    const presets = getRemarkPresets(targetStatus);
+    const defaultText = (currentRemarks && currentRemarks.trim()) ? currentRemarks : (presets[0] || '');
+
+    const swal = window.Swal || window.swal;
+    if (!swal) {
+      const entered = window.prompt(
+        `Please enter the evaluation remarks for ${cName} [Outcome: ${badge.label}]:`,
+        defaultText
+      );
+      if (entered === null) return null; // Cancelled
+      const trimmed = entered.trim();
+      return trimmed || defaultText;
+    }
+
+    const htmlContent = `
+      <div style="text-align: left; font-size: 0.85rem; color: #334155;">
+        <div style="margin-bottom: 12px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong style="color: #0f172a; font-size: 0.95rem;">${cName}</strong>
+            <span style="font-family: monospace; font-size: 0.78rem; color: #64748b;">${cpr}</span>
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b;">
+            Outcome Status: <strong style="color: ${badge.color};">${badge.label}</strong>
+          </div>
+        </div>
+
+        <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.82rem; color: #1e293b;">
+          Evaluation Remarks / Interview Feedback: <span style="color: #dc2626;">*</span>
+        </label>
+        <textarea id="swal-eval-remarks" class="swal2-textarea" 
+          style="width: 100%; min-height: 85px; margin: 0; padding: 8px 10px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; box-sizing: border-box;"
+          placeholder="Enter interview feedback, score, reason for outcome decision..."
+        >${defaultText}</textarea>
+
+        <div style="margin-top: 10px;">
+          <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">
+            💡 Quick Remark Presets (Click to Insert):
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            ${presets.map((p) => `
+              <button type="button" 
+                class="swal-preset-btn"
+                data-preset="${p.replace(/"/g, '&quot;')}"
+                style="text-align: left; background: #ffffff; border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 5px; font-size: 0.76rem; color: #334155; cursor: pointer; transition: all 0.15s ease;"
+                onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8';"
+                onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';"
+              >
+                • ${p}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const result = await swal.fire({
+      title: `<span style="font-size: 1.15rem; font-weight: 800;">Candidate Evaluation Remarks</span>`,
+      html: htmlContent,
+      showCancelButton: true,
+      confirmButtonText: '✓ Save Outcome & Remarks',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#0284c7',
+      cancelButtonColor: '#64748b',
+      width: '560px',
+      didOpen: () => {
+        const textarea = document.getElementById('swal-eval-remarks');
+        if (textarea) {
+          textarea.focus();
+        }
+        const presetBtns = document.querySelectorAll('.swal-preset-btn');
+        presetBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const val = btn.getAttribute('data-preset');
+            if (textarea && val) {
+              textarea.value = val;
+              textarea.focus();
+            }
+          });
+        });
+      },
+      preConfirm: () => {
+        const textarea = document.getElementById('swal-eval-remarks');
+        const val = textarea ? textarea.value.trim() : '';
+        if (!val) {
+          swal.showValidationMessage('Evaluation remarks are required when updating candidate outcome status');
+          return false;
+        }
+        return val;
+      }
+    });
+
+    if (result.isConfirmed) {
+      return result.value;
+    }
+    return null; // Cancelled
+  };
+
+  // Outcome status change: prompt for mandatory evaluation remarks and auto-save
+  const handleStatusChange = async (candidateId, newStatus) => {
+    const cand = sessionCandidates.find(c => String(c.candidate_id || c.id) === String(candidateId)) || {};
+    const oldOutcome = candidateOutcomes[candidateId] || {
+      status: cand.candidate_status || cand.status || 'scheduled',
+      remarks: cand.candidate_remarks || cand.remarks || ''
+    };
+
+    // If same status, do nothing
+    if (oldOutcome.status === newStatus && oldOutcome.remarks) return;
+
+    // Prompt for evaluation remarks with presets
+    const enteredRemarks = await promptForEvaluationRemarks(cand, newStatus, oldOutcome.remarks);
+
+    // If cancelled, keep old status (do NOT change status without evaluation remarks)
+    if (enteredRemarks === null) {
+      return;
+    }
+
+    // Update outcome with new status and remarks
     setCandidateOutcomes(prev => ({
       ...prev,
       [candidateId]: {
-        ...(prev[candidateId] || {}),
-        status: newStatus
+        status: newStatus,
+        remarks: enteredRemarks
       }
     }));
-    setDirtyCandidateIds(prev => new Set(prev).add(candidateId));
+
+    // Auto-save immediately to server for immediate persistence
+    if (activeSession?.id && window.api?.interviews?.updateCandidateOutcome) {
+      try {
+        await window.api.interviews.updateCandidateOutcome(activeSession.id, candidateId, {
+          status: newStatus,
+          remarks: enteredRemarks
+        });
+        if (window.AppStore?.showToast) {
+          window.AppStore.showToast(`✓ Evaluation saved for ${cand.full_name || 'Candidate'}: ${getStatusBadge(newStatus).label}`, 'success');
+        }
+        setDirtyCandidateIds(prev => {
+          const next = new Set(prev);
+          next.delete(candidateId);
+          return next;
+        });
+        await fetchInterviews();
+        await window.AppStore.refreshData();
+      } catch (err) {
+        console.error('Error auto-saving outcome:', err);
+        setDirtyCandidateIds(prev => new Set(prev).add(candidateId));
+      }
+    } else {
+      setDirtyCandidateIds(prev => new Set(prev).add(candidateId));
+    }
+  };
+
+  // Open dialog to edit remarks directly
+  const handleOpenRemarksDialog = async (candidate) => {
+    const cId = candidate.candidate_id || candidate.id;
+    const currentOutcome = candidateOutcomes[cId] || {
+      status: candidate.candidate_status || candidate.status || 'scheduled',
+      remarks: candidate.candidate_remarks || candidate.remarks || ''
+    };
+
+    const enteredRemarks = await promptForEvaluationRemarks(candidate, currentOutcome.status, currentOutcome.remarks);
+    if (enteredRemarks === null) return;
+
+    setCandidateOutcomes(prev => ({
+      ...prev,
+      [cId]: {
+        status: currentOutcome.status,
+        remarks: enteredRemarks
+      }
+    }));
+
+    if (activeSession?.id && window.api?.interviews?.updateCandidateOutcome) {
+      try {
+        await window.api.interviews.updateCandidateOutcome(activeSession.id, cId, {
+          status: currentOutcome.status,
+          remarks: enteredRemarks
+        });
+        if (window.AppStore?.showToast) {
+          window.AppStore.showToast(`✓ Evaluation remarks updated for ${candidate.full_name || 'Candidate'}`, 'success');
+        }
+        setDirtyCandidateIds(prev => {
+          const next = new Set(prev);
+          next.delete(cId);
+          return next;
+        });
+        await fetchInterviews();
+        await window.AppStore.refreshData();
+      } catch (err) {
+        console.error('Error saving remarks:', err);
+        setDirtyCandidateIds(prev => new Set(prev).add(cId));
+      }
+    } else {
+      setDirtyCandidateIds(prev => new Set(prev).add(cId));
+    }
   };
 
   const handleRemarksChange = (candidateId, newRemarks) => {
@@ -9701,9 +9928,22 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     setDirtyCandidateIds(prev => new Set(prev).add(candidateId));
   };
 
-  // Save all changed outcomes
+  // Save all changed outcomes with mandatory remarks check
   const handleSaveOutcomes = async () => {
     if (dirtyCandidateIds.size === 0) return;
+
+    // Validate that evaluation remarks are provided
+    for (const cId of Array.from(dirtyCandidateIds)) {
+      const item = candidateOutcomes[cId];
+      if (item && (!item.remarks || !item.remarks.trim())) {
+        const cand = sessionCandidates.find(c => String(c.candidate_id || c.id) === String(cId));
+        if (window.AppStore?.showToast) {
+          window.AppStore.showToast(`Evaluation remarks are required for ${cand?.full_name || 'candidate'}`, 'error');
+        }
+        return;
+      }
+    }
+
     setSavingOutcomes(true);
     try {
       const interviewId = activeSession?.id;
@@ -10517,14 +10757,36 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                               </select>
                             </td>
                             <td style={{ verticalAlign: 'middle' }}>
-                              <input
-                                type="text"
-                                className="input-control"
-                                placeholder="Interviewer notes, score, feedback..."
-                                value={outcome.remarks}
-                                onChange={e => handleRemarksChange(cId, e.target.value)}
-                                style={{ width: '100%', height: '34px', fontSize: '0.8rem', padding: '0 0.65rem', borderRadius: '6px' }}
-                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <input
+                                  type="text"
+                                  className="input-control"
+                                  placeholder="Click 📝 or enter evaluation feedback..."
+                                  value={outcome.remarks}
+                                  onChange={e => handleRemarksChange(cId, e.target.value)}
+                                  style={{ flex: 1, height: '34px', fontSize: '0.8rem', padding: '0 0.65rem', borderRadius: '6px' }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline"
+                                  onClick={() => handleOpenRemarksDialog(c)}
+                                  title="Open Evaluation Remarks Presets & Editor"
+                                  style={{
+                                    height: '34px',
+                                    padding: '0 0.55rem',
+                                    fontSize: '0.78rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#0284c7',
+                                    borderColor: 'var(--border-light)',
+                                    borderRadius: '6px',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  <span>📝</span>
+                                </button>
+                              </div>
                             </td>
                             <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
