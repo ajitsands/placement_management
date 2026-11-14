@@ -8722,6 +8722,31 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
     return (jobs || []).find(j => String(j.id) === String(selectedJobId)) || initialJob || null;
   }, [selectedJobId, jobs, initialJob]);
 
+  // Job options for SearchableSelect (Searchable by Employer, Position, Department, Job Code, or CR)
+  const jobOptions = useMemo(() => {
+    const list = (availableJobs || []).map(j => {
+      const rem = typeof j.vacancies_remaining !== 'undefined'
+        ? parseInt(j.vacancies_remaining, 10)
+        : Math.max(0, (parseInt(j.vacancies_count, 10) || 1) - (parseInt(j.placed_count, 10) || 0));
+      const pos = j.position_title || j.job_title || 'Position';
+      const sal = parseFloat(j.salary_offered_bhd || j.salary_bhd || 500).toFixed(3);
+      const dept = j.department || 'Operations';
+      const code = j.job_code || `JOB-${j.id}`;
+      return {
+        value: String(j.id),
+        label: `${j.company_name} — ${pos}`,
+        subLabel: `${code} • Dept: ${dept} • ${rem} open of ${j.vacancies_count || 1} • ${currency} ${sal}`,
+        searchKeywords: `${j.company_name} ${pos} ${dept} ${code} ${j.employer_cr || ''}`,
+        job: j,
+        remaining: rem
+      };
+    });
+    return [
+      { value: '', label: `-- Choose Job Opening (${list.length} Available) --`, subLabel: 'Search by employer, position, department, or job code' },
+      ...list
+    ];
+  }, [availableJobs, currency]);
+
   // Helper for age
   const getCandidateAge = (dob) => {
     if (window.calculateAge) {
@@ -8995,29 +9020,40 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
               <span>🏢</span> 1. Select Target Job Opening *
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '2fr 1.2fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
-              <div>
-                <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Job Vacancy Opening</label>
-                <select
-                  className="select-control"
-                  style={{ width: '100%', fontSize: '0.85rem' }}
-                  value={selectedJobId}
-                  onChange={e => setSelectedJobId(e.target.value)}
-                >
-                  <option value="">-- Choose Job Opening ({availableJobs.length} Available) --</option>
-                  {availableJobs.map(j => {
-                    const rem = typeof j.vacancies_remaining !== 'undefined' ? j.vacancies_remaining : j.vacancies_count;
-                    return (
-                      <option key={j.id} value={String(j.id)}>
-                        {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {rem} Open Vacancy • {currency} {Number(j.salary_offered_bhd || 500).toFixed(3)}
-                      </option>
-                    );
-                  })}
-                </select>
+            <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '1.5fr 1fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ position: 'relative', minWidth: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem', fontWeight: 600 }}>Job Vacancy Opening *</label>
+                {SearchableSelect ? (
+                  <SearchableSelect
+                    options={jobOptions}
+                    value={selectedJobId}
+                    onChange={val => setSelectedJobId(val ? String(val) : '')}
+                    placeholder="Search employer, position, department, or job code..."
+                    searchPlaceholder="Type employer, position, or job code to search..."
+                    icon="🏢"
+                  />
+                ) : (
+                  <select
+                    className="select-control"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                    value={selectedJobId}
+                    onChange={e => setSelectedJobId(e.target.value)}
+                  >
+                    <option value="">-- Choose Job Opening ({availableJobs.length} Available) --</option>
+                    {availableJobs.map(j => {
+                      const rem = typeof j.vacancies_remaining !== 'undefined' ? j.vacancies_remaining : j.vacancies_count;
+                      return (
+                        <option key={j.id} value={String(j.id)}>
+                          {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {rem} Open Vacancy • {currency} {Number(j.salary_offered_bhd || 500).toFixed(3)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
 
               {selectedJob && (
-                <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.6rem 0.8rem', fontSize: '0.78rem' }}>
+                <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}>
                   <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{selectedJob.company_name}</div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
                     {selectedJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedJob.job_code || `JOB-${selectedJob.id}`}</span>
@@ -9508,6 +9544,7 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
 function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initialInterviewId }) {
   const { candidates = [], jobs = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
+  const SearchableSelect = window.SearchableSelect;
 
   // Detect if modal was opened for a specific job
   const isJobLocked = Boolean(initialJobId || (initialJob && initialJob.id));
@@ -9525,6 +9562,24 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     }
     return initialJob || null;
   }, [currentJobId, jobs, initialJob]);
+
+  // Options for SearchableSelect in Global View
+  const interviewJobOptions = useMemo(() => {
+    const list = (jobs || []).map(j => {
+      const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
+      const code = j.job_code || `JOB-${j.id}`;
+      return {
+        value: String(j.id),
+        label: `${j.company_name} — ${j.job_title}`,
+        subLabel: `${code} • ${count} session(s) scheduled • Dept: ${j.department || 'Operations'}`,
+        searchKeywords: `${j.company_name} ${j.job_title} ${code} ${j.department || ''} ${j.employer_cr || ''}`
+      };
+    });
+    return [
+      { value: '', label: `-- All Job Openings (${(state.interviews || []).length} Scheduled Sessions) --`, subLabel: 'View sessions across all employer jobs' },
+      ...list
+    ];
+  }, [jobs, state.interviews]);
 
   // Read immediately from global state store so there's zero blank screen
   const getInitialList = () => {
@@ -10221,31 +10276,45 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
           /* Global View: Job Selection / Switcher Bar */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div style={{ flex: 1, minWidth: '280px' }}>
+              <div style={{ flex: 1, minWidth: '280px', position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                   <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     🏢 Filter by Job Opening:
                   </span>
                 </div>
-                <select
-                  className="select-control"
-                  style={{ width: '100%', fontSize: '0.84rem', fontWeight: 600 }}
-                  value={currentJobId}
-                  onChange={e => {
-                    setCurrentJobId(e.target.value);
-                    setSelectedInterviewId('');
-                  }}
-                >
-                  <option value="">-- All Job Openings ({(state.interviews || []).length} Scheduled Sessions) --</option>
-                  {(jobs || []).map(j => {
-                    const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
-                    return (
-                      <option key={j.id} value={String(j.id)}>
-                        {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {count} session(s)
-                      </option>
-                    );
-                  })}
-                </select>
+                {SearchableSelect ? (
+                  <SearchableSelect
+                    options={interviewJobOptions}
+                    value={currentJobId}
+                    onChange={val => {
+                      setCurrentJobId(val ? String(val) : '');
+                      setSelectedInterviewId('');
+                    }}
+                    placeholder="Search by employer, job title, department, or job code..."
+                    searchPlaceholder="Type employer name or position to filter..."
+                    icon="🏢"
+                  />
+                ) : (
+                  <select
+                    className="select-control"
+                    style={{ width: '100%', fontSize: '0.84rem', fontWeight: 600 }}
+                    value={currentJobId}
+                    onChange={e => {
+                      setCurrentJobId(e.target.value);
+                      setSelectedInterviewId('');
+                    }}
+                  >
+                    <option value="">-- All Job Openings ({(state.interviews || []).length} Scheduled Sessions) --</option>
+                    {(jobs || []).map(j => {
+                      const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
+                      return (
+                        <option key={j.id} value={String(j.id)}>
+                          {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {count} session(s)
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'flex-end' }}>
