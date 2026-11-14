@@ -1033,46 +1033,73 @@ class Candidate {
     }
 
     private static function generateMilestones(array &$store, int $candidateId, string $joiningDate): void {
-        // Check if milestones already exist for this candidate
-        $existing = array_filter($store['milestones'] ?? [], function($m) use ($candidateId) {
-            return (int)$m['candidate_id'] === $candidateId;
-        });
-
-        if (!empty($existing)) {
-            return;
+        $joiningTimestamp = strtotime($joiningDate);
+        if (!$joiningTimestamp) {
+            $joiningTimestamp = time();
+            $joiningDate = date('Y-m-d', $joiningTimestamp);
         }
 
-        $joiningTimestamp = strtotime($joiningDate);
+        $day0Date = $joiningDate;
+        $day180Date = date('Y-m-d', strtotime('+180 days', $joiningTimestamp));
+        $day365Date = date('Y-m-d', strtotime('+365 days', $joiningTimestamp));
+
+        $expectedConfigs = [
+            'placement' => [
+                'title'  => 'Placement Claim (Day 0)',
+                'date'   => $day0Date,
+                'status' => 'due',
+                'alert'  => 1
+            ],
+            '180_days' => [
+                'title'  => '6-Month Claim (+180d)',
+                'date'   => $day180Date,
+                'status' => 'upcoming',
+                'alert'  => 0
+            ],
+            '365_days' => [
+                'title'  => '12-Month Claim (+365d)',
+                'date'   => $day365Date,
+                'status' => 'upcoming',
+                'alert'  => 0
+            ]
+        ];
+
+        if (!isset($store['milestones']) || !is_array($store['milestones'])) {
+            $store['milestones'] = [];
+        }
+
+        // Map existing milestones by milestone_type for this candidate
+        $foundTypes = [];
+        foreach ($store['milestones'] as &$m) {
+            if ((int)($m['candidate_id'] ?? 0) === $candidateId) {
+                $mType = $m['milestone_type'] ?? '';
+                if (isset($expectedConfigs[$mType])) {
+                    $foundTypes[$mType] = true;
+                    // If milestone is not claimed or disputed, update due date to align with new joining date
+                    $currentStatus = $m['status'] ?? 'due';
+                    if ($currentStatus !== 'claimed' && $currentStatus !== 'disputed') {
+                        $m['due_date'] = $expectedConfigs[$mType]['date'];
+                        $m['milestone_title'] = $expectedConfigs[$mType]['title'];
+                    }
+                }
+            }
+        }
+        unset($m);
+
+        // Add any missing milestones for this candidate
         $msIdStart = count($store['milestones']) > 0 ? max(array_column($store['milestones'], 'id')) + 1 : 1;
-
-        $store['milestones'][] = [
-            'id' => $msIdStart,
-            'candidate_id' => $candidateId,
-            'milestone_type' => 'placement',
-            'milestone_title' => 'Placement Claim (Day 0)',
-            'due_date' => $joiningDate,
-            'status' => 'due',
-            'alert_dispatched' => 1
-        ];
-
-        $store['milestones'][] = [
-            'id' => $msIdStart + 1,
-            'candidate_id' => $candidateId,
-            'milestone_type' => '180_days',
-            'milestone_title' => '6-Month Claim (+180d)',
-            'due_date' => date('Y-m-d', strtotime('+180 days', $joiningTimestamp)),
-            'status' => 'upcoming',
-            'alert_dispatched' => 0
-        ];
-
-        $store['milestones'][] = [
-            'id' => $msIdStart + 2,
-            'candidate_id' => $candidateId,
-            'milestone_type' => '365_days',
-            'milestone_title' => '12-Month Claim (+365d)',
-            'due_date' => date('Y-m-d', strtotime('+365 days', $joiningTimestamp)),
-            'status' => 'upcoming',
-            'alert_dispatched' => 0
-        ];
+        foreach ($expectedConfigs as $type => $cfg) {
+            if (empty($foundTypes[$type])) {
+                $store['milestones'][] = [
+                    'id'               => $msIdStart++,
+                    'candidate_id'     => $candidateId,
+                    'milestone_type'   => $type,
+                    'milestone_title'  => $cfg['title'],
+                    'due_date'         => $cfg['date'],
+                    'status'           => $cfg['status'],
+                    'alert_dispatched' => $cfg['alert']
+                ];
+            }
+        }
     }
 }

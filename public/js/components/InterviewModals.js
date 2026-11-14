@@ -1398,7 +1398,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
               </div>
             </div>
             <p style="margin: 0; font-size: 0.78rem; color: var(--text-muted, #64748b);">
-              This will launch the official <strong>Link Placement</strong> procedure with candidate and employer details pre-populated, allowing contract verification and automated Tamkeen retention milestone generation.
+              This will launch the official <strong>Placement Allocations & Terms</strong> procedure with candidate and employer locked from the interview session, allowing you to edit employee type, position title, monthly salary, and joining date to generate automated retention milestones.
             </p>
           </div>
         `,
@@ -1427,12 +1427,15 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
         });
       }
 
-      // Close Interview modal and open the official Link Placement modal following standard placement procedure
+      // Close Interview modal and open the official Placement Allocations & Terms modal
       window.AppStore.closeModal();
       setTimeout(() => {
-        window.AppStore.openModal('LINK_PLACEMENT', {
+        window.AppStore.openModal('BATCH_PLACEMENT', {
+          job: targetJob,
+          jobId: targetJob?.id,
           candidate: fullCand,
-          job: targetJob
+          fromInterview: true,
+          interviewId: activeSession?.id
         });
       }, 120);
     } catch (err) {

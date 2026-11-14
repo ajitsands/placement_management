@@ -39,7 +39,16 @@ function Modals({ state }) {
     <div className="modal-overlay">
       {type === 'NEW_CANDIDATE' && <NewCandidateModal state={state} initialCenter={props?.initialCenter || props?.center} eventId={props?.eventId} onCandidateCreated={props?.onCandidateCreated} />}
       {type === 'LINK_PLACEMENT' && <LinkPlacementModal state={state} candidate={props?.candidate} job={props?.job} />}
-      {type === 'BATCH_PLACEMENT' && <BatchPlacementModal state={state} initialJobId={props?.jobId || props?.job?.id} />}
+      {type === 'BATCH_PLACEMENT' && (
+        <BatchPlacementModal
+          state={state}
+          initialJobId={props?.jobId || props?.job?.id}
+          initialJob={props?.job}
+          initialCandidate={props?.candidate}
+          fromInterview={props?.fromInterview}
+          interviewId={props?.interviewId}
+        />
+      )}
       {type === 'NEW_JOB' && <JobModal state={state} />}
       {type === 'EDIT_JOB' && <JobModal state={state} job={props?.job} />}
       {type === 'SCHEDULE_INTERVIEW' && (window.ScheduleInterviewModal ? <window.ScheduleInterviewModal state={state} initialJob={props?.job} initialJobId={props?.jobId || props?.job?.id} /> : null)}
@@ -1149,14 +1158,48 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
 }
 
 // 2a. Talent Pool & Job Placement Allocation Studio Modal
-function BatchPlacementModal({ state, initialJobId }) {
+function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate, fromInterview, interviewId }) {
   const { candidates = [], jobs = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
   const SearchableSelect = window.SearchableSelect;
 
-  const [selectedJobId, setSelectedJobId] = useState(initialJobId ? String(initialJobId) : '');
+  const isInterviewLocked = Boolean(fromInterview && initialCandidate);
+
+  // If initialCandidate is provided, resolve full candidate record if needed
+  const targetCandidate = useMemo(() => {
+    if (!initialCandidate) return null;
+    const cid = initialCandidate.candidate_id || initialCandidate.id;
+    return (candidates || []).find(c => Number(c.id) === Number(cid)) || initialCandidate;
+  }, [initialCandidate, candidates]);
+
+  const [selectedJobId, setSelectedJobId] = useState(() => {
+    if (initialJobId) return String(initialJobId);
+    if (initialJob && initialJob.id) return String(initialJob.id);
+    return '';
+  });
   const [candidateSearch, setCandidateSearch] = useState('');
-  const [allocations, setAllocations] = useState([]);
+  const [allocations, setAllocations] = useState(() => {
+    if (fromInterview && initialCandidate) {
+      const resolvedJob = initialJob || (jobs || []).find(j => String(j.id) === String(initialJobId));
+      const defSalary = resolvedJob ? (parseFloat(resolvedJob.salary_offered_bhd || resolvedJob.salary_bhd) || 450.0) : 450.0;
+      const defTitle = resolvedJob ? (resolvedJob.position_title || resolvedJob.job_title || 'Specialist') : 'Specialist';
+      const c = targetCandidate || initialCandidate;
+      return [{
+        candidate_id: c.candidate_id || c.id,
+        full_name: c.candidate_name || c.full_name || 'Candidate',
+        cpr_no: c.cpr_no || '',
+        ref_no: c.ref_no || '',
+        position_title: defTitle,
+        salary_bhd: defSalary,
+        joining_date: new Date().toISOString().split('T')[0],
+        employee_type: 'Full-Time',
+        mol_certified: 'Yes',
+        long_mol: 'No',
+        comments: 'Selected from interview session'
+      }];
+    }
+    return [];
+  });
   const [batchJoiningDate, setBatchJoiningDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [batchNotes, setBatchNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1210,16 +1253,21 @@ function BatchPlacementModal({ state, initialJobId }) {
 
   // Selected Job Details
   const selectedJob = useMemo(() => {
-    if (!selectedJobId) return null;
-    return (jobs || []).find(j => String(j.id) === String(selectedJobId)) || null;
-  }, [selectedJobId, jobs]);
+    if (selectedJobId) {
+      const found = (jobs || []).find(j => String(j.id) === String(selectedJobId));
+      if (found) return found;
+    }
+    if (initialJob) return initialJob;
+    return null;
+  }, [selectedJobId, jobs, initialJob]);
 
   const maxVacancies = useMemo(() => {
-    if (!selectedJob) return 0;
-    return typeof selectedJob.vacancies_remaining !== 'undefined'
+    if (!selectedJob) return isInterviewLocked ? 1 : 0;
+    const rem = typeof selectedJob.vacancies_remaining !== 'undefined'
       ? parseInt(selectedJob.vacancies_remaining, 10)
       : Math.max(0, (parseInt(selectedJob.vacancies_count, 10) || 1) - (parseInt(selectedJob.placed_count, 10) || 0));
-  }, [selectedJob]);
+    return isInterviewLocked ? Math.max(1, rem) : rem;
+  }, [selectedJob, isInterviewLocked]);
 
   const jobDefaultSalary = useMemo(() => {
     if (!selectedJob) return 450.0;
@@ -1248,6 +1296,7 @@ function BatchPlacementModal({ state, initialJobId }) {
 
   // Selection & Allocation Handlers
   const handleSelectJob = (jobId) => {
+    if (isInterviewLocked) return;
     setSelectedJobId(jobId);
     if (!jobId) {
       setAllocations([]);
@@ -1273,6 +1322,7 @@ function BatchPlacementModal({ state, initialJobId }) {
   };
 
   const handleToggleCandidate = (cand) => {
+    if (isInterviewLocked) return;
     if (!selectedJob) {
       window.AppStore.showNotification('Please select an employer job opening first.', 'warning');
       return;
@@ -1312,6 +1362,10 @@ function BatchPlacementModal({ state, initialJobId }) {
   };
 
   const handleRemoveAllocation = (candidateId) => {
+    if (isInterviewLocked) {
+      window.AppStore.showNotification('The candidate is selected from an interview and cannot be removed here.', 'info');
+      return;
+    }
     setAllocations(prev => prev.filter(a => a.candidate_id !== candidateId));
   };
 
@@ -1371,18 +1425,21 @@ function BatchPlacementModal({ state, initialJobId }) {
     }
 
     const jobTitle = selectedJob.position_title || selectedJob.job_title || 'Position';
-    const confirmMsg = `Are you sure you want to place ${allocations.length} candidate(s) at ${selectedJob.company_name} for position "${jobTitle}"?\n\nAutomated Day 0, Day 180, and Day 365 retention milestone gates will be created for each candidate.`;
+    const confirmMsg = isInterviewLocked
+      ? `Confirm placement for ${allocations[0]?.full_name} at ${selectedJob.company_name} as "${allocations[0]?.position_title || jobTitle}" with Joining Date ${allocations[0]?.joining_date}?\n\nAutomated Day 0, Day 180, and Day 365 retention milestone gates will be created based on this joining date.`
+      : `Are you sure you want to place ${allocations.length} candidate(s) at ${selectedJob.company_name} for position "${jobTitle}"?\n\nAutomated Day 0, Day 180, and Day 365 retention milestone gates will be created for each candidate based on their joining date.`;
 
     let userConfirmed = false;
-    if (window.swal) {
-      const result = await window.swal.fire({
-        title: 'Confirm Placements',
+    const swalInst = window.Swal || window.swal;
+    if (swalInst) {
+      const result = await swalInst.fire({
+        title: isInterviewLocked ? 'Confirm Candidate Placement' : 'Confirm Placements',
         text: confirmMsg,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: `Yes, Confirm Placements (${allocations.length})`,
+        confirmButtonText: isInterviewLocked ? 'Yes, Confirm Placement' : `Yes, Confirm Placements (${allocations.length})`,
         cancelButtonText: 'Cancel',
-        confirmButtonColor: '#10b981'
+        confirmButtonColor: '#059669'
       });
       userConfirmed = result.isConfirmed;
     } else if (window.confirm) {
@@ -1433,7 +1490,21 @@ function BatchPlacementModal({ state, initialJobId }) {
         }
       }
 
-      window.AppStore.showNotification(`Successfully placed ${allocations.length} candidate(s) to ${selectedJob.company_name}! Automated milestone gates created.`, 'success');
+      // If from interview, ensure interview candidate outcome is updated as passed
+      if (interviewId && window.api?.interviews?.updateCandidateOutcome) {
+        for (const a of allocations) {
+          try {
+            await window.api.interviews.updateCandidateOutcome(interviewId, a.candidate_id, {
+              status: 'passed',
+              remarks: `Placed as ${a.position_title} at ${selectedJob.company_name} (Joining: ${a.joining_date})`
+            });
+          } catch (iErr) {
+            console.warn('Could not sync interview candidate outcome:', iErr);
+          }
+        }
+      }
+
+      window.AppStore.showNotification(`Successfully placed ${allocations.length} candidate(s) to ${selectedJob.company_name}! Automated milestone gates created based on joining date.`, 'success');
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
@@ -1472,7 +1543,9 @@ function BatchPlacementModal({ state, initialJobId }) {
         style={{
           padding: '1rem 1.5rem',
           borderBottom: '1px solid var(--border-light, #e2e8f0)',
-          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(16, 185, 129, 0.06) 100%)',
+          background: isInterviewLocked
+            ? 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%)'
+            : 'linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(16, 185, 129, 0.06) 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -1485,51 +1558,73 @@ function BatchPlacementModal({ state, initialJobId }) {
               width: '42px',
               height: '42px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #0ea5e9 0%, #10b981 100%)',
+              background: isInterviewLocked
+                ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
+                : 'linear-gradient(135deg, #0ea5e9 0%, #10b981 100%)',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '1.3rem',
-              boxShadow: '0 2px 8px rgba(14, 165, 233, 0.3)'
+              boxShadow: isInterviewLocked ? '0 2px 8px rgba(5, 150, 105, 0.3)' : '0 2px 8px rgba(14, 165, 233, 0.3)'
             }}
           >
-            ⚡
+            {isInterviewLocked ? '🤝' : '⚡'}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
               <h2 className="modal-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
-                Talent Pool & Job Placement Allocation Studio
+                {isInterviewLocked ? 'Candidate Placement & Employment Terms' : 'Talent Pool & Job Placement Allocation Studio'}
               </h2>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: 'var(--success, #10b981)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
-                }}
-              >
-                {availablePoolCandidates.length} Available in Pool
-              </span>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(14, 165, 233, 0.15)',
-                  color: 'var(--primary, #0ea5e9)',
-                  border: '1px solid rgba(14, 165, 233, 0.3)'
-                }}
-              >
-                {openJobsList.length} Open Vacancies
-              </span>
+              {isInterviewLocked ? (
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'rgba(5, 150, 105, 0.15)',
+                    color: '#059669',
+                    border: '1px solid rgba(5, 150, 105, 0.3)'
+                  }}
+                >
+                  🔒 Interview Candidate Placement
+                </span>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: 'var(--success, #10b981)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}
+                  >
+                    {availablePoolCandidates.length} Available in Pool
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'rgba(14, 165, 233, 0.15)',
+                      color: 'var(--primary, #0ea5e9)',
+                      border: '1px solid rgba(14, 165, 233, 0.3)'
+                    }}
+                  >
+                    {openJobsList.length} Open Vacancies
+                  </span>
+                </>
+              )}
             </div>
             <p style={{ margin: '3px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              Allocate candidates from the available pool into open employer job openings with capacity validation, custom salaries, and milestone generation.
+              {isInterviewLocked
+                ? `Confirm placement terms for candidate ${allocations[0]?.full_name || targetCandidate?.full_name || ''} at ${selectedJob?.company_name || 'Employer'}. Retention milestones are created based on the specified joining date.`
+                : 'Allocate candidates from the available pool into open employer job openings with capacity validation, custom salaries, and milestone generation.'}
             </p>
           </div>
         </div>
@@ -1558,7 +1653,7 @@ function BatchPlacementModal({ state, initialJobId }) {
           minHeight: 0
         }}
       >
-        {/* Step 1: Select Employer Job Opening (Searchable by Employer, Position, Dept, or Job Code) */}
+        {/* Step 1: Select Employer Job Opening (or Locked Card when from interview) */}
         <div
           style={{
             background: 'var(--bg-secondary, #f8fafc)',
@@ -1573,90 +1668,138 @@ function BatchPlacementModal({ state, initialJobId }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.4rem' }}>
             <label style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem' }}>1</span>
-              Select Employer Job Opening ({openJobsList.length} Active Vacancies Available)
+              <span style={{ background: isInterviewLocked ? '#059669' : 'var(--primary)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem' }}>1</span>
+              {isInterviewLocked ? 'Target Employer Job Opening (Interview Session)' : `Select Employer Job Opening (${openJobsList.length} Active Vacancies Available)`}
             </label>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Searchable by <strong>Employer</strong>, <strong>Position</strong>, <strong>Department</strong>, or <strong>Job Code</strong>
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '1.4fr 1fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', minWidth: 0 }}>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={jobOptions}
-                  value={selectedJobId}
-                  onChange={handleSelectJob}
-                  placeholder="Type employer, position, department, or job code..."
-                  searchPlaceholder="Search by Employer, Position, Department, or Job Code..."
-                />
-              ) : (
-                <select
-                  className="select-control"
-                  style={{ width: '100%', fontSize: '0.88rem', fontWeight: 600, padding: '0.55rem 0.75rem' }}
-                  value={selectedJobId}
-                  onChange={e => handleSelectJob(e.target.value)}
-                >
-                  <option value="">-- Choose Employer Vacancy Opening --</option>
-                  {openJobsList.map(j => {
-                    const rem = typeof j.vacancies_remaining !== 'undefined'
-                      ? parseInt(j.vacancies_remaining, 10)
-                      : Math.max(0, (parseInt(j.vacancies_count, 10) || 1) - (parseInt(j.placed_count, 10) || 0));
-                    return (
-                      <option key={j.id} value={j.id}>
-                        {j.company_name} — {j.position_title || j.job_title} ({j.job_code || `JOB-${j.id}`} • {rem} open / {j.vacancies_count || 1} total • {currency} {parseFloat(j.salary_offered_bhd || j.salary_bhd || 0).toFixed(3)})
-                      </option>
-                    );
-                  })}
-                </select>
-              )}
-            </div>
-
-            {selectedJob && (
-              <div
-                style={{
-                  background: 'var(--bg-card, #ffffff)',
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  borderRadius: 'var(--radius-sm, 6px)',
-                  padding: '0.55rem 0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-                }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
-                      {selectedJob.company_name}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                      {selectedJob.job_code || `JOB-${selectedJob.id}`}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {selectedJob.position_title || selectedJob.job_title} &bull; Dept: <strong>{selectedJob.department || 'Operations'}</strong>
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <span
-                      className={`badge ${allocations.length >= maxVacancies ? 'badge-success' : 'badge-warning'}`}
-                      style={{ fontSize: '0.78rem', fontWeight: 800, padding: '0.25rem 0.6rem' }}
-                    >
-                      {allocations.length} / {maxVacancies} slots filled
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Salary: <strong style={{ color: 'var(--primary)' }}>{currency} {jobDefaultSalary.toFixed(3)}</strong>
-                  </div>
-                </div>
-              </div>
+            {isInterviewLocked ? (
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(5, 150, 105, 0.12)', color: '#059669', border: '1px solid rgba(5, 150, 105, 0.25)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>🔒</span> Employer & Job Locked from Interview
+              </span>
+            ) : (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Searchable by <strong>Employer</strong>, <strong>Position</strong>, <strong>Department</strong>, or <strong>Job Code</strong>
+              </span>
             )}
           </div>
+
+          {isInterviewLocked ? (
+            <div
+              style={{
+                background: 'var(--bg-card, #ffffff)',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                borderRadius: 'var(--radius-sm, 6px)',
+                padding: '0.65rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-primary)' }}>
+                    🏢 {selectedJob?.company_name || initialJob?.company_name}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                    {selectedJob?.job_code || initialJob?.job_code || `JOB-${selectedJob?.id || initialJob?.id}`}
+                  </span>
+                  {(selectedJob?.employer_cr || initialJob?.employer_cr) && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      CR: {selectedJob?.employer_cr || initialJob?.employer_cr}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                  Position: <strong>{selectedJob?.position_title || selectedJob?.job_title || initialJob?.job_title}</strong> &bull; Dept: <strong>{selectedJob?.department || initialJob?.department || 'Operations'}</strong>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Target Job Wage</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669', fontFamily: 'var(--font-mono)' }}>
+                  {currency} {jobDefaultSalary.toFixed(3)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '1.4fr 1fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ position: 'relative', minWidth: 0 }}>
+                {SearchableSelect ? (
+                  <SearchableSelect
+                    options={jobOptions}
+                    value={selectedJobId}
+                    onChange={handleSelectJob}
+                    placeholder="Type employer, position, department, or job code..."
+                    searchPlaceholder="Search by Employer, Position, Department, or Job Code..."
+                  />
+                ) : (
+                  <select
+                    className="select-control"
+                    style={{ width: '100%', fontSize: '0.88rem', fontWeight: 600, padding: '0.55rem 0.75rem' }}
+                    value={selectedJobId}
+                    onChange={e => handleSelectJob(e.target.value)}
+                  >
+                    <option value="">-- Choose Employer Vacancy Opening --</option>
+                    {openJobsList.map(j => {
+                      const rem = typeof j.vacancies_remaining !== 'undefined'
+                        ? parseInt(j.vacancies_remaining, 10)
+                        : Math.max(0, (parseInt(j.vacancies_count, 10) || 1) - (parseInt(j.placed_count, 10) || 0));
+                      return (
+                        <option key={j.id} value={j.id}>
+                          {j.company_name} — {j.position_title || j.job_title} ({j.job_code || `JOB-${j.id}`} • {rem} open / {j.vacancies_count || 1} total • {currency} {parseFloat(j.salary_offered_bhd || j.salary_bhd || 0).toFixed(3)})
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+              </div>
+
+              {selectedJob && (
+                <div
+                  style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    borderRadius: 'var(--radius-sm, 6px)',
+                    padding: '0.55rem 0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                        {selectedJob.company_name}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                        {selectedJob.job_code || `JOB-${selectedJob.id}`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {selectedJob.position_title || selectedJob.job_title} &bull; Dept: <strong>{selectedJob.department || 'Operations'}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span
+                        className={`badge ${allocations.length >= maxVacancies ? 'badge-success' : 'badge-warning'}`}
+                        style={{ fontSize: '0.78rem', fontWeight: 800, padding: '0.25rem 0.6rem' }}
+                      >
+                        {allocations.length} / {maxVacancies} slots filled
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Salary: <strong style={{ color: 'var(--primary)' }}>{currency} {jobDefaultSalary.toFixed(3)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Steps 2 & 3: Two-Column Studio Layout utilizing remaining height */}
@@ -1670,7 +1813,7 @@ function BatchPlacementModal({ state, initialJobId }) {
             overflow: 'hidden'
           }}
         >
-          {/* Left Column: Step 2 Available Talent Pool */}
+          {/* Left Column: Step 2 Available Talent Pool OR Locked Interview Candidate */}
           <div
             style={{
               border: '1px solid var(--border-color, #e2e8f0)',
@@ -1695,132 +1838,40 @@ function BatchPlacementModal({ state, initialJobId }) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
+                <span style={{ background: isInterviewLocked ? '#059669' : 'var(--primary)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
                 <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
-                  Available Talent Pool
+                  {isInterviewLocked ? 'Interview Candidate Profile' : 'Available Talent Pool'}
                 </span>
               </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                {filteredPool.length} of {availablePoolCandidates.length}
-              </span>
-            </div>
-
-            {/* Professional Candidate Search Box */}
-            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color, #e2e8f0)', flexShrink: 0 }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <span style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>
-                  🔍
+              {isInterviewLocked ? (
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)', background: 'rgba(5, 150, 105, 0.15)', color: '#059669', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <span>🔒</span> Pre-selected Candidate
                 </span>
-                <input
-                  type="text"
-                  className="input-control"
-                  placeholder="Search pool candidates by name, CPR, ref, skills, education..."
-                  value={candidateSearch}
-                  onChange={e => setCandidateSearch(e.target.value)}
-                  style={{
-                    paddingLeft: '2.3rem',
-                    paddingRight: candidateSearch ? '2.4rem' : '0.85rem',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: '0.82rem',
-                    height: '36px',
-                    background: 'var(--bg-secondary, #f8fafc)',
-                    border: '1px solid var(--border-color, #cbd5e1)',
-                    width: '100%'
-                  }}
-                />
-                {candidateSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setCandidateSearch('')}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      padding: '2px 4px'
-                    }}
-                    title="Clear candidate search"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {selectedJob && allocations.length >= maxVacancies && (
-                <div
-                  style={{
-                    marginTop: '0.5rem',
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
-                    borderRadius: 'var(--radius-sm, 6px)',
-                    padding: '0.4rem 0.6rem',
-                    fontSize: '0.73rem',
-                    color: 'var(--warning, #b45309)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  <span>⚠️</span>
-                  <span>Job capacity reached ({maxVacancies} max openings). Uncheck an allocated candidate to pick another.</span>
-                </div>
+              ) : (
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                  {filteredPool.length} of {availablePoolCandidates.length}
+                </span>
               )}
             </div>
 
-            {/* Candidate Pool Scrollable Cards List */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '0.75rem 1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.55rem',
-                minHeight: 0
-              }}
-            >
-              {filteredPool.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                  {availablePoolCandidates.length === 0
-                    ? 'No unplaced candidates in the available pool. All registered candidates are placed.'
-                    : 'No candidates matched your search criteria.'}
-                </div>
-              ) : (
-                filteredPool.map(cand => {
-                  const isAllocated = allocations.some(a => a.candidate_id === cand.id);
-                  const isMaxReached = selectedJob && allocations.length >= maxVacancies;
-                  const candName = cand.candidate_name || cand.full_name || 'Candidate';
+            {isInterviewLocked ? (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {(() => {
+                  const c = targetCandidate || initialCandidate || {};
+                  const candName = c.candidate_name || c.full_name || allocations[0]?.full_name || 'Candidate';
                   const initials = getInitials(candName);
-
                   return (
-                    <div
-                      key={cand.id}
-                      style={{
-                        border: `1px solid ${isAllocated ? 'var(--primary, #0ea5e9)' : 'var(--border-color, #e2e8f0)'}`,
-                        background: isAllocated ? 'rgba(14, 165, 233, 0.06)' : 'var(--bg-card, #ffffff)',
-                        borderRadius: 'var(--radius-md, 8px)',
-                        padding: '0.65rem 0.85rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.65rem',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isAllocated ? '0 0 0 1px var(--primary)' : '0 1px 2px rgba(0,0,0,0.02)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                    <>
+                      <div style={{ background: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', padding: '0.9rem', display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
                         <div
                           style={{
-                            width: '36px',
-                            height: '36px',
+                            width: '44px',
+                            height: '44px',
                             borderRadius: '50%',
-                            background: isAllocated ? 'var(--primary)' : 'var(--bg-tertiary)',
-                            color: isAllocated ? '#fff' : 'var(--text-secondary)',
+                            background: '#059669',
+                            color: '#fff',
                             fontWeight: 800,
-                            fontSize: '0.8rem',
+                            fontSize: '0.95rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1829,50 +1880,221 @@ function BatchPlacementModal({ state, initialJobId }) {
                         >
                           {initials}
                         </div>
-
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
-                              {candName}
+                            <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{candName}</strong>
+                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                              CPR: {c.cpr_no || allocations[0]?.cpr_no || 'N/A'}
                             </span>
-                            <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                              CPR: {cand.cpr_no || 'N/A'}
-                            </span>
-                            {cand.ref_no && (
-                              <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(14, 165, 233, 0.1)', color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
-                                {cand.ref_no}
+                            {(c.ref_no || allocations[0]?.ref_no) && (
+                              <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(14, 165, 233, 0.1)', color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                                {c.ref_no || allocations[0]?.ref_no}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            {cand.skills && <span>🛠️ <strong>{cand.skills}</strong></span>}
-                            {cand.highest_education && <span>&bull; 🎓 {cand.highest_education}</span>}
-                            {cand.phone_number && <span>&bull; 📞 {cand.phone_number}</span>}
+                          <div style={{ marginTop: '0.4rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                            {c.highest_education && <span>🎓 {c.highest_education}</span>}
+                            {c.skills && <span>&bull; 🛠️ {c.skills}</span>}
+                            {c.phone_number && <span>&bull; 📞 {c.phone_number}</span>}
                           </div>
                         </div>
                       </div>
 
+                      <div style={{ background: 'rgba(5, 150, 105, 0.08)', border: '1px solid rgba(5, 150, 105, 0.25)', borderRadius: '8px', padding: '0.85rem' }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#059669', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>★</span> Interview Assessment Outcome
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                          Candidate was evaluated and marked <strong style={{ color: '#059669' }}>Passed (Selected)</strong> for job opening <strong>{selectedJob?.company_name || initialJob?.company_name}</strong>.
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-light, #e2e8f0)', borderRadius: '8px', padding: '0.85rem', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>🔒</span> Placement Binding Rules:
+                        </div>
+                        <ul style={{ margin: '0.2rem 0 0 1.1rem', padding: 0, lineHeight: 1.6 }}>
+                          <li>Candidate name and target employer are locked from the interview.</li>
+                          <li>All employment parameters (type, position, salary, joining date) in Section 3 are fully editable.</li>
+                          <li>Tamkeen retention milestones (+0d, +180d, +365d) are generated from the specified joining date.</li>
+                        </ul>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <>
+                {/* Professional Candidate Search Box */}
+                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color, #e2e8f0)', flexShrink: 0 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>
+                      🔍
+                    </span>
+                    <input
+                      type="text"
+                      className="input-control"
+                      placeholder="Search pool candidates by name, CPR, ref, skills, education..."
+                      value={candidateSearch}
+                      onChange={e => setCandidateSearch(e.target.value)}
+                      style={{
+                        paddingLeft: '2.3rem',
+                        paddingRight: candidateSearch ? '2.4rem' : '0.85rem',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: '0.82rem',
+                        height: '36px',
+                        background: 'var(--bg-secondary, #f8fafc)',
+                        border: '1px solid var(--border-color, #cbd5e1)',
+                        width: '100%'
+                      }}
+                    />
+                    {candidateSearch && (
                       <button
                         type="button"
-                        className={`btn btn-sm ${isAllocated ? 'btn-primary' : 'btn-outline'}`}
-                        disabled={!selectedJob || (!isAllocated && isMaxReached)}
-                        title={!selectedJob ? 'Choose a job vacancy in Step 1 first' : (!isAllocated && isMaxReached ? `Capacity reached (${maxVacancies} max openings)` : isAllocated ? 'Remove from placement' : 'Allocate to this opening')}
+                        onClick={() => setCandidateSearch('')}
                         style={{
-                          fontSize: '0.76rem',
-                          fontWeight: 700,
-                          padding: '0.3rem 0.65rem',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0
+                          position: 'absolute',
+                          right: '10px',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          padding: '2px 4px'
                         }}
-                        onClick={() => handleToggleCandidate(cand)}
+                        title="Clear candidate search"
                       >
-                        {isAllocated ? '✓ Selected' : '+ Allocate'}
+                        ✕
                       </button>
+                    )}
+                  </div>
+
+                  {selectedJob && allocations.length >= maxVacancies && (
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: 'var(--radius-sm, 6px)',
+                        padding: '0.4rem 0.6rem',
+                        fontSize: '0.73rem',
+                        color: 'var(--warning, #b45309)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}
+                    >
+                      <span>⚠️</span>
+                      <span>Job capacity reached ({maxVacancies} max openings). Uncheck an allocated candidate to pick another.</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  )}
+                </div>
+
+                {/* Candidate Pool Scrollable Cards List */}
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem',
+                    minHeight: 0
+                  }}
+                >
+                  {filteredPool.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                      {availablePoolCandidates.length === 0
+                        ? 'No unplaced candidates in the available pool. All registered candidates are placed.'
+                        : 'No candidates matched your search criteria.'}
+                    </div>
+                  ) : (
+                    filteredPool.map(cand => {
+                      const isAllocated = allocations.some(a => a.candidate_id === cand.id);
+                      const isMaxReached = selectedJob && allocations.length >= maxVacancies;
+                      const candName = cand.candidate_name || cand.full_name || 'Candidate';
+                      const initials = getInitials(candName);
+
+                      return (
+                        <div
+                          key={cand.id}
+                          style={{
+                            border: `1px solid ${isAllocated ? 'var(--primary, #0ea5e9)' : 'var(--border-color, #e2e8f0)'}`,
+                            background: isAllocated ? 'rgba(14, 165, 233, 0.06)' : 'var(--bg-card, #ffffff)',
+                            borderRadius: 'var(--radius-md, 8px)',
+                            padding: '0.65rem 0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.65rem',
+                            transition: 'all 0.15s ease',
+                            boxShadow: isAllocated ? '0 0 0 1px var(--primary)' : '0 1px 2px rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                            <div
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                background: isAllocated ? 'var(--primary)' : 'var(--bg-tertiary)',
+                                color: isAllocated ? '#fff' : 'var(--text-secondary)',
+                                fontWeight: 800,
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              {initials}
+                            </div>
+
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                                  {candName}
+                                </span>
+                                <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                                  CPR: {cand.cpr_no || 'N/A'}
+                                </span>
+                                {cand.ref_no && (
+                                  <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(14, 165, 233, 0.1)', color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                                    {cand.ref_no}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                {cand.skills && <span>🛠️ <strong>{cand.skills}</strong></span>}
+                                {cand.highest_education && <span>&bull; 🎓 {cand.highest_education}</span>}
+                                {cand.phone_number && <span>&bull; 📞 {cand.phone_number}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${isAllocated ? 'btn-primary' : 'btn-outline'}`}
+                            disabled={!selectedJob || (!isAllocated && isMaxReached)}
+                            title={!selectedJob ? 'Choose a job vacancy in Step 1 first' : (!isAllocated && isMaxReached ? `Capacity reached (${maxVacancies} max openings)` : isAllocated ? 'Remove from placement' : 'Allocate to this opening')}
+                            style={{
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              padding: '0.3rem 0.65rem',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                            onClick={() => handleToggleCandidate(cand)}
+                          >
+                            {isAllocated ? '✓ Selected' : '+ Allocate'}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right Column: Step 3 Allocations, Individual Salary & Notes, Confirmation */}
@@ -1909,7 +2131,7 @@ function BatchPlacementModal({ state, initialJobId }) {
                 </span>
               </div>
 
-              {allocations.length > 0 && (
+              {allocations.length > 0 && !isInterviewLocked && (
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
@@ -2060,15 +2282,21 @@ function BatchPlacementModal({ state, initialJobId }) {
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-outline btn-sm"
-                          style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 600 }}
-                          onClick={() => handleRemoveAllocation(item.candidate_id)}
-                          title="Remove from allocation"
-                        >
-                          ✕ Remove
-                        </button>
+                        {!isInterviewLocked ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 600 }}
+                            onClick={() => handleRemoveAllocation(item.candidate_id)}
+                            title="Remove from allocation"
+                          >
+                            ✕ Remove
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#059669', background: 'rgba(5, 150, 105, 0.1)', border: '1px solid rgba(5, 150, 105, 0.25)', padding: '2px 8px', borderRadius: '4px' }}>
+                            🔒 Interview Candidate
+                          </span>
+                        )}
                       </div>
 
                       {/* Row 2: Employee Type & Position / Job Title */}
@@ -2244,7 +2472,7 @@ function BatchPlacementModal({ state, initialJobId }) {
               boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
             }}
           >
-            <span>{submitting ? '⏳ Creating Placements...' : '✓ Confirm & Create Placements'}</span>
+            <span>{submitting ? '⏳ Creating Placement...' : (isInterviewLocked ? '✓ Confirm & Create Placement' : '✓ Confirm & Create Placements')}</span>
             {!submitting && (
               <span
                 style={{
