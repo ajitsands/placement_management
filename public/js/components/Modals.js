@@ -8679,6 +8679,9 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
   const currency = settings.currency || 'BHD';
   const SearchableSelect = window.SearchableSelect;
 
+  // Detect if modal was opened for a specific job
+  const isJobLocked = Boolean(initialJobId || (initialJob && initialJob.id));
+
   // Selected Job ID
   const [selectedJobId, setSelectedJobId] = useState(() => {
     if (initialJobId) return String(initialJobId);
@@ -8878,8 +8881,9 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
           window.AppStore.showToast(`🎉 Interview session ${intCode} scheduled successfully with ${selectedCandidateIds.size} candidate(s)!`, 'success');
         }
         await window.AppStore.refreshData();
-        // Switch to the Job Interviews Modal so the user sees the session immediately
+        // Switch to the Job Interviews Modal locked to this job so the user sees the session immediately
         window.AppStore.openModal('JOB_INTERVIEWS', {
+          job: selectedJob,
           jobId: selectedJobId,
           interviewId: intId
         });
@@ -8928,55 +8932,114 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
       <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
         
         {/* Section 1: Job Opening Selection */}
-        <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light, #e2e8f0)', borderRadius: '8px', padding: '1rem' }}>
-          <div style={{ fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span>🏢</span> 1. Select Target Job Opening *
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '2fr 1.2fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
-            <div>
-              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Job Vacancy Opening</label>
-              <select
-                className="select-control"
-                style={{ width: '100%', fontSize: '0.85rem' }}
-                value={selectedJobId}
-                onChange={e => setSelectedJobId(e.target.value)}
-              >
-                <option value="">-- Choose Job Opening ({availableJobs.length} Available) --</option>
-                {availableJobs.map(j => {
-                  const rem = typeof j.vacancies_remaining !== 'undefined' ? j.vacancies_remaining : j.vacancies_count;
-                  return (
-                    <option key={j.id} value={String(j.id)}>
-                      {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {rem} Open Vacancy • {currency} {Number(j.salary_offered_bhd || 500).toFixed(3)}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {selectedJob && (
-              <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.6rem 0.8rem', fontSize: '0.78rem' }}>
-                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{selectedJob.company_name}</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
-                  {selectedJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedJob.job_code || `JOB-${selectedJob.id}`}</span>
+        {isJobLocked ? (
+          /* Locked Job Opening Banner */
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(59, 130, 246, 0.03) 100%)',
+            border: '1px solid rgba(2, 132, 199, 0.25)',
+            borderRadius: '8px',
+            padding: '0.85rem 1.1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: '#0284c7',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                flexShrink: 0
+              }}>
+                🏢
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                    Target Job Opening:
+                  </span>
+                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '0.68rem', fontWeight: 700 }}>
+                    🔒 Locked for this Job
+                  </span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>
-                    {currency} {Number(selectedJob.salary_offered_bhd || 500).toFixed(3)}
-                  </span>
-                  <span>&bull;</span>
-                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                    {selectedJob.vacancies_remaining || selectedJob.vacancies_count || 1} open
-                  </span>
-                  <span>&bull;</span>
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    {selectedJob.department || 'Operations'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedJob?.company_name || 'Employer'}</strong>
+                  <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedJob?.job_title || 'Position'}</span>
+                  <span className="badge" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' }}>
+                    {selectedJob?.job_code || `JOB-${selectedJob?.id || selectedJobId}`}
                   </span>
                 </div>
               </div>
-            )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.76rem', background: 'var(--bg-card, #ffffff)', padding: '0.35rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+              <span>Wage: <strong style={{ color: '#059669' }}>{currency} {Number(selectedJob?.salary_offered_bhd || 500).toFixed(3)}</strong></span>
+              <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+              <span>Open: <strong style={{ color: '#0284c7' }}>{selectedJob?.vacancies_remaining ?? selectedJob?.vacancies_count ?? 1}</strong></span>
+              <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+              <span>Dept: <strong>{selectedJob?.department || 'Operations'}</strong></span>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Global: Select Target Job Opening */
+          <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light, #e2e8f0)', borderRadius: '8px', padding: '1rem' }}>
+            <div style={{ fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span>🏢</span> 1. Select Target Job Opening *
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: selectedJob ? '2fr 1.2fr' : '1fr', gap: '1rem', alignItems: 'center' }}>
+              <div>
+                <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Job Vacancy Opening</label>
+                <select
+                  className="select-control"
+                  style={{ width: '100%', fontSize: '0.85rem' }}
+                  value={selectedJobId}
+                  onChange={e => setSelectedJobId(e.target.value)}
+                >
+                  <option value="">-- Choose Job Opening ({availableJobs.length} Available) --</option>
+                  {availableJobs.map(j => {
+                    const rem = typeof j.vacancies_remaining !== 'undefined' ? j.vacancies_remaining : j.vacancies_count;
+                    return (
+                      <option key={j.id} value={String(j.id)}>
+                        {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {rem} Open Vacancy • {currency} {Number(j.salary_offered_bhd || 500).toFixed(3)}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {selectedJob && (
+                <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.6rem 0.8rem', fontSize: '0.78rem' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{selectedJob.company_name}</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                    {selectedJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedJob.job_code || `JOB-${selectedJob.id}`}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem', fontSize: '0.72rem' }}>
+                    <span style={{ color: 'var(--success)', fontWeight: 700 }}>
+                      {currency} {Number(selectedJob.salary_offered_bhd || 500).toFixed(3)}
+                    </span>
+                    <span>&bull;</span>
+                    <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                      {selectedJob.vacancies_remaining || selectedJob.vacancies_count || 1} open
+                    </span>
+                    <span>&bull;</span>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {selectedJob.department || 'Operations'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Section 2: Date, Time, Location & Remarks */}
         <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light, #e2e8f0)', borderRadius: '8px', padding: '1rem' }}>
@@ -8984,29 +9047,29 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
             <span>📅</span> 2. Interview Date, Time, Location & Instructions *
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
             {/* Interview Date */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Interview Date *</label>
+              <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Interview Date *</label>
               <input
                 type="date"
                 className="input-control"
                 value={interviewDate}
                 onChange={e => setInterviewDate(e.target.value)}
-                style={{ width: '100%', fontSize: '0.85rem' }}
+                style={{ width: '100%', height: '36px', fontSize: '0.85rem' }}
                 required
               />
             </div>
 
             {/* Interview Time & Quick Chips */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Interview Time *</label>
+              <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Interview Time *</label>
               <input
                 type="time"
                 className="input-control"
                 value={interviewTime}
                 onChange={e => setInterviewTime(e.target.value)}
-                style={{ width: '100%', fontSize: '0.85rem' }}
+                style={{ width: '100%', height: '36px', fontSize: '0.85rem' }}
                 required
               />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.35rem' }}>
@@ -9016,12 +9079,13 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
                     type="button"
                     onClick={() => setInterviewTime(t)}
                     style={{
-                      background: interviewTime === t ? 'var(--primary)' : 'var(--bg-card)',
+                      background: interviewTime === t ? 'var(--primary, #0284c7)' : 'var(--bg-card, #fff)',
                       color: interviewTime === t ? '#fff' : 'var(--text-secondary)',
-                      border: '1px solid var(--border-light)',
+                      border: '1px solid ' + (interviewTime === t ? 'var(--primary, #0284c7)' : 'var(--border-light)'),
                       borderRadius: '4px',
-                      padding: '0.1rem 0.35rem',
+                      padding: '0.12rem 0.45rem',
                       fontSize: '0.68rem',
+                      fontWeight: interviewTime === t ? 700 : 500,
                       cursor: 'pointer'
                     }}
                   >
@@ -9033,17 +9097,17 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
 
             {/* Location */}
             <div style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Location / Venue *</label>
+              <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Location / Venue *</label>
               <input
                 type="text"
                 className="input-control"
                 value={interviewLocation}
                 onChange={e => setInterviewLocation(e.target.value)}
                 placeholder="e.g. Main Training Center - Room A or MS Teams Link"
-                style={{ width: '100%', fontSize: '0.85rem' }}
+                style={{ width: '100%', height: '36px', fontSize: '0.85rem' }}
                 required
               />
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.35rem' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
                 {[
                   'Main Office - Room A',
                   'Employer Site / HQ',
@@ -9055,12 +9119,13 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
                     type="button"
                     onClick={() => setInterviewLocation(loc)}
                     style={{
-                      background: interviewLocation === loc ? 'rgba(2, 132, 199, 0.15)' : 'var(--bg-card)',
+                      background: interviewLocation === loc ? 'rgba(2, 132, 199, 0.15)' : 'var(--bg-card, #fff)',
                       color: interviewLocation === loc ? '#0284c7' : 'var(--text-secondary)',
-                      border: '1px solid var(--border-light)',
+                      border: '1px solid ' + (interviewLocation === loc ? '#0284c7' : 'var(--border-light)'),
                       borderRadius: '4px',
-                      padding: '0.15rem 0.45rem',
+                      padding: '0.15rem 0.5rem',
                       fontSize: '0.7rem',
+                      fontWeight: interviewLocation === loc ? 700 : 500,
                       cursor: 'pointer'
                     }}
                   >
@@ -9072,7 +9137,7 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
 
             {/* Remarks */}
             <div style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }}>Remarks & Candidate Instructions</label>
+              <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Remarks & Candidate Instructions</label>
               <textarea
                 className="input-control"
                 rows="2"
@@ -9444,13 +9509,21 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
   const { candidates = [], jobs = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
 
-  // Current Target Job (stateful to allow switching between jobs or viewing all)
-  const [currentJobId, setCurrentJobId] = useState(initialJobId ? String(initialJobId) : (initialJob?.id ? String(initialJob.id) : ''));
+  // Detect if modal was opened for a specific job
+  const isJobLocked = Boolean(initialJobId || (initialJob && initialJob.id));
+
+  // Current Target Job (locked to specific job if opened from job, or selectable if opened globally)
+  const [currentJobId, setCurrentJobId] = useState(() => {
+    if (initialJobId) return String(initialJobId);
+    if (initialJob?.id) return String(initialJob.id);
+    return '';
+  });
+
   const targetJob = useMemo(() => {
     if (currentJobId) {
       return (jobs || []).find(j => String(j.id) === String(currentJobId)) || initialJob || null;
     }
-    return null;
+    return initialJob || null;
   }, [currentJobId, jobs, initialJob]);
 
   // Read immediately from global state store so there's zero blank screen
@@ -9792,7 +9865,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '1050px', width: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="modal-content" style={{ maxWidth: '1060px', width: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
@@ -9816,65 +9889,156 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
       {/* Body */}
       <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
-        {/* Job Selection / Switcher Bar */}
-        <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                🏢 Target Job Opening:
-              </span>
+        {/* Target Job Header Card (Single, locked when clicked from a job; or dropdown switcher when opened globally) */}
+        {isJobLocked ? (
+          /* Locked Job Summary Card - Clean, unified, NO dropdown */
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, rgba(59, 130, 246, 0.02) 100%)',
+            border: '1px solid rgba(2, 132, 199, 0.22)',
+            borderRadius: '10px',
+            padding: '0.85rem 1.15rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '8px',
+                background: '#0284c7',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.25rem',
+                flexShrink: 0,
+                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)'
+              }}>
+                🏢
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {targetJob?.company_name || 'Employer'}
+                  </span>
+                  <span className="badge" style={{
+                    background: 'rgba(2, 132, 199, 0.12)',
+                    color: '#0284c7',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '4px'
+                  }}>
+                    {targetJob?.job_code || `JOB-${targetJob?.id || currentJobId}`}
+                  </span>
+                  <span className="badge" style={{
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#059669',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '4px'
+                  }}>
+                    🔒 Target Job Opening
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.86rem' }}>{targetJob?.job_title || 'Position'}</strong>
+                  <span>&bull;</span>
+                  <span>Wage: <strong style={{ color: '#059669' }}>{currency} {Number(targetJob?.salary_offered_bhd || 500).toFixed(3)}</strong></span>
+                  <span>&bull;</span>
+                  <span>Open: <strong style={{ color: '#0284c7' }}>{targetJob?.vacancies_remaining ?? targetJob?.vacancies_count ?? 1} Vacanc{((targetJob?.vacancies_remaining ?? targetJob?.vacancies_count ?? 1) === 1) ? 'y' : 'ies'}</strong></span>
+                  <span>&bull;</span>
+                  <span>Dept: <strong>{targetJob?.department || 'Operations'}</strong></span>
+                </div>
+              </div>
             </div>
-            <select
-              className="select-control"
-              style={{ width: '100%', fontSize: '0.84rem', fontWeight: 600 }}
-              value={currentJobId}
-              onChange={e => {
-                setCurrentJobId(e.target.value);
-                setSelectedInterviewId('');
-              }}
-            >
-              <option value="">-- All Job Openings ({(state.interviews || []).length} Scheduled Sessions) --</option>
-              {(jobs || []).map(j => {
-                const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
-                return (
-                  <option key={j.id} value={String(j.id)}>
-                    {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {count} session(s)
-                  </option>
-                );
-              })}
-            </select>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'flex-end' }}>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderColor: '#0284c7', color: '#0284c7' }}
-              onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob, jobId: currentJobId })}
-            >
-              <span>➕</span> Schedule Another Session
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.78rem',
+                  padding: '0.4rem 0.85rem',
+                  fontWeight: 600,
+                  boxShadow: '0 1px 3px rgba(2, 132, 199, 0.25)'
+                }}
+                onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob, jobId: currentJobId })}
+              >
+                <span>➕</span> Schedule Another Session
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Global View: Job Selection / Switcher Bar */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ flex: 1, minWidth: '280px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    🏢 Filter by Job Opening:
+                  </span>
+                </div>
+                <select
+                  className="select-control"
+                  style={{ width: '100%', fontSize: '0.84rem', fontWeight: 600 }}
+                  value={currentJobId}
+                  onChange={e => {
+                    setCurrentJobId(e.target.value);
+                    setSelectedInterviewId('');
+                  }}
+                >
+                  <option value="">-- All Job Openings ({(state.interviews || []).length} Scheduled Sessions) --</option>
+                  {(jobs || []).map(j => {
+                    const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
+                    return (
+                      <option key={j.id} value={String(j.id)}>
+                        {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {count} session(s)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-        {/* Job Info Banner if specific job is selected */}
-        {targetJob && (
-          <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.65rem 0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>{targetJob.company_name}</strong> &bull; {targetJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{targetJob.job_code || `JOB-${targetJob.id}`}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderColor: '#0284c7', color: '#0284c7' }}
+                  onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob, jobId: currentJobId })}
+                >
+                  <span>➕</span> Schedule Another Session
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem' }}>
-              <span>Wage: <strong style={{ color: 'var(--success)' }}>{currency} {Number(targetJob.salary_offered_bhd || 500).toFixed(3)}</strong></span>
-              <span>Open: <strong style={{ color: 'var(--primary)' }}>{targetJob.vacancies_remaining || targetJob.vacancies_count || 1}</strong></span>
-              <span>Dept: <strong>{targetJob.department || 'Operations'}</strong></span>
-            </div>
+
+            {targetJob && (
+              <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.65rem 0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <div>
+                  <strong style={{ color: 'var(--text-primary)' }}>{targetJob.company_name}</strong> &bull; {targetJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{targetJob.job_code || `JOB-${targetJob.id}`}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem' }}>
+                  <span>Wage: <strong style={{ color: 'var(--success)' }}>{currency} {Number(targetJob.salary_offered_bhd || 500).toFixed(3)}</strong></span>
+                  <span>Open: <strong style={{ color: 'var(--primary)' }}>{targetJob.vacancies_remaining || targetJob.vacancies_count || 1}</strong></span>
+                  <span>Dept: <strong>{targetJob.department || 'Operations'}</strong></span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Sessions Tab / Selector */}
         {interviews.length > 0 ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.35rem', borderBottom: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', overflowX: 'auto', paddingBottom: '0.45rem', borderBottom: '1px solid var(--border-light)' }}>
               {interviews.map((session, idx) => {
                 const isSelected = activeSession && String(activeSession.id) === String(session.id);
                 const candCount = session.candidates_count || (session.candidates ? session.candidates.length : 0);
@@ -9884,18 +10048,20 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                     type="button"
                     onClick={() => { setSelectedInterviewId(String(session.id)); setShowAddCandidates(false); }}
                     style={{
-                      background: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                      background: isSelected ? 'var(--primary, #0284c7)' : 'var(--bg-card, #ffffff)',
                       color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                      border: '1px solid ' + (isSelected ? 'var(--primary)' : 'var(--border-light)'),
+                      border: '1px solid ' + (isSelected ? 'var(--primary, #0284c7)' : 'var(--border-light)'),
                       borderRadius: '6px',
-                      padding: '0.4rem 0.75rem',
+                      padding: '0.42rem 0.8rem',
                       fontSize: '0.78rem',
                       fontWeight: isSelected ? 700 : 500,
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.4rem'
+                      gap: '0.45rem',
+                      boxShadow: isSelected ? '0 1px 3px rgba(2, 132, 199, 0.25)' : 'none',
+                      transition: 'all 0.15s ease'
                     }}
                   >
                     <span>🤝</span>
@@ -9903,8 +10069,17 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                     {!currentJobId && session.company_name && (
                       <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>• {session.company_name}</span>
                     )}
-                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>({window.formatAppDate ? window.formatAppDate(session.interview_date) : session.interview_date})</span>
-                    <span className="badge" style={{ fontSize: '0.66rem', padding: '0.05rem 0.3rem', background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)', color: isSelected ? '#fff' : 'var(--text-primary)' }}>
+                    <span style={{ fontSize: '0.7rem', opacity: isSelected ? 0.9 : 0.75 }}>
+                      ({window.formatAppDate ? window.formatAppDate(session.interview_date) : session.interview_date})
+                    </span>
+                    <span className="badge" style={{
+                      fontSize: '0.66rem',
+                      padding: '0.08rem 0.4rem',
+                      borderRadius: '10px',
+                      background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                      color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                      fontWeight: 700
+                    }}>
                       {candCount}
                     </span>
                   </button>
@@ -9914,26 +10089,26 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
 
             {/* Active Session Card */}
             {activeSession && (
-              <div style={{ marginTop: '0.75rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 800 }}>
+              <div style={{ marginTop: '0.75rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.9rem 1.1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem', marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 800, padding: '0.2rem 0.55rem' }}>
                       {activeSession.interview_code}
                     </span>
-                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       📅 {window.formatAppDate ? window.formatAppDate(activeSession.interview_date) : activeSession.interview_date} at {activeSession.interview_time || '10:00 AM'}
                     </span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       &bull; 📍 {activeSession.location || 'Main Office'}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <select
                       className="select-control"
                       value={activeSession.status || 'scheduled'}
                       onChange={e => handleUpdateSessionStatus(e.target.value)}
-                      style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem', height: '28px' }}
+                      style={{ fontSize: '0.76rem', padding: '0.2rem 0.55rem', height: '32px', fontWeight: 600, borderRadius: '6px' }}
                     >
                       <option value="scheduled">Status: Scheduled</option>
                       <option value="in_progress">Status: In Progress</option>
@@ -9945,53 +10120,141 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                       type="button"
                       className="btn btn-sm btn-outline"
                       onClick={() => setShowAddCandidates(!showAddCandidates)}
-                      style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      style={{ fontSize: '0.76rem', padding: '0.2rem 0.65rem', height: '32px', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, borderRadius: '6px' }}
                     >
-                      <span>{showAddCandidates ? '✕ Close' : '➕ Add Candidates'}</span>
+                      <span>{showAddCandidates ? '✕ Close Panel' : '➕ Add Candidates'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Session Remarks */}
+                {/* Session Remarks / Instructions Callout */}
                 {activeSession.remarks && (
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', background: 'var(--bg-card)', padding: '0.4rem 0.65rem', borderRadius: '4px', border: '1px solid var(--border-light)', marginBottom: '0.65rem' }}>
-                    <strong>Instructions / Remarks:</strong> {activeSession.remarks}
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-card, #ffffff)',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-light)',
+                    marginBottom: '0.65rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.45rem',
+                    lineHeight: 1.4
+                  }}>
+                    <span>📝</span>
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)' }}>Instructions / Remarks:</strong>{' '}
+                      <span>{activeSession.remarks}</span>
+                    </div>
                   </div>
                 )}
 
-                {/* Metric Summary Counters */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.5rem' }}>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Total Roster</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>{sessionCandidates.length}</div>
+                {/* Metric Summary Counters - Uniform 6-Column Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  gap: '0.5rem',
+                  marginTop: '0.75rem'
+                }}>
+                  {/* Total Roster */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #64748b',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      Total Roster
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem', lineHeight: 1.15 }}>
+                      {sessionCandidates.length}
+                    </div>
                   </div>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: '#059669', textTransform: 'uppercase', fontWeight: 700 }}>⭐ Passed</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#059669' }}>
+
+                  {/* Passed */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #059669',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#059669', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      ⭐ Passed
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#059669', marginTop: '0.15rem', lineHeight: 1.15 }}>
                       {sessionCandidates.filter(c => (candidateOutcomes[c.candidate_id || c.id]?.status || c.candidate_status) === 'passed').length}
                     </div>
                   </div>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: '#2563eb', textTransform: 'uppercase', fontWeight: 700 }}>✓ Attended</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb' }}>
+
+                  {/* Attended */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #2563eb',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#2563eb', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      ✓ Attended
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#2563eb', marginTop: '0.15rem', lineHeight: 1.15 }}>
                       {sessionCandidates.filter(c => (candidateOutcomes[c.candidate_id || c.id]?.status || c.candidate_status) === 'attended').length}
                     </div>
                   </div>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: '#dc2626', textTransform: 'uppercase', fontWeight: 700 }}>✕ Rejected</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#dc2626' }}>
+
+                  {/* Rejected */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #dc2626',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#dc2626', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      ✕ Rejected
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#dc2626', marginTop: '0.15rem', lineHeight: 1.15 }}>
                       {sessionCandidates.filter(c => (candidateOutcomes[c.candidate_id || c.id]?.status || c.candidate_status) === 'rejected').length}
                     </div>
                   </div>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: '#d97706', textTransform: 'uppercase', fontWeight: 700 }}>⚠️ Absent</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#d97706' }}>
+
+                  {/* Absent */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #d97706',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#d97706', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      ⚠️ Absent
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#d97706', marginTop: '0.15rem', lineHeight: 1.15 }}>
                       {sessionCandidates.filter(c => (candidateOutcomes[c.candidate_id || c.id]?.status || c.candidate_status) === 'absent').length}
                     </div>
                   </div>
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.6rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: '#0284c7', textTransform: 'uppercase', fontWeight: 700 }}>📅 Scheduled</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0284c7' }}>
+
+                  {/* Scheduled */}
+                  <div style={{
+                    background: 'var(--bg-card, #ffffff)',
+                    border: '1px solid var(--border-light)',
+                    borderTop: '3px solid #0284c7',
+                    borderRadius: '6px',
+                    padding: '0.5rem 0.4rem',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: '#0284c7', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      📅 Scheduled
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0284c7', marginTop: '0.15rem', lineHeight: 1.15 }}>
                       {sessionCandidates.filter(c => {
                         const st = candidateOutcomes[c.candidate_id || c.id]?.status || c.candidate_status || 'scheduled';
                         return st === 'scheduled' || !st;
@@ -10006,7 +10269,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
             {showAddCandidates && (
               <div style={{ background: 'var(--bg-card)', border: '2px dashed var(--primary)', borderRadius: '8px', padding: '1rem', marginTop: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span>➕</span> Add More Candidates via Qualification, Age & Gender Presets
                   </div>
                   <button
@@ -10080,7 +10343,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                 </div>
 
                 {/* Candidate list to pick */}
-                <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
                   {candidatesAvailableToAdd.length > 0 ? (
                     candidatesAvailableToAdd.map(c => {
                       const isSel = selectedAddIds.has(c.id);
@@ -10100,23 +10363,23 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '0.4rem 0.65rem',
+                            padding: '0.45rem 0.75rem',
                             borderBottom: '1px solid var(--border-light)',
                             background: isSel ? 'rgba(2, 132, 199, 0.08)' : 'var(--bg-card)',
                             cursor: 'pointer'
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                             <input type="checkbox" checked={isSel} onChange={() => {}} style={{ cursor: 'pointer' }} />
                             <div>
-                              <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.full_name}</strong>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>CPR: {c.cpr_no || c.ref_no}</span>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                {c.gender} &bull; {age !== null ? `${age}y` : 'Age N/A'} &bull; {c.education || 'High School'}
+                              <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{c.full_name}</strong>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem', fontFamily: 'var(--font-mono)' }}>CPR: {c.cpr_no || c.ref_no}</span>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                                {c.gender} &bull; {age !== null ? `${age} yrs` : 'Age N/A'} &bull; {c.education || 'High School'}
                               </div>
                             </div>
                           </div>
-                          <span className="badge" style={{ fontSize: '0.68rem', background: isSel ? '#0284c7' : 'var(--bg-tertiary)', color: isSel ? '#fff' : 'var(--text-secondary)' }}>
+                          <span className="badge" style={{ fontSize: '0.7rem', background: isSel ? '#0284c7' : 'var(--bg-tertiary)', color: isSel ? '#fff' : 'var(--text-secondary)' }}>
                             {isSel ? '✓ Selected' : '+ Add'}
                           </span>
                         </div>
@@ -10129,7 +10392,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                   )}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', marginTop: '0.6rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', marginTop: '0.65rem' }}>
                   <button
                     type="button"
                     className="btn btn-sm btn-outline"
@@ -10152,9 +10415,9 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
             )}
 
             {/* Candidate Roster Table */}
-            <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ marginTop: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <span>📋</span> Candidate Evaluation & Outcomes ({sessionCandidates.length})
                 </div>
 
@@ -10164,7 +10427,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                     className="btn btn-sm btn-primary"
                     onClick={handleSaveOutcomes}
                     disabled={savingOutcomes}
-                    style={{ fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    style={{ fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '0.35rem', height: '32px' }}
                   >
                     <span>💾</span> {savingOutcomes ? 'Saving...' : `Save ${dirtyCandidateIds.size} Changes`}
                   </button>
@@ -10172,15 +10435,15 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
               </div>
 
               <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table className="table" style={{ margin: 0, fontSize: '0.8rem' }}>
+                <table className="table" style={{ margin: 0, fontSize: '0.8rem', width: '100%' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-tertiary)' }}>
-                      <th style={{ width: '40px', padding: '0.6rem 0.5rem', textAlign: 'center' }}>#</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Candidate</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Demographics</th>
-                      <th style={{ padding: '0.6rem 0.75rem', width: '180px' }}>Interview Status / Outcome</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Evaluation Remarks / Feedback</th>
-                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', width: '140px' }}>Actions</th>
+                      <th style={{ width: '42px', padding: '0.65rem 0.5rem', textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '0.65rem 0.75rem', minWidth: '175px' }}>Candidate</th>
+                      <th style={{ padding: '0.65rem 0.75rem', minWidth: '175px' }}>Demographics & Education</th>
+                      <th style={{ padding: '0.65rem 0.75rem', width: '195px' }}>Interview Status / Outcome</th>
+                      <th style={{ padding: '0.65rem 0.75rem', minWidth: '200px' }}>Evaluation Remarks / Feedback</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '130px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -10195,38 +10458,52 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                         const age = getCandidateAge(c.date_of_birth);
                         const edu = c.education || c.highest_education || c.attested_degree || 'Unspecified';
                         const isPassed = outcome.status === 'passed';
+                        
+                        // Check if candidate is already placed in this job or another job
+                        const candidateObj = (candidates || []).find(cand => Number(cand.id) === Number(cId)) || c;
+                        const isCandidatePlaced = candidateObj?.status === 'placed' || (candidateObj?.job_id && Number(candidateObj.job_id) === Number(targetJob?.id));
 
                         return (
                           <tr key={cId || idx} style={{ background: isDirty ? 'rgba(254, 243, 199, 0.25)' : undefined }}>
-                            <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
+                            <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', verticalAlign: 'middle' }}>
                               {idx + 1}
                             </td>
-                            <td>
-                              <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>{c.full_name}</strong>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                                {c.cpr_no ? `CPR: ${c.cpr_no}` : c.ref_no}
+                            <td style={{ verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{c.full_name}</strong>
+                                {isCandidatePlaced && (
+                                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#059669', fontSize: '0.66rem', fontWeight: 700, padding: '0.1rem 0.35rem' }}>
+                                    ✓ Placed
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '0.15rem' }}>
+                                {c.cpr_no ? `CPR: ${c.cpr_no}` : (c.ref_no || '')}
                               </div>
                             </td>
-                            <td>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <td style={{ verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                                   {c.gender === 'Female' ? '♀ Female' : '♂ Male'} &bull; {age !== null ? `🎂 ${age} yrs` : 'Age N/A'}
                                 </span>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  🎓 {edu}
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <span>🎓</span>
+                                  <span style={{ fontWeight: 600 }}>{edu}</span>
                                 </span>
                               </div>
                             </td>
-                            <td>
+                            <td style={{ verticalAlign: 'middle' }}>
                               <select
                                 className="select-control"
                                 value={outcome.status}
                                 onChange={e => handleStatusChange(cId, e.target.value)}
                                 style={{
                                   width: '100%',
-                                  fontSize: '0.76rem',
-                                  padding: '0.25rem 0.45rem',
+                                  height: '34px',
+                                  fontSize: '0.78rem',
+                                  padding: '0.2rem 0.5rem',
                                   fontWeight: 700,
+                                  borderRadius: '6px',
                                   background: getStatusBadge(outcome.status).bg,
                                   color: getStatusBadge(outcome.status).color,
                                   borderColor: getStatusBadge(outcome.status).color
@@ -10239,35 +10516,63 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                                 <option value="absent">⚠️ Absent / No Show</option>
                               </select>
                             </td>
-                            <td>
+                            <td style={{ verticalAlign: 'middle' }}>
                               <input
                                 type="text"
                                 className="input-control"
-                                placeholder="Add interviewer remarks or feedback..."
+                                placeholder="Interviewer notes, score, feedback..."
                                 value={outcome.remarks}
                                 onChange={e => handleRemarksChange(cId, e.target.value)}
-                                style={{ width: '100%', fontSize: '0.78rem', padding: '0.25rem 0.5rem' }}
+                                style={{ width: '100%', height: '34px', fontSize: '0.8rem', padding: '0 0.65rem', borderRadius: '6px' }}
                               />
                             </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
                                 {isPassed && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    onClick={() => handlePlaceCandidate(c)}
-                                    title="Directly Place Candidate in this Job Opening"
-                                    style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem', background: '#059669', borderColor: '#059669' }}
-                                  >
-                                    💼 Place
-                                  </button>
+                                  isCandidatePlaced ? (
+                                    <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#059669', fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.5rem', borderRadius: '4px' }}>
+                                      ✓ Placed
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-primary"
+                                      onClick={() => handlePlaceCandidate(c)}
+                                      title="Directly Place Candidate in this Job Opening"
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        height: '30px',
+                                        padding: '0 0.55rem',
+                                        background: '#059669',
+                                        borderColor: '#059669',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        fontWeight: 700,
+                                        borderRadius: '5px'
+                                      }}
+                                    >
+                                      <span>💼</span> Place
+                                    </button>
+                                  )
                                 )}
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-outline"
                                   onClick={() => handleRemoveCandidate(cId, c.full_name)}
-                                  title="Remove from interview session"
-                                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', color: '#dc2626', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                  title="Remove candidate from interview session"
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    height: '30px',
+                                    width: '30px',
+                                    padding: 0,
+                                    color: '#dc2626',
+                                    borderColor: 'rgba(239, 68, 68, 0.3)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: '5px'
+                                  }}
                                 >
                                   🗑️
                                 </button>
@@ -10278,7 +10583,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                       })
                     ) : (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
                           No candidates added to this interview session yet. Click <strong>➕ Add Candidates</strong> above to add candidates.
                         </td>
                       </tr>
@@ -10298,7 +10603,7 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob })}
+              onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob, jobId: currentJobId })}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
               <span>📅</span> Schedule First Interview Session
@@ -10309,11 +10614,11 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
 
       {/* Footer */}
       <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.85rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)' }}>
-        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {dirtyCandidateIds.size > 0 ? (
             <span style={{ color: '#d97706', fontWeight: 600 }}>⚠️ {dirtyCandidateIds.size} unsaved outcome changes</span>
           ) : (
-            <span>All interview outcomes synchronized</span>
+            <span style={{ color: '#059669', fontWeight: 500 }}>✓ All interview outcomes synchronized</span>
           )}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -10323,8 +10628,9 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
               className="btn btn-primary btn-sm"
               onClick={handleSaveOutcomes}
               disabled={savingOutcomes}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              💾 {savingOutcomes ? 'Saving...' : `Save All Outcomes (${dirtyCandidateIds.size})`}
+              <span>💾</span> {savingOutcomes ? 'Saving...' : `Save All Outcomes (${dirtyCandidateIds.size})`}
             </button>
           )}
           <button
