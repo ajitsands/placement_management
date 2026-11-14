@@ -232,7 +232,13 @@ class ApiService {
 
   interviews = {
     getAll: (params = {}) => {
-      const qs = new URLSearchParams(params).toString();
+      let queryObj = {};
+      if (typeof params === 'number' || typeof params === 'string') {
+        if (params) queryObj = { job_id: params };
+      } else if (params && typeof params === 'object') {
+        queryObj = params;
+      }
+      const qs = new URLSearchParams(queryObj).toString();
       return this.request(`/interviews${qs ? '?' + qs : ''}`);
     },
     getNextCode: () => this.request('/interviews/next-code'),

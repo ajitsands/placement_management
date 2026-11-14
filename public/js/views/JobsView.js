@@ -779,6 +779,15 @@ function JobsView({ state }) {
             type="button"
             className="btn btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#0284c7', color: '#0284c7', fontWeight: 600 }}
+            onClick={() => window.AppStore.openModal('JOB_INTERVIEWS')}
+            title="View all scheduled interview sessions and candidate evaluations across all job openings"
+          >
+            <span>📋</span> View All Interviews ({(state.interviews || []).length})
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#0284c7', color: '#0284c7', fontWeight: 600 }}
             onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW')}
           >
             <span>🤝</span> Schedule Interview

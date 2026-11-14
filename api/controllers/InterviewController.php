@@ -19,7 +19,8 @@ class InterviewController {
 
         Response::json([
             'count'      => count($interviews),
-            'interviews' => $interviews
+            'interviews' => $interviews,
+            'data'       => $interviews
         ]);
     }
 

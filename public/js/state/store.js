@@ -473,7 +473,7 @@ class AppStoreClass {
         candidates: candRes?.candidates || [],
         jobs: jobsRes?.jobs || [],
         events: eventsRes?.events || [],
-        interviews: intRes?.interviews || [],
+        interviews: Array.isArray(intRes?.interviews) ? intRes.interviews : (Array.isArray(intRes?.data) ? intRes.data : (Array.isArray(intRes) ? intRes : [])),
         checklistMasters: chkRes?.items || [],
         documentCategories: docCatsRes?.items || [],
         milestones: msRes?.milestones || [],

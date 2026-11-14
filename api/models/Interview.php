@@ -41,26 +41,24 @@ class Interview {
             $cId = (int)$ic['candidate_id'];
             $candObj = $candidatesMap[$cId] ?? null;
 
-            if ($candObj) {
-                $candidatesByInterview[$iId][] = [
-                    'id'              => (int)$ic['id'],
-                    'interview_id'    => $iId,
-                    'candidate_id'    => $cId,
-                    'full_name'       => $candObj['full_name'] ?? 'Unknown Candidate',
-                    'cpr_no'          => $candObj['cpr_no'] ?? '',
-                    'ref_no'          => $candObj['ref_no'] ?? '',
-                    'gender'          => $candObj['gender'] ?? 'Male',
-                    'education'       => $candObj['education'] ?? '',
-                    'date_of_birth'   => $candObj['date_of_birth'] ?? null,
-                    'center'          => $candObj['center'] ?? 'Enma Mall',
-                    'phone'           => $candObj['phone'] ?? '',
-                    'email'           => $candObj['email'] ?? '',
-                    'status'          => $ic['status'] ?? 'scheduled',
-                    'remarks'         => $ic['remarks'] ?? '',
-                    'attended_at'     => $ic['attended_at'] ?? null,
-                    'updated_by_name' => $ic['updated_by_name'] ?? ''
-                ];
-            }
+            $candidatesByInterview[$iId][] = [
+                'id'              => (int)$ic['id'],
+                'interview_id'    => $iId,
+                'candidate_id'    => $cId,
+                'full_name'       => $candObj['full_name'] ?? ('Candidate #' . $cId),
+                'cpr_no'          => $candObj['cpr_no'] ?? '',
+                'ref_no'          => $candObj['ref_no'] ?? '',
+                'gender'          => $candObj['gender'] ?? 'Male',
+                'education'       => $candObj['education'] ?? '',
+                'date_of_birth'   => $candObj['date_of_birth'] ?? null,
+                'center'          => $candObj['center'] ?? 'Enma Mall',
+                'phone'           => $candObj['phone'] ?? '',
+                'email'           => $candObj['email'] ?? '',
+                'status'          => $ic['status'] ?? 'scheduled',
+                'remarks'         => $ic['remarks'] ?? '',
+                'attended_at'     => $ic['attended_at'] ?? null,
+                'updated_by_name' => $ic['updated_by_name'] ?? ''
+            ];
         }
 
         $result = [];

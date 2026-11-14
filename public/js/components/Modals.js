@@ -8871,14 +8871,17 @@ function ScheduleInterviewModal({ state, initialJob, initialJobId }) {
 
       const res = await window.api.interviews.create(payload);
       if (res && res.success !== false) {
+        const createdInt = res?.data || res;
+        const intId = createdInt?.id || res?.id;
+        const intCode = createdInt?.interview_code || res?.interview_code || '';
         if (window.AppStore?.showToast) {
-          window.AppStore.showToast(`🎉 Interview session ${res.data?.interview_code || ''} scheduled successfully with ${selectedCandidateIds.size} candidate(s)!`, 'success');
+          window.AppStore.showToast(`🎉 Interview session ${intCode} scheduled successfully with ${selectedCandidateIds.size} candidate(s)!`, 'success');
         }
         await window.AppStore.refreshData();
         // Switch to the Job Interviews Modal so the user sees the session immediately
         window.AppStore.openModal('JOB_INTERVIEWS', {
           jobId: selectedJobId,
-          interviewId: res.data?.id
+          interviewId: intId
         });
       } else {
         throw new Error(res?.message || 'Failed to schedule interview');
@@ -9441,18 +9444,26 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
   const { candidates = [], jobs = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
 
-  // Current Target Job
-  const currentJobId = initialJobId ? String(initialJobId) : (initialJob?.id ? String(initialJob.id) : '');
+  // Current Target Job (stateful to allow switching between jobs or viewing all)
+  const [currentJobId, setCurrentJobId] = useState(initialJobId ? String(initialJobId) : (initialJob?.id ? String(initialJob.id) : ''));
   const targetJob = useMemo(() => {
     if (currentJobId) {
-      return (jobs || []).find(j => String(j.id) === currentJobId) || initialJob || null;
+      return (jobs || []).find(j => String(j.id) === String(currentJobId)) || initialJob || null;
     }
-    return initialJob || null;
+    return null;
   }, [currentJobId, jobs, initialJob]);
 
-  // Interviews List for this job
-  const [interviews, setInterviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Read immediately from global state store so there's zero blank screen
+  const getInitialList = () => {
+    const all = state.interviews || [];
+    if (currentJobId) {
+      return all.filter(i => Number(i.job_id) === Number(currentJobId));
+    }
+    return all;
+  };
+
+  const [interviews, setInterviews] = useState(getInitialList);
+  const [loading, setLoading] = useState(false);
   const [selectedInterviewId, setSelectedInterviewId] = useState(initialInterviewId ? String(initialInterviewId) : '');
   
   // Pending candidate outcomes map: { [candidateId]: { status, remarks } }
@@ -9474,19 +9485,24 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     setLoading(true);
     try {
       if (window.api?.interviews?.getAll) {
-        const jId = currentJobId ? parseInt(currentJobId, 10) : (targetJob?.id || null);
-        const res = await window.api.interviews.getAll(jId);
-        const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
-        setInterviews(list);
+        const jId = currentJobId ? parseInt(currentJobId, 10) : null;
+        const res = await window.api.interviews.getAll(jId ? { job_id: jId } : {});
+        const list = Array.isArray(res?.interviews)
+          ? res.interviews
+          : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+        
+        // Filter by currentJobId if one is selected
+        const filteredList = jId ? list.filter(i => Number(i.job_id) === Number(jId)) : list;
+        setInterviews(filteredList);
 
         // Select the active interview
-        if (list.length > 0) {
-          if (selectedInterviewId && list.some(i => String(i.id) === String(selectedInterviewId))) {
+        if (filteredList.length > 0) {
+          if (selectedInterviewId && filteredList.some(i => String(i.id) === String(selectedInterviewId))) {
             // Keep current
-          } else if (initialInterviewId && list.some(i => String(i.id) === String(initialInterviewId))) {
+          } else if (initialInterviewId && filteredList.some(i => String(i.id) === String(initialInterviewId))) {
             setSelectedInterviewId(String(initialInterviewId));
           } else {
-            setSelectedInterviewId(String(list[0].id));
+            setSelectedInterviewId(String(filteredList[0].id));
           }
         } else {
           setSelectedInterviewId('');
@@ -9497,11 +9513,25 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     } finally {
       setLoading(false);
     }
-  }, [currentJobId, targetJob, selectedInterviewId, initialInterviewId]);
+  }, [currentJobId, selectedInterviewId, initialInterviewId]);
 
   useEffect(() => {
     fetchInterviews();
   }, [currentJobId]);
+
+  useEffect(() => {
+    if (interviews.length > 0) {
+      if (!selectedInterviewId || !interviews.some(i => String(i.id) === String(selectedInterviewId))) {
+        if (initialInterviewId && interviews.some(i => String(i.id) === String(initialInterviewId))) {
+          setSelectedInterviewId(String(initialInterviewId));
+        } else {
+          setSelectedInterviewId(String(interviews[0].id));
+        }
+      }
+    } else {
+      setSelectedInterviewId('');
+    }
+  }, [interviews, initialInterviewId]);
 
   // Active Interview Session
   const activeSession = useMemo(() => {
@@ -9786,33 +9816,57 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
       {/* Body */}
       <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
-        {/* Job Info Banner */}
-        {targetJob && (
-          <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{targetJob.company_name}</strong>
-                <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
-                  {targetJob.job_code || `JOB-${targetJob.id}`}
-                </span>
-                <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.15)', color: '#059669', fontWeight: 700 }}>
-                  {targetJob.status || 'Active'}
-                </span>
-              </div>
-              <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                Position: <strong>{targetJob.job_title}</strong> &bull; Dept: {targetJob.department || 'Operations'} &bull; Wage: <strong style={{ color: 'var(--success)' }}>{currency} {Number(targetJob.salary_offered_bhd || 500).toFixed(3)}</strong>
-              </div>
+        {/* Job Selection / Switcher Bar */}
+        <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ flex: 1, minWidth: '280px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                🏢 Target Job Opening:
+              </span>
             </div>
+            <select
+              className="select-control"
+              style={{ width: '100%', fontSize: '0.84rem', fontWeight: 600 }}
+              value={currentJobId}
+              onChange={e => {
+                setCurrentJobId(e.target.value);
+                setSelectedInterviewId('');
+              }}
+            >
+              <option value="">-- All Job Openings ({(state.interviews || []).length} Scheduled Sessions) --</option>
+              {(jobs || []).map(j => {
+                const count = (state.interviews || []).filter(i => Number(i.job_id) === Number(j.id)).length;
+                return (
+                  <option key={j.id} value={String(j.id)}>
+                    {j.company_name} — {j.job_title} ({j.job_code || `JOB-${j.id}`}) • {count} session(s)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderColor: '#0284c7', color: '#0284c7' }}
-                onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob })}
-              >
-                <span>➕</span> Schedule Another Session
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'flex-end' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderColor: '#0284c7', color: '#0284c7' }}
+              onClick={() => window.AppStore.openModal('SCHEDULE_INTERVIEW', { job: targetJob, jobId: currentJobId })}
+            >
+              <span>➕</span> Schedule Another Session
+            </button>
+          </div>
+        </div>
+
+        {/* Job Info Banner if specific job is selected */}
+        {targetJob && (
+          <div style={{ background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '0.65rem 0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>{targetJob.company_name}</strong> &bull; {targetJob.job_title} &bull; <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{targetJob.job_code || `JOB-${targetJob.id}`}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem' }}>
+              <span>Wage: <strong style={{ color: 'var(--success)' }}>{currency} {Number(targetJob.salary_offered_bhd || 500).toFixed(3)}</strong></span>
+              <span>Open: <strong style={{ color: 'var(--primary)' }}>{targetJob.vacancies_remaining || targetJob.vacancies_count || 1}</strong></span>
+              <span>Dept: <strong>{targetJob.department || 'Operations'}</strong></span>
             </div>
           </div>
         )}
@@ -9846,6 +9900,9 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
                   >
                     <span>🤝</span>
                     <span>{session.interview_code || `INT-${idx + 1}`}</span>
+                    {!currentJobId && session.company_name && (
+                      <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>• {session.company_name}</span>
+                    )}
                     <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>({window.formatAppDate ? window.formatAppDate(session.interview_date) : session.interview_date})</span>
                     <span className="badge" style={{ fontSize: '0.66rem', padding: '0.05rem 0.3rem', background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)', color: isSelected ? '#fff' : 'var(--text-primary)' }}>
                       {candCount}
