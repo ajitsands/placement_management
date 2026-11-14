@@ -484,6 +484,31 @@ class Interview {
             $user
         );
 
+        $cand = Candidate::find($candidateId);
+        $int = self::find($interviewId);
+        $jobTitle = $int['job_title'] ?? 'Job Opening';
+        $comp = $int['company_name'] ?? 'Employer';
+        $statusLabels = [
+            'scheduled' => 'Scheduled',
+            'attended'  => 'Attended',
+            'passed'    => 'Passed (Selected)',
+            'selected'  => 'Passed (Selected)',
+            'rejected'  => 'Rejected',
+            'absent'    => 'Absent / No-Show',
+            'cancelled' => 'Cancelled'
+        ];
+        $stLabel = $statusLabels[$row['status']] ?? ucfirst($row['status']);
+        $remarksText = !empty($row['remarks']) ? " Remarks: {$row['remarks']}." : "";
+
+        AuditLog::log(
+            'INTERVIEW_EVALUATION',
+            'candidate',
+            $candidateId,
+            $cand['ref_no'] ?? "CAND-{$candidateId}",
+            "Candidate interview evaluated as '{$stLabel}' for Job Opening: {$jobTitle} at {$comp} by {$userName}.{$remarksText}",
+            $user
+        );
+
         return $row;
     }
 }

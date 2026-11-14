@@ -3557,10 +3557,26 @@ function CandidateChecklistModal({ state, candidate: initialCandidate }) {
 // 5. Candidate Comprehensive Dossier & Milestones Timeline Modal
 function CandidateDetailModal({ state, candidate }) {
   if (!candidate) return null;
-  const { milestones, settings } = state;
+  const { milestones = [], settings = {}, interviews = [] } = state;
   const candMilestones = milestones.filter(m => m.candidate_id === candidate.id);
   const currency = settings.currency || 'BHD';
   const docs = candidate.documents || [];
+
+  // Match all interviews scheduled or attended by this candidate
+  const candInterviews = useMemo(() => {
+    const list = [];
+    (interviews || []).forEach(int => {
+      const roster = int.candidates || [];
+      const match = roster.find(c => Number(c.candidate_id || c.id) === Number(candidate.id));
+      if (match) {
+        list.push({
+          ...int,
+          candidateRecord: match
+        });
+      }
+    });
+    return list;
+  }, [interviews, candidate.id]);
 
   return (
     <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -3721,6 +3737,112 @@ function CandidateDetailModal({ state, candidate }) {
               >
                 🔗 Link Placement Now
               </button>
+            </div>
+          )}
+        </div>
+
+        {/* Candidate Interview Sessions & Evaluation History */}
+        <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>🤝</span> Job Interviews & Evaluation History ({candInterviews.length})
+            </h3>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
+              onClick={() => {
+                window.AppStore.closeModal();
+                window.AppStore.openModal('CANDIDATE_ACTIVITY_LOG', { candidateId: candidate.id });
+              }}
+            >
+              📜 View Full Activity Log &rarr;
+            </button>
+          </div>
+
+          {candInterviews.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {candInterviews.map((int, i) => {
+                const rec = int.candidateRecord || {};
+                const st = (rec.status || 'scheduled').toLowerCase();
+                const isPassed = st === 'passed' || st === 'selected';
+                const isAttended = st === 'attended';
+                const isRejected = st === 'rejected';
+                const isAbsent = st === 'absent';
+
+                let badgeStyle = { background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' };
+                let stText = 'Scheduled';
+
+                if (isPassed) {
+                  badgeStyle = { background: 'rgba(16, 185, 129, 0.15)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)' };
+                  stText = '⭐ Passed (Selected)';
+                } else if (isAttended) {
+                  badgeStyle = { background: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', border: '1px solid rgba(2, 132, 199, 0.3)' };
+                  stText = '✓ Attended';
+                } else if (isRejected) {
+                  badgeStyle = { background: 'rgba(239, 68, 68, 0.15)', color: '#dc2626', border: '1px solid rgba(239, 68, 68, 0.3)' };
+                  stText = '✕ Rejected';
+                } else if (isAbsent) {
+                  badgeStyle = { background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.3)' };
+                  stText = '⚠️ Absent / No-Show';
+                }
+
+                return (
+                  <div
+                    key={int.id || i}
+                    style={{
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '8px',
+                      padding: '0.75rem 0.9rem',
+                      background: 'var(--bg-tertiary)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.76rem', color: 'var(--primary)', background: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                          {int.interview_code || `INT-${int.id}`}
+                        </span>
+                        <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                          {int.job_title}
+                        </strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          at <strong>{int.company_name}</strong>
+                        </span>
+                        {int.job_code && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({int.job_code})</span>
+                        )}
+                      </div>
+                      <span className="badge" style={{ ...badgeStyle, fontSize: '0.72rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '4px' }}>
+                        {stText}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.76rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <span>📅 <strong>{window.formatAppDate(int.interview_date)}</strong>{int.interview_time ? ` at ${int.interview_time}` : ''}</span>
+                      {int.location && <span>📍 {int.location}</span>}
+                      {rec.attended_at && <span>🕒 Attended: {window.formatAppDate(rec.attended_at)}</span>}
+                      {rec.updated_by_name && <span>👤 Evaluator: {rec.updated_by_name}</span>}
+                    </div>
+
+                    {rec.remarks ? (
+                      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <strong>Evaluation Remarks / Feedback:</strong> {rec.remarks}
+                      </div>
+                    ) : int.remarks ? (
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Instructions/Notes: {int.remarks}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+              No interview sessions recorded for this candidate yet.
             </div>
           )}
         </div>

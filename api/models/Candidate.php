@@ -994,6 +994,9 @@ class Candidate {
                 if (!empty($interview['location'])) {
                     $descParts[] = "Location: {$interview['location']}";
                 }
+                if (!empty($ic['attended_at'])) {
+                    $descParts[] = "Attended: " . $ic['attended_at'];
+                }
                 if (!empty($ic['remarks'])) {
                     $descParts[] = "Interview Outcome Remarks: {$ic['remarks']}";
                 } elseif (!empty($interview['remarks'])) {

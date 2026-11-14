@@ -1359,40 +1359,113 @@ function JobInterviewsModal({ state, job: initialJob, jobId: initialJobId, initi
     }
   };
 
-  // Direct Placement initiated from interview
+  // Placement initiated from interview
   const handlePlaceCandidate = async (candidate) => {
     const cId = candidate.candidate_id || candidate.id;
     const cName = candidate.full_name || 'Candidate';
-    const jTitle = targetJob?.job_title || 'Position';
+    const jTitle = targetJob?.job_title || targetJob?.position_title || 'Position';
     const cCompany = targetJob?.company_name || 'Employer';
+    const fullCand = (candidates || []).find(c => Number(c.id) === Number(cId)) || candidate;
+    const salaryFormatted = parseFloat(targetJob?.salary_offered_bhd || targetJob?.salary_bhd || 500).toFixed(3);
 
-    if (!window.confirm(`Initiate official placement for ${cName} as "${jTitle}" at ${cCompany}? This will link the candidate to this job and record the placement.`)) {
-      return;
+    const swalInstance = window.Swal || window.swal;
+    let confirmed = false;
+
+    if (swalInstance) {
+      const res = await swalInstance.fire({
+        title: 'Candidate Placement Procedure',
+        html: `
+          <div style="text-align: left; font-size: 0.88rem; line-height: 1.55; color: var(--text-primary, #334155);">
+            <p style="margin-bottom: 0.65rem;">
+              Initiate official placement procedure for <strong>${cName}</strong> as <strong>"${jTitle}"</strong> at <strong>${cCompany}</strong>?
+            </p>
+            <div style="background: var(--bg-tertiary, #f8fafc); border: 1px solid var(--border-light, #e2e8f0); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; font-size: 0.82rem;">
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.3rem;">
+                <span style="color: var(--text-muted, #64748b); min-width: 115px;">🏢 Employer:</span>
+                <strong style="color: var(--text-primary, #1e293b);">${cCompany}</strong>
+              </div>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.3rem;">
+                <span style="color: var(--text-muted, #64748b); min-width: 115px;">💼 Position:</span>
+                <strong style="color: var(--text-primary, #1e293b);">${jTitle}</strong>
+              </div>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.3rem;">
+                <span style="color: var(--text-muted, #64748b); min-width: 115px;">💰 Offered Wage:</span>
+                <strong style="color: #059669;">${currency} ${salaryFormatted}</strong>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <span style="color: var(--text-muted, #64748b); min-width: 115px;">🤝 Interview Status:</span>
+                <span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.1rem 0.45rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">Passed (Selected)</span>
+              </div>
+            </div>
+            <p style="margin: 0; font-size: 0.78rem; color: var(--text-muted, #64748b);">
+              This will launch the official <strong>Link Placement</strong> procedure with candidate and employer details pre-populated, allowing contract verification and automated Tamkeen retention milestone generation.
+            </p>
+          </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Proceed to Placement 🔗',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true
+      });
+      confirmed = res.isConfirmed;
+    } else {
+      confirmed = window.confirm(`Initiate official placement for ${cName} as "${jTitle}" at ${cCompany}? This will open the placement form to complete the placement procedure.`);
     }
+
+    if (!confirmed) return;
 
     try {
       const outcome = candidateOutcomes[cId] || {};
-      const res = await window.api.interviews.placeCandidate(activeSession.id, cId, {
-        remarks: outcome.remarks || 'Selected and placed following interview'
-      });
-      if (res && res.success !== false) {
-        if (window.AppStore?.showToast) {
-          window.AppStore.showToast(`🎉 ${cName} successfully placed in ${cCompany}!`, 'success');
-        }
-        await fetchInterviews();
-        await window.AppStore.refreshData();
+      // Ensure candidate's outcome is officially recorded as passed in this interview session
+      if (activeSession && activeSession.id) {
+        await window.api.interviews.updateCandidateOutcome(activeSession.id, cId, {
+          status: 'passed',
+          remarks: outcome.remarks || 'Selected and approved for placement following interview'
+        });
       }
+
+      // Close Interview modal and open the official Link Placement modal following standard placement procedure
+      window.AppStore.closeModal();
+      setTimeout(() => {
+        window.AppStore.openModal('LINK_PLACEMENT', {
+          candidate: fullCand,
+          job: targetJob
+        });
+      }, 120);
     } catch (err) {
-      console.error('Error placing candidate:', err);
+      console.error('Error initiating placement from interview:', err);
       if (window.AppStore?.showToast) {
-        window.AppStore.showToast(`Error placing candidate: ${err.message}`, 'error');
+        window.AppStore.showToast(`Error initiating placement: ${err.message}`, 'error');
       }
     }
   };
 
   // Remove candidate from session
   const handleRemoveCandidate = async (candidateId, candidateName) => {
-    if (!window.confirm(`Remove ${candidateName || 'candidate'} from this interview session roster?`)) return;
+    const swalInstance = window.Swal || window.swal;
+    let confirmed = false;
+
+    if (swalInstance) {
+      const res = await swalInstance.fire({
+        title: 'Remove Candidate?',
+        text: `Are you sure you want to remove ${candidateName || 'this candidate'} from this interview session roster?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Yes, Remove',
+        cancelButtonText: 'Cancel'
+      });
+      confirmed = res.isConfirmed;
+    } else {
+      confirmed = window.confirm(`Remove ${candidateName || 'candidate'} from this interview session roster?`);
+    }
+
+    if (!confirmed) return;
+
     try {
       await window.api.interviews.removeCandidate(activeSession.id, candidateId);
       if (window.AppStore?.showToast) {
