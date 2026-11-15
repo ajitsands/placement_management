@@ -5683,15 +5683,68 @@ function NewDisputeModal({ state, initialProps = {} }) {
   const claimRef = initialClaim?.claim_ref || initialMilestone?.claim_ref || 'Pending';
   const claimAmount = initialClaim?.claim_amount_bhd || initialMilestone?.claim_amount_bhd;
 
+  const availableCaseManagers = useMemo(() => {
+    const list = (state.caseManagers && state.caseManagers.length > 0)
+      ? state.caseManagers
+      : (state.users || []).filter(u => u.role === 'case_manager');
+    const map = new Map();
+    list.forEach(cm => {
+      const key = cm.id || cm.username || cm.full_name;
+      if (key && !map.has(key)) {
+        map.set(key, cm);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.full_name || a.username || '').localeCompare(b.full_name || b.username || ''));
+  }, [state.caseManagers, state.users]);
+
   const [form, setForm] = useState({
     claim_id: initialClaim?.id || targetClaimId || eligibleClaims[0]?.id || '',
     milestone_id: initialMilestone?.id || '',
     candidate_id: initialCandidate?.id || initialMilestone?.candidate_id || initialClaim?.candidate_id || '',
     dispute_reason: DEFAULT_MASTER_REASONS[0],
     reason: '',
-    remarks: initialClaim?.remarks || initialMilestone?.remarks || ''
+    remarks: initialClaim?.remarks || initialMilestone?.remarks || '',
+    assigned_case_managers: []
   });
   const [saving, setSaving] = useState(false);
+
+  const toggleCaseManager = (cm) => {
+    setForm(prev => {
+      const current = prev.assigned_case_managers || [];
+      const matchIndex = current.findIndex(a =>
+        (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+        (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+        (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+      );
+
+      if (matchIndex >= 0) {
+        const updated = [...current];
+        updated.splice(matchIndex, 1);
+        return { ...prev, assigned_case_managers: updated };
+      }
+      const newEntry = {
+        id: cm.id || null,
+        name: cm.full_name || cm.username || 'Case Manager',
+        username: cm.username || '',
+        code: cm.case_manager_code || ''
+      };
+      return { ...prev, assigned_case_managers: [...current, newEntry] };
+    });
+  };
+
+  const handleSelectAllCaseManagers = () => {
+    const all = availableCaseManagers.map(cm => ({
+      id: cm.id || null,
+      name: cm.full_name || cm.username || 'Case Manager',
+      username: cm.username || '',
+      code: cm.case_manager_code || ''
+    }));
+    setForm(prev => ({ ...prev, assigned_case_managers: all }));
+  };
+
+  const handleClearAllCaseManagers = () => {
+    setForm(prev => ({ ...prev, assigned_case_managers: [] }));
+  };
 
   // Attachments (multiple, each with notes)
   const [attachments, setAttachments] = useState([]);
@@ -5785,6 +5838,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
         dispute_reason: detailedGrounds,
         reason: detailedGrounds,
         remarks: claimRemarks,
+        assigned_case_managers: form.assigned_case_managers || [],
         attachments
       });
 
@@ -5802,7 +5856,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '780px', width: '94vw' }}>
+    <div className="modal-content" style={{ maxWidth: '1040px', width: '95vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -5970,6 +6024,98 @@ function NewDisputeModal({ state, initialProps = {} }) {
                     {savingReason ? 'Saving...' : '💾 Save to Master'}
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Assign Dispute to Case Manager(s) */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <label className="form-label" style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span>👤 Assign to Case Manager(s)</span>
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.78rem' }}>(Optional, single or multiple)</span>
+                {(form.assigned_case_managers || []).length > 0 && (
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}>
+                    {form.assigned_case_managers.length} Assigned
+                  </span>
+                )}
+              </label>
+              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-outline"
+                  style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem' }}
+                  onClick={handleSelectAllCaseManagers}
+                >
+                  ✓ Select All
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-outline"
+                  style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem' }}
+                  onClick={handleClearAllCaseManagers}
+                >
+                  ✕ Clear All
+                </button>
+              </div>
+            </div>
+
+            {availableCaseManagers.length > 0 ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '0.5rem',
+                maxHeight: '150px',
+                overflowY: 'auto',
+                padding: '0.65rem',
+                background: 'var(--bg-tertiary, #f8fafc)',
+                border: '1px solid var(--border-light, #e2e8f0)',
+                borderRadius: '8px'
+              }}>
+                {availableCaseManagers.map(cm => {
+                  const isSelected = (form.assigned_case_managers || []).some(a =>
+                    (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+                    (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+                    (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+                  );
+
+                  return (
+                    <label
+                      key={cm.id || cm.username || cm.full_name}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '6px',
+                        background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'var(--bg-card, #ffffff)',
+                        border: isSelected ? '1.5px solid var(--primary, #2563eb)' : '1px solid var(--border-light, #e2e8f0)',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCaseManager(cm)}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary, #2563eb)', cursor: 'pointer' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <strong style={{ fontSize: '0.82rem', color: isSelected ? 'var(--primary, #2563eb)' : 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {cm.full_name || cm.username}
+                        </strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {cm.case_manager_code ? `${cm.case_manager_code} • ` : ''}{cm.center || 'Job Center'}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                No case managers available.
               </div>
             )}
           </div>
@@ -6173,18 +6319,60 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
+  const availableCaseManagers = useMemo(() => {
+    const list = (state.caseManagers && state.caseManagers.length > 0)
+      ? state.caseManagers
+      : (state.users || []).filter(u => u.role === 'case_manager');
+    const map = new Map();
+    list.forEach(cm => {
+      const key = cm.id || cm.username || cm.full_name;
+      if (key && !map.has(key)) {
+        map.set(key, cm);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.full_name || a.username || '').localeCompare(b.full_name || b.username || ''));
+  }, [state.caseManagers, state.users]);
+
+  const initialAssignedCms = Array.isArray(dispute?.assigned_case_managers) ? dispute.assigned_case_managers : [];
   const [editForm, setEditForm] = useState({
     reason: disputeReason,
-    remarks: claimRemarks
+    remarks: claimRemarks,
+    assigned_case_managers: initialAssignedCms
   });
 
   useEffect(() => {
     setEditForm({
       reason: disputeReason,
-      remarks: claimRemarks
+      remarks: claimRemarks,
+      assigned_case_managers: Array.isArray(dispute?.assigned_case_managers) ? dispute.assigned_case_managers : []
     });
     setAttachments(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
-  }, [dispute?.id, dispute?.dispute_reason, dispute?.remarks, dispute?.attachments]);
+  }, [dispute?.id, dispute?.dispute_reason, dispute?.remarks, dispute?.attachments, dispute?.assigned_case_managers]);
+
+  const toggleAssignedCaseManager = (cm) => {
+    setEditForm(prev => {
+      const current = prev.assigned_case_managers || [];
+      const matchIndex = current.findIndex(a =>
+        (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+        (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+        (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+      );
+      if (matchIndex >= 0) {
+        const updated = [...current];
+        updated.splice(matchIndex, 1);
+        return { ...prev, assigned_case_managers: updated };
+      }
+      return {
+        ...prev,
+        assigned_case_managers: [...current, {
+          id: cm.id || null,
+          name: cm.full_name || cm.username || 'Case Manager',
+          username: cm.username || '',
+          code: cm.case_manager_code || ''
+        }]
+      };
+    });
+  };
 
   const formatFileSize = (bytes) => {
     const n = Number(bytes || 0);
@@ -6224,7 +6412,8 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
     setAttachments(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
     setEditForm({
       reason: disputeReason,
-      remarks: claimRemarks
+      remarks: claimRemarks,
+      assigned_case_managers: Array.isArray(dispute?.assigned_case_managers) ? dispute.assigned_case_managers : []
     });
   };
 
@@ -6235,6 +6424,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
         dispute_reason: editForm.reason.trim(),
         reason: editForm.reason.trim(),
         remarks: editForm.remarks.trim(),
+        assigned_case_managers: editForm.assigned_case_managers || [],
         attachments
       });
       window.AppStore.showNotification('Dispute details updated successfully', 'success');
@@ -6248,7 +6438,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '920px', width: '94vw' }}>
+    <div className="modal-content" style={{ maxWidth: '1060px', width: '95vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -6439,6 +6629,58 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
               <span>⚠️</span>
               <span>{disputeCategory}</span>
             </div>
+          </div>
+
+          <div>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', display: 'block', marginBottom: '0.25rem' }}>
+              Assigned Case Manager(s)
+            </span>
+            {editing ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                gap: '0.45rem',
+                maxHeight: '140px',
+                overflowY: 'auto',
+                padding: '0.55rem',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-sm)'
+              }}>
+                {availableCaseManagers.map(cm => {
+                  const isSelected = (editForm.assigned_case_managers || []).some(a =>
+                    (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+                    (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+                    (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+                  );
+                  return (
+                    <label key={cm.id || cm.username || cm.full_name} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleAssignedCaseManager(cm)}
+                        style={{ accentColor: 'var(--primary)' }}
+                      />
+                      <span>{cm.full_name || cm.username}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              (Array.isArray(dispute?.assigned_case_managers) && dispute.assigned_case_managers.length > 0) ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  {dispute.assigned_case_managers.map((cm, idx) => (
+                    <span key={cm.id || cm.username || idx} className="badge badge-primary" style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}>
+                      👤 {cm.name || cm.username || cm.code}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No specific case manager assigned (Owner: {caseManager})
+                </span>
+              )
+            )}
           </div>
 
           <div>

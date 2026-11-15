@@ -50,6 +50,7 @@ class Dispute {
             $d['employer_cr'] = $cand['employer_cr'] ?? ($milestone['employer_cr'] ?? 'N/A');
             $d['milestone_id'] = $msId;
             $d['milestone_title'] = $milestone['milestone_title'] ?? 'Retention Gate';
+            $d['assigned_case_managers'] = is_array($d['assigned_case_managers'] ?? null) ? $d['assigned_case_managers'] : [];
 
             $result[] = $d;
         }
@@ -74,6 +75,42 @@ class Dispute {
                 'file_size'   => (int)($att['file_size'] ?? 0),
                 'file_url'    => $att['file_url'],
                 'uploaded_at' => $att['uploaded_at'] ?? date('Y-m-d H:i:s')
+            ];
+        }
+        return $clean;
+    }
+
+    private static function cleanAssignedCaseManagers($list): array {
+        if (is_string($list)) {
+            $decoded = json_decode($list, true);
+            $list = is_array($decoded) ? $decoded : [];
+        }
+        if (!is_array($list)) {
+            return [];
+        }
+        $clean = [];
+        $seen = [];
+        foreach ($list as $cm) {
+            if (!is_array($cm)) {
+                continue;
+            }
+            $id = isset($cm['id']) && $cm['id'] !== '' ? (int)$cm['id'] : null;
+            $name = trim((string)($cm['name'] ?? ($cm['full_name'] ?? ($cm['username'] ?? ''))));
+            $username = trim((string)($cm['username'] ?? ''));
+            $code = trim((string)($cm['code'] ?? ($cm['case_manager_code'] ?? '')));
+            if ($id === null && $name === '' && $username === '') {
+                continue;
+            }
+            $dedupKey = $id !== null ? "id:{$id}" : strtolower($username ?: $name);
+            if (isset($seen[$dedupKey])) {
+                continue;
+            }
+            $seen[$dedupKey] = true;
+            $clean[] = [
+                'id'       => $id,
+                'name'     => $name !== '' ? $name : ($username !== '' ? $username : 'Case Manager'),
+                'username' => $username,
+                'code'     => $code
             ];
         }
         return $clean;
@@ -141,8 +178,9 @@ class Dispute {
             'status'             => 'active_dispute',
             'resolution_notes'   => trim($data['resolution_notes'] ?? ''),
             'remarks'            => $remarks,
-            'attachments'        => self::cleanAttachments($data['attachments'] ?? []),
-            'handled_by_user_id' => $currentUser['id'],
+            'attachments'            => self::cleanAttachments($data['attachments'] ?? []),
+            'assigned_case_managers' => self::cleanAssignedCaseManagers($data['assigned_case_managers'] ?? []),
+            'handled_by_user_id'     => $currentUser['id'],
             'created_at'         => date('Y-m-d H:i:s')
         ];
 
@@ -228,6 +266,9 @@ class Dispute {
             }
             if (array_key_exists('attachments', $data)) {
                 $d['attachments'] = self::cleanAttachments($data['attachments'] ?? []);
+            }
+            if (array_key_exists('assigned_case_managers', $data)) {
+                $d['assigned_case_managers'] = self::cleanAssignedCaseManagers($data['assigned_case_managers'] ?? []);
             }
             $d['updated_at'] = date('Y-m-d H:i:s');
 
