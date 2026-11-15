@@ -4648,7 +4648,7 @@ function NewClaimModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '640px' }}>
+    <div className="modal-content" style={{ maxWidth: '820px', width: '94vw' }}>
       <div className="modal-header">
         <div>
           <h2 className="modal-title">
@@ -5802,7 +5802,7 @@ function NewDisputeModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '580px' }}>
+    <div className="modal-content" style={{ maxWidth: '780px', width: '94vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -6248,7 +6248,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '760px', width: '94vw' }}>
+    <div className="modal-content" style={{ maxWidth: '920px', width: '94vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -7318,7 +7318,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
   const claimRef = activeClaim?.claim_ref || milestone?.claim_ref || 'Pending';
 
   return (
-    <div className="modal-content" style={{ maxWidth: '540px' }}>
+    <div className="modal-content" style={{ maxWidth: '720px', width: '94vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
