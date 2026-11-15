@@ -65,13 +65,14 @@ class Database {
      */
     private static function ensureDisputeColumns(PDO $pdo): void {
         $wanted = [
-            'attachments'      => 'LONGTEXT NULL',
-            'remarks'          => 'TEXT NULL',
-            'milestone_id'     => 'INT NULL',
-            'candidate_id'     => 'INT NULL',
-            'updated_at'       => 'DATETIME NULL',
-            'reinstated_date'  => 'DATE NULL',
-            'terminated_date'  => 'DATE NULL'
+            'attachments'            => 'LONGTEXT NULL',
+            'assigned_case_managers' => 'LONGTEXT NULL',
+            'remarks'                => 'TEXT NULL',
+            'milestone_id'           => 'INT NULL',
+            'candidate_id'           => 'INT NULL',
+            'updated_at'             => 'DATETIME NULL',
+            'reinstated_date'        => 'DATE NULL',
+            'terminated_date'        => 'DATE NULL'
         ];
         $stmt = $pdo->query(
             "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'disputes'"
@@ -520,6 +521,12 @@ class Database {
                 $d['attachments'] = is_array($decodedAtt) ? $decodedAtt : [];
             } else if (empty($d['attachments']) || !is_array($d['attachments'])) {
                 $d['attachments'] = [];
+            }
+            if (!empty($d['assigned_case_managers']) && is_string($d['assigned_case_managers'])) {
+                $decodedCms = json_decode($d['assigned_case_managers'], true);
+                $d['assigned_case_managers'] = is_array($decodedCms) ? $decodedCms : [];
+            } else if (empty($d['assigned_case_managers']) || !is_array($d['assigned_case_managers'])) {
+                $d['assigned_case_managers'] = [];
             }
             return $d;
         }, $pdo->query("SELECT * FROM disputes ORDER BY id ASC")->fetchAll());
@@ -1219,8 +1226,8 @@ class Database {
 
             // 6. Disputes
             if (!empty($data['disputes']) && is_array($data['disputes'])) {
-                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, milestone_id, candidate_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, remarks, attachments, reinstated_date, terminated_date, handled_by_user_id, created_at)
-                    VALUES (:id, :claim_id, :milestone_id, :candidate_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :remarks, :attachments, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, milestone_id, candidate_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, remarks, attachments, assigned_case_managers, reinstated_date, terminated_date, handled_by_user_id, created_at)
+                    VALUES (:id, :claim_id, :milestone_id, :candidate_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :remarks, :attachments, :assigned_case_managers, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
                     ON DUPLICATE KEY UPDATE
                         milestone_id = VALUES(milestone_id),
                         candidate_id = VALUES(candidate_id),
@@ -1231,6 +1238,7 @@ class Database {
                         resolution_notes = VALUES(resolution_notes),
                         remarks = VALUES(remarks),
                         attachments = VALUES(attachments),
+                        assigned_case_managers = VALUES(assigned_case_managers),
                         reinstated_date = VALUES(reinstated_date),
                         terminated_date = VALUES(terminated_date)");
 
@@ -1238,6 +1246,10 @@ class Database {
                     $dispAttachments = null;
                     if (!empty($d['attachments'])) {
                         $dispAttachments = is_string($d['attachments']) ? $d['attachments'] : json_encode($d['attachments'], JSON_UNESCAPED_UNICODE);
+                    }
+                    $dispAssignedCms = null;
+                    if (!empty($d['assigned_case_managers'])) {
+                        $dispAssignedCms = is_string($d['assigned_case_managers']) ? $d['assigned_case_managers'] : json_encode($d['assigned_case_managers'], JSON_UNESCAPED_UNICODE);
                     }
                     $stmt->execute([
                         ':id' => (int)$d['id'],
@@ -1251,6 +1263,7 @@ class Database {
                         ':resolution_notes' => $d['resolution_notes'] ?? null,
                         ':remarks' => $d['remarks'] ?? null,
                         ':attachments' => $dispAttachments,
+                        ':assigned_case_managers' => $dispAssignedCms,
                         ':reinstated_date' => $d['reinstated_date'] ?? null,
                         ':terminated_date' => $d['terminated_date'] ?? null,
                         ':handled_by_user_id' => !empty($d['handled_by_user_id']) ? (int)$d['handled_by_user_id'] : null,
