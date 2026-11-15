@@ -345,13 +345,21 @@ function SearchableSelect({
 window.SearchableSelect = SearchableSelect;
 
 function MilestonesView({ state }) {
-  const { milestones = [], claims = [], candidates = [], payments = [], disputes = [], currentUser, settings = {} } = state;
+  const { milestones = [], claims = [], candidates = [], payments = [], disputes = [], currentUser = {}, settings = {} } = state || {};
   const currency = settings.currency || 'BHD';
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
 
-  // 1. Status Filter (Default: 'due_or_overdue' / Action Required)
+  // 0. Scope Filter for Case Managers ('mine' | 'global')
+  const [scopeFilter, setScopeFilter] = useState(() => {
+    const saved = sessionStorage.getItem('sands_claims_ms_scope');
+    return (saved === 'mine' || saved === 'global') ? saved : 'mine';
+  });
+
+  // 1. Status Filter (Default: 'unclaimed')
   const [statusFilter, setStatusFilter] = useState(() => {
     const saved = sessionStorage.getItem('sands_claims_ms_status');
-    return saved !== null && saved !== undefined ? saved : 'due_or_overdue';
+    const valid = ['unclaimed', 'due', 'claimed', 'disputed', ''];
+    return (saved !== null && valid.includes(saved)) ? saved : 'unclaimed';
   });
 
   // 2. Candidate Filter
@@ -379,7 +387,8 @@ function MilestonesView({ state }) {
 
   // Reset all milestone filters to default on user switch or login
   useEffect(() => {
-    setStatusFilter('due_or_overdue');
+    setScopeFilter('mine');
+    setStatusFilter('unclaimed');
     setSelectedCandidate('');
     setSelectedEmployer('');
     setSelectedMilestone('');
@@ -539,6 +548,11 @@ function MilestonesView({ state }) {
   }, []);
 
   // Filter Handlers
+  const handleScopeChange = (val) => {
+    setScopeFilter(val);
+    sessionStorage.setItem('sands_claims_ms_scope', val);
+  };
+
   const handleStatusFilterChange = (id) => {
     setStatusFilter(id);
     sessionStorage.setItem('sands_claims_ms_status', id);
@@ -577,13 +591,13 @@ function MilestonesView({ state }) {
   };
 
   const handleClearAllFilters = () => {
-    setStatusFilter('due_or_overdue');
+    setStatusFilter('unclaimed');
     setSelectedCandidate('');
     setSelectedEmployer('');
     setSelectedMilestone('');
     setJoinDateFrom('');
     setJoinDateTo('');
-    sessionStorage.setItem('sands_claims_ms_status', 'due_or_overdue');
+    sessionStorage.setItem('sands_claims_ms_status', 'unclaimed');
     sessionStorage.removeItem('sands_claims_ms_candidate');
     sessionStorage.removeItem('sands_claims_ms_employer');
     sessionStorage.removeItem('sands_claims_ms_type');
@@ -592,7 +606,7 @@ function MilestonesView({ state }) {
   };
 
   const hasActiveFilters = Boolean(
-    statusFilter !== 'due_or_overdue' ||
+    statusFilter !== 'unclaimed' ||
     selectedCandidate ||
     selectedEmployer ||
     selectedMilestone ||
@@ -600,8 +614,8 @@ function MilestonesView({ state }) {
     joinDateTo
   );
 
-  // Filter & Format Data
-  const displayData = useMemo(() => {
+  // Enrich Milestones Data
+  const enrichedMilestones = useMemo(() => {
     const todayMidnight = new Date().setHours(0, 0, 0, 0);
 
     // Build claim lookup map
@@ -629,8 +643,7 @@ function MilestonesView({ state }) {
       }
     });
 
-    return (milestones || [])
-      .map(m => {
+    return (milestones || []).map(m => {
         const target = m.target_date || m.due_date;
         let days = m.days_remaining;
         if ((days === undefined || days === null) && target) {
@@ -694,17 +707,21 @@ function MilestonesView({ state }) {
           ? Math.max(0, claimAmount - collected)
           : null;
 
-        // Resolve candidate joining date, company name, employer CR
+        // Resolve candidate joining date, company name, employer CR, case manager
         const cand = candidateMap[m.candidate_id];
         const joiningDate = m.joining_date || cand?.joining_date || null;
         const employerCr = m.employer_cr || cand?.employer_cr || null;
         const companyName = m.company_name || cand?.company_name || null;
+        const cmId = m.case_manager_id || cand?.case_manager_id || null;
+        const cmName = m.case_manager_name || cand?.case_manager_name || null;
 
         return {
           ...m,
           status: dynStatus,
           company_name: companyName,
           employer_cr: employerCr,
+          case_manager_id: cmId,
+          case_manager_name: cmName,
           target_date: target,
           days_remaining: days,
           claim_id: claimId,
@@ -718,53 +735,104 @@ function MilestonesView({ state }) {
           claim_status: claimStatus,
           joining_date: joiningDate
         };
-      })
-      .filter(m => {
-        // 1. Status Filter
-        if (statusFilter) {
-          if (statusFilter === 'due_or_overdue') {
-            if (m.status !== 'due' && m.status !== 'overdue') return false;
-          } else if (m.status !== statusFilter) {
-            return false;
-          }
-        }
+    });
+  }, [milestones, claims, payments, candidateMap]);
 
-        // 2. Candidate Filter
-        if (selectedCandidate) {
-          if (String(m.candidate_id) !== String(selectedCandidate)) {
-            return false;
-          }
-        }
+  // Helper to check if a milestone belongs to the logged-in Case Manager
+  const isMine = (m) => {
+    if (!currentUser) return false;
+    if (m.case_manager_id && currentUser.id && Number(m.case_manager_id) === Number(currentUser.id)) return true;
+    const cmName = String(m.case_manager_name || '').trim().toLowerCase();
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    if (myCode && cmName === myCode) return true;
+    if (myFull && cmName === myFull) return true;
+    if (myUser && cmName === myUser) return true;
+    return false;
+  };
 
-        // 3. Employer Filter
-        if (selectedEmployer) {
-          if (!m.company_name || m.company_name.trim().toLowerCase() !== selectedEmployer.trim().toLowerCase()) {
-            return false;
-          }
-        }
+  // Scope Milestones (My Milestones vs Global View for Case Managers)
+  const myMilestonesCount = useMemo(() => {
+    if (isAdminOrSuper) return enrichedMilestones.length;
+    return enrichedMilestones.filter(isMine).length;
+  }, [enrichedMilestones, isAdminOrSuper, currentUser]);
 
-        // 4. Milestone Stage Filter
-        if (selectedMilestone) {
-          if (selectedMilestone === 'placement' || selectedMilestone === '0') {
-            if (m.milestone_stage !== 0 && m.milestone_type !== 'placement') return false;
-          } else if (selectedMilestone === '180_days' || selectedMilestone === '180') {
-            if (m.milestone_stage !== 180 && m.milestone_type !== '180_days') return false;
-          } else if (selectedMilestone === '365_days' || selectedMilestone === '365') {
-            if (m.milestone_stage !== 365 && m.milestone_type !== '365_days') return false;
-          }
-        }
+  const scopedMilestones = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return enrichedMilestones.filter(isMine);
+    }
+    return enrichedMilestones;
+  }, [enrichedMilestones, isAdminOrSuper, scopeFilter, currentUser]);
 
-        // 5. Joining Date Range Filter
-        if (joinDateFrom || joinDateTo) {
-          if (!m.joining_date) return false;
-          const jDate = String(m.joining_date).split('T')[0].split(' ')[0];
-          if (joinDateFrom && jDate < joinDateFrom) return false;
-          if (joinDateTo && jDate > joinDateTo) return false;
+  // Status Tag Counts within active scope
+  const statusCounts = useMemo(() => {
+    const counts = { unclaimed: 0, due: 0, claimed: 0, disputed: 0, all: scopedMilestones.length };
+    scopedMilestones.forEach(m => {
+      if (m.status === 'claimed') {
+        counts.claimed += 1;
+      } else if (m.status === 'disputed') {
+        counts.disputed += 1;
+      } else {
+        counts.unclaimed += 1;
+        if (m.status === 'due' || m.status === 'overdue') {
+          counts.due += 1;
         }
+      }
+    });
+    return counts;
+  }, [scopedMilestones]);
 
-        return true;
-      });
-  }, [milestones, claims, candidateMap, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, joinDateFrom, joinDateTo]);
+  // Apply Status & Attribute Filters
+  const displayData = useMemo(() => {
+    return scopedMilestones.filter(m => {
+      // 1. Status Filter
+      if (statusFilter) {
+        if (statusFilter === 'unclaimed') {
+          if (m.status === 'claimed' || m.status === 'disputed') return false;
+        } else if (statusFilter === 'due') {
+          if (m.status !== 'due' && m.status !== 'overdue') return false;
+        } else if (m.status !== statusFilter) {
+          return false;
+        }
+      }
+
+      // 2. Candidate Filter
+      if (selectedCandidate) {
+        if (String(m.candidate_id) !== String(selectedCandidate)) {
+          return false;
+        }
+      }
+
+      // 3. Employer Filter
+      if (selectedEmployer) {
+        if (!m.company_name || m.company_name.trim().toLowerCase() !== selectedEmployer.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 4. Milestone Stage Filter
+      if (selectedMilestone) {
+        if (selectedMilestone === 'placement' || selectedMilestone === '0') {
+          if (m.milestone_stage !== 0 && m.milestone_type !== 'placement') return false;
+        } else if (selectedMilestone === '180_days' || selectedMilestone === '180') {
+          if (m.milestone_stage !== 180 && m.milestone_type !== '180_days') return false;
+        } else if (selectedMilestone === '365_days' || selectedMilestone === '365') {
+          if (m.milestone_stage !== 365 && m.milestone_type !== '365_days') return false;
+        }
+      }
+
+      // 5. Joining Date Range Filter
+      if (joinDateFrom || joinDateTo) {
+        if (!m.joining_date) return false;
+        const jDate = String(m.joining_date).split('T')[0].split(' ')[0];
+        if (joinDateFrom && jDate < joinDateFrom) return false;
+        if (joinDateTo && jDate > joinDateTo) return false;
+      }
+
+      return true;
+    });
+  }, [scopedMilestones, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, joinDateFrom, joinDateTo]);
 
   const handleEditClaim = (row) => {
     let linkedClaim = null;
@@ -1319,6 +1387,112 @@ function MilestonesView({ state }) {
         </div>
       </div>
 
+      {/* Scope Navigation Segmented Switch for Case Managers: My Milestones vs Global View */}
+      {!isAdminOrSuper && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          marginBottom: '1rem',
+          padding: '0.65rem 0.85rem',
+          background: 'var(--bg-tertiary, #f8fafc)',
+          border: '1px solid var(--border-light, #e2e8f0)',
+          borderRadius: 'var(--radius-md, 10px)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.95rem' }}>📂</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              View Scope:
+            </span>
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--bg-card, #ffffff)',
+            border: '1.5px solid var(--border-light, #cbd5e1)',
+            borderRadius: '24px',
+            padding: '3px',
+            gap: '3px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+          }}>
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'mine' ? 'var(--primary, #2563eb)' : 'transparent',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'mine' ? '0 2px 6px rgba(37,99,235,0.35)' : 'none'
+              }}
+              onClick={() => handleScopeChange('mine')}
+            >
+              <span>👤 My Milestones</span>
+              <span style={{
+                background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.28)' : 'var(--bg-tertiary, #f1f5f9)',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'mine' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {myMilestonesCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'global' ? '#0f172a' : 'transparent',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'global' ? '0 2px 6px rgba(15,23,42,0.3)' : 'none'
+              }}
+              onClick={() => handleScopeChange('global')}
+            >
+              <span>🌐 Global View</span>
+              <span style={{
+                background: scopeFilter === 'global' ? 'rgba(255,255,255,0.22)' : 'var(--bg-tertiary, #f1f5f9)',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'global' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {enrichedMilestones.length}
+              </span>
+            </button>
+          </div>
+
+          {scopeFilter === 'global' && (
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'rgba(14, 165, 233, 0.25)', border: '1.5px solid #0284c7' }}></span>
+              <span>Highlighted rows belong to your Case Manager portfolio</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Dynamic Filter Controls Card with Searchable Comboboxes */}
       <div
         className="card"
@@ -1440,33 +1614,46 @@ function MilestonesView({ state }) {
           }}
         >
           {/* Status Tabs */}
-          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '4px' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', marginRight: '4px' }}>
               Status:
             </span>
             {[
-              { id: 'due_or_overdue', label: 'Action Required' },
-              { id: '', label: 'All' },
-              { id: 'upcoming', label: 'Upcoming' },
-              { id: 'claimed', label: 'Claimed' },
-              { id: 'disputed', label: 'Disputed' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`btn btn-sm ${statusFilter === tab.id ? 'btn-primary' : 'btn-outline'}`}
-                style={{ padding: '0.25rem 0.65rem', fontSize: '0.76rem' }}
-                onClick={() => handleStatusFilterChange(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'unclaimed', label: 'Unclaimed', count: statusCounts.unclaimed },
+              { id: 'due', label: 'Due', count: statusCounts.due },
+              { id: 'claimed', label: 'Claimed', count: statusCounts.claimed },
+              { id: 'disputed', label: 'Disputed', count: statusCounts.disputed },
+              { id: '', label: 'All Status', count: statusCounts.all }
+            ].map(tab => {
+              const isActive = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id || 'all'}
+                  type="button"
+                  className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ padding: '0.28rem 0.7rem', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  onClick={() => handleStatusFilterChange(tab.id)}
+                >
+                  <span>{tab.label}</span>
+                  <span style={{
+                    background: isActive ? 'rgba(255,255,255,0.24)' : 'var(--bg-tertiary)',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    padding: '0.05rem 0.42rem',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 800
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Counts & Clear Action */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Showing <strong style={{ color: 'var(--primary)' }}>{displayData.length}</strong> of {milestones.length} milestones
+              Showing <strong style={{ color: 'var(--primary)' }}>{displayData.length}</strong> of {scopedMilestones.length} milestones
             </span>
             {hasActiveFilters && (
               <button
@@ -1496,6 +1683,7 @@ function MilestonesView({ state }) {
         <window.DataTable
           columns={columns}
           data={displayData}
+          rowClassName={(row) => (!isAdminOrSuper && scopeFilter === 'global' && isMine(row)) ? 'my-placement-row-highlight' : ''}
           searchPlaceholder="🔍 Search Candidate, Ref, CPR, Employer, CR..."
           searchKeys={['candidate_ref', 'candidate_name', 'candidate_cpr', 'company_name', 'employer_cr', 'milestone_title', 'status', 'case_manager_name', 'claim_ref']}
           exportFilename="Retention_Milestones_SaNDS.csv"
