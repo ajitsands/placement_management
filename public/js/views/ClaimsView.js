@@ -847,36 +847,6 @@ function ClaimsView({ state }) {
       )
     },
     {
-      key: 'total_paid_bhd',
-      label: 'Total Paid',
-      sortable: true,
-      render: (val, row) => {
-        const paidAmount = Number(val || 0);
-        return (
-          <div
-            onClick={() => window.AppStore.openModal('CLAIM_PAYMENTS', { claim: row })}
-            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-            title="Click to view payment breakdown & receipts"
-          >
-            <span style={{ color: 'var(--success)', fontWeight: 700 }}>
-              {currency} {paidAmount.toFixed(3)}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--primary)', opacity: 0.8 }}>🔍</span>
-          </div>
-        );
-      }
-    },
-    {
-      key: 'balance_bhd',
-      label: 'Balance',
-      sortable: true,
-      render: (val) => (
-        <span style={{ color: (val > 0) ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 700 }}>
-          {currency} {Number(val || 0).toFixed(3)}
-        </span>
-      )
-    },
-    {
       key: 'submission_date',
       label: 'Claim Date',
       sortable: true,
