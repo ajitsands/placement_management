@@ -885,10 +885,10 @@ function DisputesView({ state }) {
                 <button
                   className="btn btn-sm btn-outline"
                   style={{ color: 'var(--primary)', borderColor: 'rgba(37, 99, 235, 0.4)' }}
-                  title="Edit Dispute & Reassign Case Managers"
+                  title="Edit Dispute, Reassign Managers & Add Follow-Ups"
                   onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes', startEditing: true })}
                 >
-                  ✏️ Edit / Reassign
+                  ✏️ Edit & Follow Ups
                 </button>
               )}
             </div>

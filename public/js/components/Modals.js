@@ -6938,7 +6938,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
             </span>
           </div>
 
-          {dispute?.id && (
+          {editing && dispute?.id && (
             <div style={{
               background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-light)',
