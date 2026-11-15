@@ -781,28 +781,35 @@ function MilestonesView({ state }) {
   const statusCounts = useMemo(() => {
     const counts = { unclaimed: 0, due: 0, claimed: 0, disputed: 0, all: scopedMilestones.length };
     scopedMilestones.forEach(m => {
+      const linkedDisp = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: m.claim_id, milestone_id: m.id }) : null;
+      if (m.status === 'disputed' || linkedDisp) {
+        counts.disputed += 1;
+      }
       if (m.status === 'claimed') {
         counts.claimed += 1;
-      } else if (m.status === 'disputed') {
-        counts.disputed += 1;
-      } else if (isDueYesterdayOrEarlier(m)) {
-        counts.due += 1;
-      } else {
-        counts.unclaimed += 1;
+      } else if (m.status !== 'disputed') {
+        if (isDueYesterdayOrEarlier(m)) {
+          counts.due += 1;
+        } else {
+          counts.unclaimed += 1;
+        }
       }
     });
     return counts;
-  }, [scopedMilestones]);
+  }, [scopedMilestones, disputes]);
 
   // Apply Status & Attribute Filters
   const displayData = useMemo(() => {
     return scopedMilestones.filter(m => {
       // 1. Status Filter
       if (statusFilter) {
+        const linkedDisp = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: m.claim_id, milestone_id: m.id }) : null;
         if (statusFilter === 'unclaimed') {
           if (!isUnclaimedTodayOnwards(m)) return false;
         } else if (statusFilter === 'due') {
           if (!isDueYesterdayOrEarlier(m)) return false;
+        } else if (statusFilter === 'disputed') {
+          if (m.status !== 'disputed' && !linkedDisp) return false;
         } else if (m.status !== statusFilter) {
           return false;
         }
@@ -843,7 +850,7 @@ function MilestonesView({ state }) {
 
       return true;
     });
-  }, [scopedMilestones, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, joinDateFrom, joinDateTo]);
+  }, [scopedMilestones, disputes, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, joinDateFrom, joinDateTo]);
 
   const handleEditClaim = (row) => {
     let linkedClaim = null;
@@ -1219,29 +1226,34 @@ function MilestonesView({ state }) {
         const isDisputed = val === 'disputed';
         const isOverdue = val === 'overdue';
         const isDue = val === 'due';
-        const disputeRef = isDisputed
-          ? window.getDisputeRef(window.getDisputeForRow(disputes, { claim_id: row.claim_id, milestone_id: row.id }))
-          : null;
+        const linkedDispute = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: row.claim_id, milestone_id: row.id }) : null;
+        const disputeRef = linkedDispute ? window.getDisputeRef(linkedDispute) : null;
+        const dispStatus = linkedDispute?.status || null;
+        const showDisputeState = isDisputed || (statusFilter === 'disputed' && !!linkedDispute) || dispStatus === 'terminated';
+
+        let badgeClass = isClaimed ? 'badge-success' : (isDisputed ? 'badge-danger' : (isOverdue ? 'badge-danger' : (isDue ? 'badge-warning' : 'badge-neutral')));
+        let badgeText = isDisputed ? '⚠️ Disputed' : val;
+        let badgeStyle = isDisputed ? { background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', border: '1px solid #fca5a5', fontWeight: 800, cursor: 'pointer' } : {};
+
+        if (showDisputeState && dispStatus === 'reinstated') {
+          badgeClass = 'badge-success';
+          badgeText = '🔄 Reinstated';
+          badgeStyle = { cursor: 'pointer', fontWeight: 800 };
+        } else if (showDisputeState && dispStatus === 'terminated') {
+          badgeClass = 'badge-danger';
+          badgeText = '⛔ Terminated';
+          badgeStyle = { background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', border: '1px solid #fca5a5', fontWeight: 800, cursor: 'pointer' };
+        }
+
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
           <span
-            className={`badge ${
-              isClaimed ? 'badge-success' : 
-              (isDisputed ? 'badge-danger' : 
-              (isOverdue ? 'badge-danger' : 
-              (isDue ? 'badge-warning' : 'badge-neutral')))
-            }`}
-            style={isDisputed ? {
-              background: 'rgba(239, 68, 68, 0.12)',
-              color: '#dc2626',
-              border: '1px solid #fca5a5',
-              fontWeight: 800,
-              cursor: 'pointer'
-            } : {}}
-            onClick={isDisputed ? () => handleViewDispute(row) : undefined}
-            title={isDisputed ? "Click to view dispute details" : undefined}
+            className={`badge ${badgeClass}`}
+            style={badgeStyle}
+            onClick={(showDisputeState || linkedDispute) ? () => handleViewDispute(row) : undefined}
+            title={(showDisputeState || linkedDispute) ? "Click to view dispute details" : undefined}
           >
-            {isDisputed ? '⚠️ Disputed' : val}
+            {badgeText}
           </span>
           {disputeRef && (
             <span
@@ -1249,9 +1261,9 @@ function MilestonesView({ state }) {
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.68rem',
                 fontWeight: 700,
-                color: '#dc2626',
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid #fca5a5',
+                color: dispStatus === 'reinstated' ? '#059669' : '#dc2626',
+                background: dispStatus === 'reinstated' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: dispStatus === 'reinstated' ? '1px solid #6ee7b7' : '1px solid #fca5a5',
                 borderRadius: '3px',
                 padding: '0.05rem 0.4rem',
                 cursor: 'pointer'
@@ -1279,8 +1291,10 @@ function MilestonesView({ state }) {
       render: (_, row) => {
         const isClaimed = row.status === 'claimed';
         const isDisputed = row.status === 'disputed';
+        const linkedDispute = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: row.claim_id, milestone_id: row.id }) : null;
+        const showDisputeDetailsOnly = isDisputed || (statusFilter === 'disputed' && !!linkedDispute) || linkedDispute?.status === 'terminated';
 
-        if (isDisputed) {
+        if (showDisputeDetailsOnly) {
           return (
             <button
               type="button"

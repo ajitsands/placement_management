@@ -568,18 +568,22 @@ function ClaimsView({ state }) {
   const statusCounts = useMemo(() => {
     const counts = { unsettled: 0, settled: 0, disputed: 0, all: scopedClaims.length };
     scopedClaims.forEach(c => {
+      const linkedDisp = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: c.id, milestone_id: c.milestone_id }) : null;
+      if (c.status === 'disputed' || linkedDisp) {
+        counts.disputed += 1;
+      }
       if (c.status === 'settled') counts.settled += 1;
-      else if (c.status === 'disputed') counts.disputed += 1;
-      else if (c.status !== 'terminated') counts.unsettled += 1;
+      else if (c.status !== 'disputed' && c.status !== 'terminated') counts.unsettled += 1;
     });
     return counts;
-  }, [scopedClaims]);
+  }, [scopedClaims, disputes]);
 
   // Multi-Criteria Display Data Filtering
   const displayData = useMemo(() => {
     return scopedClaims.filter(c => {
       // 1. Status Filter: Unsettled, Settled, Disputed, All
       if (statusFilter) {
+        const linkedDisp = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: c.id, milestone_id: c.milestone_id }) : null;
         if (statusFilter === 'unsettled') {
           if (c.status === 'settled' || c.status === 'disputed' || c.status === 'terminated') {
             return false;
@@ -589,7 +593,7 @@ function ClaimsView({ state }) {
             return false;
           }
         } else if (statusFilter === 'disputed') {
-          if (c.status !== 'disputed') {
+          if (c.status !== 'disputed' && !linkedDisp) {
             return false;
           }
         } else if (c.status !== statusFilter) {
@@ -655,7 +659,7 @@ function ClaimsView({ state }) {
         employer_cr: empCr
       };
     });
-  }, [scopedClaims, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, claimDateFrom, claimDateTo, candidateMap]);
+  }, [scopedClaims, disputes, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, claimDateFrom, claimDateTo, candidateMap]);
 
   // Financial summary for filtered claims
   const filteredMetrics = useMemo(() => {
@@ -888,21 +892,29 @@ function ClaimsView({ state }) {
         const isSettled = val === 'settled';
         const isDisputed = val === 'disputed';
         const isTerminated = val === 'terminated';
-        const displayLabel = isDisputed ? '⚠️ Disputed' : (isSettled ? 'Settled' : (isTerminated ? 'Terminated' : 'Unsettled'));
-        const disputeRef = isDisputed
-          ? window.getDisputeRef(window.getDisputeForRow(disputes, { claim_id: row.id, milestone_id: row.milestone_id }))
-          : null;
+        const linkedDispute = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: row.id, milestone_id: row.milestone_id }) : null;
+        const disputeRef = linkedDispute ? window.getDisputeRef(linkedDispute) : null;
+        const dispStatus = linkedDispute?.status || null;
+        const showAsReinstated = dispStatus === 'reinstated' && (statusFilter === 'disputed' || isTerminated);
+        const showAsTerminatedDisp = dispStatus === 'terminated';
+
+        let displayLabel = isDisputed ? '⚠️ Disputed' : (isSettled ? 'Settled' : (isTerminated ? 'Terminated' : 'Unsettled'));
+        let badgeClass = isSettled ? 'badge-success' : (isDisputed ? 'badge-danger' : (isTerminated ? 'badge-neutral' : 'badge-warning'));
+        if (showAsReinstated) {
+          displayLabel = '🔄 Reinstated';
+          badgeClass = 'badge-success';
+        } else if (showAsTerminatedDisp) {
+          displayLabel = '⛔ Terminated';
+          badgeClass = 'badge-danger';
+        }
+
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
           <span
-            className={`badge ${
-              isSettled ? 'badge-success' : 
-              (isDisputed ? 'badge-danger' : 
-              (isTerminated ? 'badge-neutral' : 'badge-warning'))
-            }`}
-            style={isDisputed ? { cursor: 'pointer', fontWeight: 700 } : {}}
-            onClick={isDisputed ? () => window.AppStore.openModal('DISPUTE_DETAILS', { claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' }) : undefined}
-            title={isDisputed ? "Click to view dispute details" : undefined}
+            className={`badge ${badgeClass}`}
+            style={linkedDispute || isDisputed ? { cursor: 'pointer', fontWeight: 700 } : {}}
+            onClick={linkedDispute || isDisputed ? () => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: linkedDispute, dispute_id: linkedDispute?.id, claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' }) : undefined}
+            title={linkedDispute || isDisputed ? "Click to view dispute details" : undefined}
           >
             {displayLabel}
           </span>
@@ -912,14 +924,14 @@ function ClaimsView({ state }) {
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.68rem',
                 fontWeight: 700,
-                color: '#dc2626',
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid #fca5a5',
+                color: dispStatus === 'reinstated' ? '#059669' : '#dc2626',
+                background: dispStatus === 'reinstated' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: dispStatus === 'reinstated' ? '1px solid #6ee7b7' : '1px solid #fca5a5',
                 borderRadius: '3px',
                 padding: '0.05rem 0.4rem',
                 cursor: 'pointer'
               }}
-              onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' })}
+              onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: linkedDispute, dispute_id: linkedDispute?.id, claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' })}
               title="Dispute reference number"
             >
               {disputeRef}
@@ -937,6 +949,7 @@ function ClaimsView({ state }) {
         const isSettled = row.status === 'settled';
         const isDisputed = row.status === 'disputed';
         const isTerminated = row.status === 'terminated';
+        const linkedDispute = window.getDisputeForRow ? window.getDisputeForRow(disputes, { claim_id: row.id, milestone_id: row.milestone_id }) : null;
         const rowBalance = Number(
           row.balance_bhd !== undefined && row.balance_bhd !== null
             ? row.balance_bhd
@@ -956,12 +969,12 @@ function ClaimsView({ state }) {
               </button>
             )}
 
-            {isDisputed && (
+            {(isDisputed || linkedDispute) && (
               <button
                 className="btn btn-sm btn-outline-danger"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 title="View Dispute Details"
-                onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' })}
+                onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: linkedDispute, dispute_id: linkedDispute?.id, claim: row, claim_id: row.id, candidate_id: row.candidate_id, from: 'claims' })}
               >
                 <span>⚠️</span>
                 <span>Dispute Details</span>
