@@ -816,42 +816,48 @@ function PlacementsView({ state }) {
       label: 'Actions',
       sortable: false,
       render: (_, row) => (
-        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-          <button
-            className="btn btn-outline btn-sm"
-            title="View Placement Dossier"
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-            onClick={() => window.AppStore.openModal('PLACEMENT_DOSSIER', { candidate: row })}
-          >
-            👁️ Dossier
-          </button>
-          
-          <button
-            className="btn btn-outline btn-sm"
-            title="Edit Employment Contract / Placement"
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-            onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { candidate: row })}
-          >
-            ✏️ Edit
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '175px' }}>
+          {/* Row 1: Claim and Renew / Exit */}
+          <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button
+              className="btn btn-primary btn-sm"
+              title="File Subsidy Claim for this Placement"
+              style={{ fontSize: '0.74rem', padding: '0.22rem 0.5rem', fontWeight: 700, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
+              onClick={() => window.AppStore.openModal('NEW_CLAIM', { candidate: row })}
+            >
+              <span>💰</span> Claim
+            </button>
 
-          <button
-            className="btn btn-warning btn-sm"
-            title="If candidate exited or resigned, renew registration and return to available pool"
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}
-            onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
-          >
-            <span>🔄</span> Renew / Exit
-          </button>
+            <button
+              className="btn btn-warning btn-sm"
+              title="If candidate exited or resigned, renew registration and return to available pool"
+              style={{ fontSize: '0.74rem', padding: '0.22rem 0.5rem', fontWeight: 700, flex: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+              onClick={() => window.AppStore.openModal('RENEW_CANDIDATE', { candidate: row, fromPlaced: true })}
+            >
+              <span>🔄</span> Renew / Exit
+            </button>
+          </div>
 
-          <button
-            className="btn btn-primary btn-sm"
-            title="File Subsidy Claim for this Placement"
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-            onClick={() => window.AppStore.openModal('NEW_CLAIM', { candidate: row })}
-          >
-            Claim
-          </button>
+          {/* Row 2: Dossier and Edit */}
+          <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button
+              className="btn btn-outline btn-sm"
+              title="View Placement Dossier"
+              style={{ fontSize: '0.74rem', padding: '0.22rem 0.5rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
+              onClick={() => window.AppStore.openModal('PLACEMENT_DOSSIER', { candidate: row })}
+            >
+              <span>👁️</span> Dossier
+            </button>
+            
+            <button
+              className="btn btn-outline btn-sm"
+              title="Edit Employment Contract / Placement"
+              style={{ fontSize: '0.74rem', padding: '0.22rem 0.5rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
+              onClick={() => window.AppStore.openModal('LINK_PLACEMENT', { candidate: row })}
+            >
+              <span>✏️</span> Edit
+            </button>
+          </div>
         </div>
       )
     }
@@ -897,62 +903,108 @@ function PlacementsView({ state }) {
         </div>
       </div>
 
-      {/* Scope Navigation Tags for Case Managers: My Placements vs Global Placements */}
+      {/* Scope Navigation Segmented Switch for Case Managers: My Placements vs Global Placements */}
       {!isAdminOrSuper && (
-        <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={`btn ${scopeFilter === 'mine' ? 'btn-primary' : 'btn-outline'}`}
-            style={{
-              borderRadius: 'var(--radius-md)',
-              padding: '0.45rem 1.1rem',
-              fontSize: '0.86rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              boxShadow: scopeFilter === 'mine' ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
-            }}
-            onClick={() => handleScopeChange('mine')}
-          >
-            <span>👤 My Placements</span>
-            <span style={{
-              background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
-              padding: '0.1rem 0.5rem',
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.74rem',
-              fontWeight: 800
-            }}>
-              {myStatusCounts.all}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          marginBottom: '1rem',
+          padding: '0.65rem 0.85rem',
+          background: 'var(--bg-tertiary, #f8fafc)',
+          border: '1px solid var(--border-light, #e2e8f0)',
+          borderRadius: 'var(--radius-md, 10px)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.95rem' }}>📂</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              View Scope:
             </span>
-          </button>
+          </div>
 
-          <button
-            type="button"
-            className={`btn ${scopeFilter === 'global' ? 'btn-primary' : 'btn-outline'}`}
-            style={{
-              borderRadius: 'var(--radius-md)',
-              padding: '0.45rem 1.1rem',
-              fontSize: '0.86rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              boxShadow: scopeFilter === 'global' ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
-            }}
-            onClick={() => handleScopeChange('global')}
-          >
-            <span>🌐 Global Placements</span>
-            <span style={{
-              background: scopeFilter === 'global' ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
-              padding: '0.1rem 0.5rem',
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.74rem',
-              fontWeight: 800
-            }}>
-              {globalStatusCounts.all}
-            </span>
-          </button>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--bg-card, #ffffff)',
+            border: '1.5px solid var(--border-light, #cbd5e1)',
+            borderRadius: '24px',
+            padding: '3px',
+            gap: '3px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+          }}>
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'mine' ? 'var(--primary, #2563eb)' : 'transparent',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'mine' ? '0 2px 6px rgba(37,99,235,0.35)' : 'none'
+              }}
+              onClick={() => handleScopeChange('mine')}
+            >
+              <span>👤 My Placements</span>
+              <span style={{
+                background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.28)' : 'var(--bg-tertiary, #f1f5f9)',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'mine' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {myStatusCounts.all}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'global' ? 'var(--primary, #2563eb)' : 'transparent',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'global' ? '0 2px 6px rgba(37,99,235,0.35)' : 'none'
+              }}
+              onClick={() => handleScopeChange('global')}
+            >
+              <span>🌐 Global Placements</span>
+              <span style={{
+                background: scopeFilter === 'global' ? 'rgba(255,255,255,0.28)' : 'var(--bg-card, #ffffff)',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'global' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {globalStatusCounts.all}
+              </span>
+            </button>
+          </div>
+
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+            {scopeFilter === 'mine' 
+              ? 'Showing only placements assigned to your caseload' 
+              : 'Viewing all placements across all case managers (your placements are highlighted)'}
+          </span>
         </div>
       )}
 
@@ -985,8 +1037,23 @@ function PlacementsView({ state }) {
         </div>
       )}
 
-      {/* Lifecycle Status Navigation Tabs: Active Placements (Default) -> Completed 12 Months -> All */}
-      <div className="placement-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
+      {/* Lifecycle Status Navigation Filter Chips: Active Placements (Default) -> Completed 12 Months -> All */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        marginBottom: '1.25rem',
+        overflowX: 'auto',
+        paddingBottom: '4px',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-muted)', marginRight: '0.25rem' }}>
+          <span style={{ fontSize: '0.9rem' }}>🎯</span>
+          <span style={{ fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Lifecycle Status:
+          </span>
+        </div>
+
         {[
           { key: 'active', label: '💼 Active Placements', count: statusCounts.active },
           { key: 'completed', label: '🎓 Completed 12 Months', count: statusCounts.completed },
@@ -997,21 +1064,29 @@ function PlacementsView({ state }) {
             <button
               key={tab.key}
               type="button"
-              className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline'}`}
               style={{
-                borderRadius: 'var(--radius-full)',
+                borderRadius: '6px',
                 padding: '0.35rem 0.85rem',
                 fontSize: '0.8rem',
-                whiteSpace: 'nowrap'
+                fontWeight: isSelected ? 700 : 500,
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'var(--bg-card)',
+                color: isSelected ? 'var(--primary)' : 'var(--text-primary)'
               }}
               onClick={() => handleStatusChange(tab.key)}
             >
               <span>{tab.label}</span>
               <span style={{
-                marginLeft: '0.4rem',
-                background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
+                color: isSelected ? '#ffffff' : 'var(--text-muted)',
                 padding: '0.1rem 0.45rem',
-                borderRadius: 'var(--radius-full)',
+                borderRadius: '4px',
                 fontSize: '0.72rem',
                 fontWeight: 800
               }}>
