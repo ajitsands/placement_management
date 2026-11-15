@@ -251,6 +251,7 @@ function DisputesView({ state }) {
     const linkedMs = disputeRow?.milestone_id
       ? (milestones || []).find(m => Number(m.id) === Number(disputeRow.milestone_id))
       : null;
+    const milestoneGateLabel = linkedMs?.milestone_title || disputeRow?.milestone_title || 'Retention Gate';
     const rawMsDate = linkedMs?.due_date || linkedMs?.target_date || disputeRow?.milestone_due_date || '';
     const swal = window.Swal || window.swal;
     const today = new Date().toISOString().split('T')[0];
@@ -262,6 +263,10 @@ function DisputesView({ state }) {
         title: 'Reinstate Placement to Milestone',
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 0.85rem; padding-top: 0.25rem;">
+            <div style="background: var(--bg-tertiary, #f8fafc); border: 1px solid var(--border-light, #e2e8f0); border-radius: 8px; padding: 0.6rem 0.75rem;">
+              <div style="font-size: 0.72rem; color: var(--text-muted, #64748b); font-weight: 600;">Milestone Gate</div>
+              <div style="font-size: 0.9rem; font-weight: 700; color: var(--primary, #2563eb); margin-top: 2px;">🎯 ${milestoneGateLabel}</div>
+            </div>
             <div>
               <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary, #1e293b); display: block; margin-bottom: 0.35rem;">
                 Reinstatement Date *
