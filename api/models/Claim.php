@@ -130,9 +130,7 @@ class Claim {
                 $existingClaim['claim_amount_bhd'] = $manualAmount;
                 $existingClaim['company_claim_amount_bhd'] = $companyClaimAmount;
                 $existingClaim['difference_amount_bhd'] = $diffAmount;
-                if (!empty($data['status'])) {
-                    $existingClaim['status'] = $data['status'];
-                }
+                $existingClaim['status'] = !empty($data['status']) ? $data['status'] : 'undisputed';
                 if (isset($data['remarks'])) {
                     $existingClaim['remarks'] = trim($data['remarks']);
                 }

@@ -192,8 +192,9 @@ class DisputeController {
         $user = Auth::getCurrentUser();
         $notes = trim($data['notes'] ?? ($data['remarks'] ?? 'Candidate reinstated after employer clarification'));
         $date = !empty($data['date']) ? $data['date'] : (!empty($data['reinstated_date']) ? $data['reinstated_date'] : date('Y-m-d'));
+        $milestoneDate = !empty($data['milestone_date']) ? trim((string)$data['milestone_date']) : null;
 
-        $result = Dispute::resolveAndReinstate($id, $notes, $user, $date);
+        $result = Dispute::resolveAndReinstate($id, $notes, $user, $date, $milestoneDate);
         if (!$result) {
             Response::notFound("Dispute record with ID {$id} not found");
         }

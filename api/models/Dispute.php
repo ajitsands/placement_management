@@ -50,6 +50,7 @@ class Dispute {
             $d['employer_cr'] = $cand['employer_cr'] ?? ($milestone['employer_cr'] ?? 'N/A');
             $d['milestone_id'] = $msId;
             $d['milestone_title'] = $milestone['milestone_title'] ?? 'Retention Gate';
+            $d['milestone_due_date'] = $milestone['due_date'] ?? ($milestone['target_date'] ?? null);
             $d['assigned_case_managers'] = is_array($d['assigned_case_managers'] ?? null) ? $d['assigned_case_managers'] : [];
             $d['follow_ups'] = is_array($d['follow_ups'] ?? null) ? $d['follow_ups'] : [];
 
@@ -347,7 +348,7 @@ class Dispute {
         return null;
     }
 
-    public static function reinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
+    public static function reinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null, ?string $milestoneDate = null): ?array {
         $store = Database::getStore();
         foreach ($store['disputes'] as &$d) {
             if ((int)$d['id'] === $disputeId) {
@@ -356,27 +357,37 @@ class Dispute {
                 $d['resolution_notes'] = $notes;
 
                 $claimId = (int)$d['claim_id'];
-                $milestoneId = null;
+                $milestoneId = !empty($d['milestone_id']) ? (int)$d['milestone_id'] : null;
 
-                // Reinstate claim to undisputed
+                // Clear active/disputed state on the old claim so the milestone returns to Unclaimed in Retention Milestones
                 foreach ($store['claims'] as &$c) {
                     if ((int)$c['id'] === $claimId) {
-                        $c['status'] = 'undisputed';
-                        if (!empty($c['milestone_id'])) {
+                        $c['status'] = 'terminated';
+                        if (empty($milestoneId) && !empty($c['milestone_id'])) {
                             $milestoneId = (int)$c['milestone_id'];
                         }
                         break;
                     }
                 }
+                unset($c);
 
-                // Revert milestone back to claimed
+                // Move milestone back to Unclaimed status (upcoming/due) with the selected milestone date
                 if ($milestoneId > 0) {
+                    $today = date('Y-m-d');
                     foreach ($store['milestones'] as &$m) {
                         if ((int)$m['id'] === $milestoneId) {
-                            $m['status'] = 'claimed';
+                            if (!empty($milestoneDate)) {
+                                $m['due_date'] = $milestoneDate;
+                                if (isset($m['target_date'])) {
+                                    $m['target_date'] = $milestoneDate;
+                                }
+                            }
+                            $effectiveDue = $m['due_date'] ?? ($m['target_date'] ?? $today);
+                            $m['status'] = ($effectiveDue >= $today) ? 'upcoming' : 'due';
                             break;
                         }
                     }
+                    unset($m);
                 }
 
                 $store['audit_logs'][] = [
@@ -387,7 +398,7 @@ class Dispute {
                     'action' => 'CLAIM_REINSTATED',
                     'entity_type' => 'claim',
                     'entity_id' => $d['claim_id'],
-                    'details' => "Claim reinstated to active collections: {$notes}",
+                    'details' => "Dispute reinstated to Unclaimed Retention Milestone" . (!empty($milestoneDate) ? " (Milestone Date: {$milestoneDate})" : '') . ": {$notes}",
                     'created_at' => date('Y-m-d H:i:s')
                 ];
 
@@ -398,8 +409,8 @@ class Dispute {
         return null;
     }
 
-    public static function resolveAndReinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {
-        return self::reinstate($disputeId, $notes, $currentUser, $date);
+    public static function resolveAndReinstate(int $disputeId, string $notes, array $currentUser, ?string $date = null, ?string $milestoneDate = null): ?array {
+        return self::reinstate($disputeId, $notes, $currentUser, $date, $milestoneDate);
     }
 
     public static function terminate(int $disputeId, string $notes, array $currentUser, ?string $date = null): ?array {

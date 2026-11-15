@@ -4,7 +4,7 @@
  */
 
 function DisputesView({ state }) {
-  const { disputes = [], candidates = [], currentUser = {} } = state;
+  const { disputes = [], milestones = [], candidates = [], currentUser = {} } = state;
   const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
   const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
@@ -245,14 +245,21 @@ function DisputesView({ state }) {
   const labelStyle = { fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' };
   const filterBox = (flex, min) => ({ display: 'flex', alignItems: 'center', gap: '0.45rem', flex, minWidth: min });
 
-  const handleReinstate = async (disputeId) => {
+  const handleReinstate = async (rowOrId) => {
+    const disputeRow = typeof rowOrId === 'object' ? rowOrId : (disputes || []).find(d => Number(d.id) === Number(rowOrId));
+    const disputeId = disputeRow?.id || rowOrId;
+    const linkedMs = disputeRow?.milestone_id
+      ? (milestones || []).find(m => Number(m.id) === Number(disputeRow.milestone_id))
+      : null;
+    const rawMsDate = linkedMs?.due_date || linkedMs?.target_date || disputeRow?.milestone_due_date || '';
     const swal = window.Swal || window.swal;
     const today = new Date().toISOString().split('T')[0];
+    const defaultMilestoneDate = (rawMsDate && String(rawMsDate).split('T')[0].split(' ')[0]) || today;
     let payload = null;
 
     if (swal) {
       const { value, isConfirmed } = await swal.fire({
-        title: 'Reinstate Placement',
+        title: 'Reinstate Placement to Milestone',
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 0.85rem; padding-top: 0.25rem;">
             <div>
@@ -260,6 +267,12 @@ function DisputesView({ state }) {
                 Reinstatement Date *
               </label>
               <input id="swal-reinstate-date" type="date" class="swal2-input" value="${today}" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 0.88rem; height: 2.5rem;" />
+            </div>
+            <div>
+              <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary, #1e293b); display: block; margin-bottom: 0.35rem;">
+                Milestone Date (Moves to Unclaimed) *
+              </label>
+              <input id="swal-reinstate-milestone-date" type="date" class="swal2-input" value="${defaultMilestoneDate}" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 0.88rem; height: 2.5rem;" />
             </div>
             <div>
               <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary, #1e293b); display: block; margin-bottom: 0.35rem;">
@@ -277,25 +290,31 @@ function DisputesView({ state }) {
         reverseButtons: true,
         preConfirm: () => {
           const date = document.getElementById('swal-reinstate-date')?.value;
+          const milestone_date = document.getElementById('swal-reinstate-milestone-date')?.value;
           const notes = document.getElementById('swal-reinstate-notes')?.value;
           if (!date) {
             swal.showValidationMessage('Reinstatement date is required');
+            return false;
+          }
+          if (!milestone_date) {
+            swal.showValidationMessage('Milestone date is required');
             return false;
           }
           if (!notes || !notes.trim()) {
             swal.showValidationMessage('Remarks are required for reinstatement audit logs');
             return false;
           }
-          return { date, notes: notes.trim(), remarks: notes.trim(), reinstated_date: date };
+          return { date, milestone_date, notes: notes.trim(), remarks: notes.trim(), reinstated_date: date };
         }
       });
       if (!isConfirmed || !value) return;
       payload = value;
     } else {
       const d = prompt('Enter Reinstatement Date (YYYY-MM-DD):', today) || today;
+      const md = prompt('Enter Milestone Date (YYYY-MM-DD):', defaultMilestoneDate) || defaultMilestoneDate;
       const n = prompt('Enter Reinstatement Remarks (e.g. Employer provided updated GOSI / CPR documentation):');
       if (!n || !n.trim()) return;
-      payload = { date: d, notes: n.trim(), remarks: n.trim(), reinstated_date: d };
+      payload = { date: d, milestone_date: md, notes: n.trim(), remarks: n.trim(), reinstated_date: d };
     }
 
     try {
@@ -303,13 +322,13 @@ function DisputesView({ state }) {
       if (window.Swal) {
         window.Swal.fire({
           title: 'Reinstated!',
-          text: 'Candidate placement reinstated successfully.',
+          text: 'Entry moved back to Retention Milestones (Unclaimed) for claiming.',
           icon: 'success',
-          timer: 2000,
+          timer: 2200,
           showConfirmButton: false
         });
       } else {
-        window.AppStore.showNotification('Candidate placement reinstated successfully', 'success');
+        window.AppStore.showNotification('Entry moved back to Retention Milestones (Unclaimed) for claiming.', 'success');
       }
       await window.AppStore.refreshData();
     } catch (err) {
@@ -858,8 +877,8 @@ function DisputesView({ state }) {
                 <button
                   className="btn btn-sm btn-outline"
                   style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                  title="Reinstate to Active Placement"
-                  onClick={() => handleReinstate(row.id)}
+                  title="Reinstate to Unclaimed Retention Milestone"
+                  onClick={() => handleReinstate(row)}
                 >
                   🔄 Reinstate
                 </button>
