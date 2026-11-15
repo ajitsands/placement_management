@@ -1159,11 +1159,12 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
 
 // 2a. Talent Pool & Job Placement Allocation Studio Modal
 function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate, fromInterview, interviewId }) {
-  const { candidates = [], jobs = [], settings = {} } = state;
+  const { candidates = [], jobs = [], interviews = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
   const SearchableSelect = window.SearchableSelect;
 
   const isInterviewLocked = Boolean(fromInterview && initialCandidate);
+  const [candidateSource, setCandidateSource] = useState('talent_pool'); // 'talent_pool' | 'interview_pool'
 
   // If initialCandidate is provided, resolve full candidate record if needed
   const targetCandidate = useMemo(() => {
@@ -1275,20 +1276,76 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
     return isNaN(s) || s <= 0 ? 450.0 : s;
   }, [selectedJob]);
 
+  // Interview Pool candidates for the selected job (unplaced candidates rostered in interviews for this job)
+  const interviewPoolCandidates = useMemo(() => {
+    if (!selectedJobId) return [];
+    const jobInterviews = (interviews || []).filter(iv => String(iv.job_id) === String(selectedJobId));
+    if (jobInterviews.length === 0) return [];
+
+    const availMap = new Map();
+    availablePoolCandidates.forEach(c => availMap.set(Number(c.id), c));
+
+    const statusPriority = { passed: 0, attended: 1, scheduled: 2, absent: 3, rejected: 4 };
+    const mergedMap = new Map();
+
+    jobInterviews.forEach(iv => {
+      const ivCands = Array.isArray(iv.candidates) ? iv.candidates : [];
+      ivCands.forEach(ic => {
+        const cid = Number(ic.candidate_id || ic.id);
+        if (!cid) return;
+        const poolCand = availMap.get(cid);
+        if (!poolCand) return;
+
+        const ivStatus = String(ic.candidate_status || ic.status || 'scheduled').toLowerCase();
+        const ivRemarks = ic.candidate_remarks || ic.remarks || '';
+        const candidateEntry = {
+          ...poolCand,
+          interview_id: iv.id,
+          interview_code: iv.interview_code || `INT-${iv.id}`,
+          interview_date: iv.interview_date || '',
+          interview_status: ivStatus,
+          interview_remarks: ivRemarks
+        };
+
+        const existing = mergedMap.get(cid);
+        if (!existing) {
+          mergedMap.set(cid, candidateEntry);
+        } else {
+          const existingPrio = statusPriority[existing.interview_status] ?? 99;
+          const newPrio = statusPriority[ivStatus] ?? 99;
+          if (newPrio < existingPrio) {
+            mergedMap.set(cid, candidateEntry);
+          }
+        }
+      });
+    });
+
+    return Array.from(mergedMap.values()).sort((a, b) => {
+      const pa = statusPriority[a.interview_status] ?? 99;
+      const pb = statusPriority[b.interview_status] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return String(a.full_name || '').localeCompare(String(b.full_name || ''));
+    });
+  }, [selectedJobId, interviews, availablePoolCandidates]);
+
+  const activePoolList = candidateSource === 'interview_pool' ? interviewPoolCandidates : availablePoolCandidates;
+
   // Filter Pool Candidates with live search
   const filteredPool = useMemo(() => {
-    if (!candidateSearch.trim()) return availablePoolCandidates;
+    if (!candidateSearch.trim()) return activePoolList;
     const q = candidateSearch.toLowerCase().trim();
-    return availablePoolCandidates.filter(c => {
+    return activePoolList.filter(c => {
       const name = (c.candidate_name || c.full_name || '').toLowerCase();
       const cpr = (c.cpr_no || '').toLowerCase();
       const ref = (c.ref_no || '').toLowerCase();
       const skills = (c.skills || '').toLowerCase();
       const phone = (c.phone_number || c.phone || '').toLowerCase();
       const edu = (c.highest_education || c.education || '').toLowerCase();
-      return name.includes(q) || cpr.includes(q) || ref.includes(q) || skills.includes(q) || phone.includes(q) || edu.includes(q);
+      const ivCode = (c.interview_code || '').toLowerCase();
+      const ivStatus = (c.interview_status || '').toLowerCase();
+      return name.includes(q) || cpr.includes(q) || ref.includes(q) || skills.includes(q) || phone.includes(q) || edu.includes(q) || ivCode.includes(q) || ivStatus.includes(q);
     });
-  }, [availablePoolCandidates, candidateSearch]);
+  }, [activePoolList, candidateSearch]);
 
   const totalAllocatedSalary = useMemo(() => {
     return allocations.reduce((acc, cur) => acc + (parseFloat(cur.salary_bhd) || 0), 0);
@@ -1346,7 +1403,8 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
         employee_type: 'Full-Time',
         mol_certified: 'Yes',
         long_mol: 'No',
-        comments: batchNotes || ''
+        interview_id: cand.interview_id || null,
+        comments: batchNotes || (cand.interview_code ? `Selected from interview ${cand.interview_code}` : '')
       };
       setAllocations(prev => [...prev, newAllocation]);
     }
@@ -1490,11 +1548,13 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
         }
       }
 
-      // If from interview, ensure interview candidate outcome is updated as passed
-      if (interviewId && window.api?.interviews?.updateCandidateOutcome) {
+      // If from interview (either locked or selected from Interview Pool), ensure interview candidate outcome is updated as passed
+      if (window.api?.interviews?.updateCandidateOutcome) {
         for (const a of allocations) {
+          const targetIvId = interviewId || a.interview_id;
+          if (!targetIvId) continue;
           try {
-            await window.api.interviews.updateCandidateOutcome(interviewId, a.candidate_id, {
+            await window.api.interviews.updateCandidateOutcome(targetIvId, a.candidate_id, {
               status: 'passed',
               remarks: `Placed as ${a.position_title} at ${selectedJob.company_name} (Joining: ${a.joining_date})`
             });
@@ -1840,7 +1900,7 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ background: isInterviewLocked ? '#059669' : 'var(--primary)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
                 <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
-                  {isInterviewLocked ? 'Interview Candidate Profile' : 'Available Talent Pool'}
+                  {isInterviewLocked ? 'Interview Candidate Profile' : (candidateSource === 'interview_pool' ? 'Job Interview Pool' : 'Available Talent Pool')}
                 </span>
               </div>
               {isInterviewLocked ? (
@@ -1849,10 +1909,76 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
                 </span>
               ) : (
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                  {filteredPool.length} of {availablePoolCandidates.length}
+                  {filteredPool.length} of {activePoolList.length}
                 </span>
               )}
             </div>
+
+            {!isInterviewLocked && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '0.4rem',
+                  padding: '0.55rem 0.85rem',
+                  borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                  background: 'var(--bg-primary, #f1f5f9)',
+                  flexShrink: 0
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setCandidateSource('talent_pool'); setCandidateSearch(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '0.42rem 0.65rem',
+                    borderRadius: '6px',
+                    border: candidateSource === 'talent_pool' ? '1px solid var(--primary)' : '1px solid transparent',
+                    background: candidateSource === 'talent_pool' ? 'var(--bg-card, #ffffff)' : 'transparent',
+                    color: candidateSource === 'talent_pool' ? 'var(--primary)' : 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: candidateSource === 'talent_pool' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>👥 Available Talent Pool</span>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '999px', background: candidateSource === 'talent_pool' ? 'rgba(14,165,233,0.12)' : 'var(--bg-tertiary)', color: candidateSource === 'talent_pool' ? 'var(--primary)' : 'var(--text-muted)' }}>
+                    {availablePoolCandidates.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCandidateSource('interview_pool'); setCandidateSearch(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '0.42rem 0.65rem',
+                    borderRadius: '6px',
+                    border: candidateSource === 'interview_pool' ? '1px solid #059669' : '1px solid transparent',
+                    background: candidateSource === 'interview_pool' ? 'var(--bg-card, #ffffff)' : 'transparent',
+                    color: candidateSource === 'interview_pool' ? '#059669' : 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: candidateSource === 'interview_pool' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>🤝 Interview Pool</span>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '999px', background: candidateSource === 'interview_pool' ? 'rgba(5,150,105,0.12)' : 'var(--bg-tertiary)', color: candidateSource === 'interview_pool' ? '#059669' : 'var(--text-muted)' }}>
+                    {selectedJobId ? interviewPoolCandidates.length : 'Job Req'}
+                  </span>
+                </button>
+              </div>
+            )}
 
             {isInterviewLocked ? (
               <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -2004,9 +2130,17 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
                 >
                   {filteredPool.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                      {availablePoolCandidates.length === 0
-                        ? 'No unplaced candidates in the available pool. All registered candidates are placed.'
-                        : 'No candidates matched your search criteria.'}
+                      {candidateSource === 'interview_pool' ? (
+                        !selectedJobId
+                          ? 'Select an Employer Job Opening in Step 1 first to view candidates from its interview pool.'
+                          : (interviewPoolCandidates.length === 0
+                              ? 'No unplaced candidates found in interview sessions for this job opening.'
+                              : 'No interviewed candidates matched your search criteria.')
+                      ) : (
+                        availablePoolCandidates.length === 0
+                          ? 'No unplaced candidates in the available pool. All registered candidates are placed.'
+                          : 'No candidates matched your search criteria.'
+                      )}
                     </div>
                   ) : (
                     filteredPool.map(cand => {
@@ -2014,6 +2148,16 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
                       const isMaxReached = selectedJob && allocations.length >= maxVacancies;
                       const candName = cand.candidate_name || cand.full_name || 'Candidate';
                       const initials = getInitials(candName);
+
+                      const ivStatus = cand.interview_status;
+                      const ivBadgeMap = {
+                        passed: { label: '★ Passed', bg: 'rgba(16, 185, 129, 0.14)', color: '#059669' },
+                        attended: { label: '✓ Attended', bg: 'rgba(14, 165, 233, 0.14)', color: '#0284c7' },
+                        scheduled: { label: '📅 Scheduled', bg: 'rgba(100, 116, 139, 0.14)', color: '#475569' },
+                        absent: { label: '⚠️ Absent', bg: 'rgba(245, 158, 11, 0.14)', color: '#b45309' },
+                        rejected: { label: '✕ Rejected', bg: 'rgba(239, 68, 68, 0.14)', color: '#dc2626' }
+                      };
+                      const ivBadge = ivStatus ? (ivBadgeMap[ivStatus] || ivBadgeMap.scheduled) : null;
 
                       return (
                         <div
@@ -2063,11 +2207,26 @@ function BatchPlacementModal({ state, initialJobId, initialJob, initialCandidate
                                     {cand.ref_no}
                                   </span>
                                 )}
+                                {ivBadge && (
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: ivBadge.bg, color: ivBadge.color }}>
+                                    {ivBadge.label}
+                                  </span>
+                                )}
+                                {cand.interview_code && (
+                                  <span style={{ fontSize: '0.66rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', fontFamily: 'var(--font-mono)' }}>
+                                    {cand.interview_code}
+                                  </span>
+                                )}
                               </div>
                               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                                 {cand.skills && <span>🛠️ <strong>{cand.skills}</strong></span>}
                                 {cand.highest_education && <span>&bull; 🎓 {cand.highest_education}</span>}
                                 {cand.phone_number && <span>&bull; 📞 {cand.phone_number}</span>}
+                                {cand.interview_remarks && (
+                                  <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }} title={cand.interview_remarks}>
+                                    &bull; 💬 {cand.interview_remarks.length > 48 ? cand.interview_remarks.slice(0, 48) + '...' : cand.interview_remarks}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
