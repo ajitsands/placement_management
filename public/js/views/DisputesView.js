@@ -836,24 +836,9 @@ function DisputesView({ state }) {
       render: (_, row) => {
         const isActive = row.status === 'active_dispute';
         return (
-          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-sm btn-outline"
-              title="View Full Dispute Record"
-              onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes' })}
-            >
-              👁️ View
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
             {isActive && (
-              <>
-                <button
-                  className="btn btn-sm btn-outline"
-                  style={{ color: 'var(--primary)', borderColor: 'rgba(37, 99, 235, 0.4)' }}
-                  title="Edit Dispute & Reassign Case Managers"
-                  onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes', startEditing: true })}
-                >
-                  ✏️ Edit / Reassign
-                </button>
+              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                 <button
                   className="btn btn-sm btn-outline"
                   style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
@@ -870,8 +855,27 @@ function DisputesView({ state }) {
                 >
                   ⛔ Terminate
                 </button>
-              </>
+              </div>
             )}
+            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+              <button
+                className="btn btn-sm btn-outline"
+                title="View Full Dispute Record"
+                onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes' })}
+              >
+                👁️ View
+              </button>
+              {isActive && (
+                <button
+                  className="btn btn-sm btn-outline"
+                  style={{ color: 'var(--primary)', borderColor: 'rgba(37, 99, 235, 0.4)' }}
+                  title="Edit Dispute & Reassign Case Managers"
+                  onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes', startEditing: true })}
+                >
+                  ✏️ Edit / Reassign
+                </button>
+              )}
+            </div>
           </div>
         );
       }
