@@ -109,6 +109,22 @@ class Candidate {
         $customRef = trim($data['ref_no'] ?? '');
         $refNo = !empty($customRef) ? $customRef : self::generateNextRef();
         $caseManagerName = !empty($data['case_manager_name']) ? trim($data['case_manager_name']) : ($defaultCaseManager ?: 'Husain');
+        $caseManagerId = !empty($data['case_manager_id']) ? (int)$data['case_manager_id'] : null;
+        if (!$caseManagerId && $caseManagerName) {
+            foreach (($store['users'] ?? []) as $u) {
+                if (
+                    strcasecmp($u['case_manager_code'] ?? '', $caseManagerName) === 0 ||
+                    strcasecmp($u['full_name'] ?? '', $caseManagerName) === 0 ||
+                    strcasecmp($u['username'] ?? '', $caseManagerName) === 0
+                ) {
+                    $caseManagerId = (int)$u['id'];
+                    break;
+                }
+            }
+        }
+        if (!$caseManagerId) {
+            $caseManagerId = 3;
+        }
 
         $regDate = !empty($data['registration_date']) ? $data['registration_date'] : date('Y-m-d');
         $hasPlacement = !empty($data['company_name']) && !empty($data['joining_date']);
@@ -173,7 +189,7 @@ class Candidate {
             'mol_certified'            => $data['mol_certified'] ?? 'Yes',
             'long_mol'                 => $data['long_mol'] ?? 'No',
             'joining_date'             => $hasPlacement ? $data['joining_date'] : null,
-            'case_manager_id'          => isset($data['case_manager_id']) ? (int)$data['case_manager_id'] : 3,
+            'case_manager_id'          => $caseManagerId,
             'case_manager_name'        => $caseManagerName,
             'center'                   => !empty($data['center']) ? trim($data['center']) : 'Enma Mall',
             'notes'                    => $remarks,
@@ -227,8 +243,20 @@ class Candidate {
                 if (!empty($placementData['case_manager_name'])) {
                     $c['case_manager_name'] = trim($placementData['case_manager_name']);
                 }
-                if (isset($placementData['case_manager_id'])) {
+                if (!empty($placementData['case_manager_id']) && (int)$placementData['case_manager_id'] > 0) {
                     $c['case_manager_id'] = (int)$placementData['case_manager_id'];
+                } elseif (!empty($placementData['case_manager_name'])) {
+                    $cmTarget = trim($placementData['case_manager_name']);
+                    foreach (($store['users'] ?? []) as $u) {
+                        if (
+                            strcasecmp($u['case_manager_code'] ?? '', $cmTarget) === 0 ||
+                            strcasecmp($u['full_name'] ?? '', $cmTarget) === 0 ||
+                            strcasecmp($u['username'] ?? '', $cmTarget) === 0
+                        ) {
+                            $c['case_manager_id'] = (int)$u['id'];
+                            break;
+                        }
+                    }
                 }
                 if (!empty($placementData['job_id'])) {
                     $c['job_id'] = (int)$placementData['job_id'];

@@ -211,8 +211,15 @@ class InterviewController {
             Response::notFound("Candidate with ID {$candidateId} not found");
         }
 
+        $isCaseManager = ($user['role'] ?? '') === 'case_manager';
+        $cmId = $isCaseManager ? (int)$user['id'] : (int)($candidate['case_manager_id'] ?? ($user['id'] ?? 0));
+        $cmName = $isCaseManager
+            ? ($user['case_manager_code'] ?? $user['full_name'])
+            : ($candidate['case_manager_name'] ?? $user['case_manager_code'] ?? $user['full_name'] ?? 'Case Manager');
+
         $placementPayload = [
             'job_id'            => $jobId,
+            'job_code'          => $job['job_code'] ?? null,
             'company_name'      => $job['company_name'],
             'employer_cr'       => $job['employer_cr'] ?? '',
             'position_title'    => $job['job_title'] ?? $job['position_title'] ?? '',
@@ -220,7 +227,8 @@ class InterviewController {
             'joining_date'      => $data['joining_date'] ?? date('Y-m-d'),
             'mol_certified'     => 'Yes',
             'status'            => 'placed',
-            'case_manager_name' => $user['full_name'] ?? $candidate['case_manager_name'] ?? 'Case Manager'
+            'case_manager_id'   => $cmId ?: null,
+            'case_manager_name' => $cmName
         ];
 
         $placed = Candidate::linkPlacement($candidateId, $placementPayload);

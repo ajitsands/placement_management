@@ -83,6 +83,9 @@ class CandidateController {
         $defaultCaseManager = ($user['role'] === 'case_manager') 
             ? ($user['case_manager_code'] ?? $user['full_name']) 
             : null;
+        if ($user['role'] === 'case_manager' && empty($data['case_manager_id'])) {
+            $data['case_manager_id'] = (int)$user['id'];
+        }
 
         // Verify registration checklist compliance
         $checklistPending = false;
@@ -168,6 +171,7 @@ class CandidateController {
     public function linkPlacement(array $data, array $params): void {
         $id = (int)($params['id'] ?? 0);
         $scope = Auth::getScopedCaseManagerName();
+        $user = Auth::getCurrentUser();
 
         $companyName = trim($data['company_name'] ?? '');
         $joiningDate = trim($data['joining_date'] ?? '');
@@ -176,12 +180,21 @@ class CandidateController {
             Response::error('Employer Company Name and Placement Joining Date are required to link a placement', 400);
         }
 
+        // Attribute placement to the logged-in Case Manager unless explicitly overridden
+        if (($user['role'] ?? '') === 'case_manager') {
+            if (empty($data['case_manager_id'])) {
+                $data['case_manager_id'] = (int)$user['id'];
+            }
+            if (empty($data['case_manager_name'])) {
+                $data['case_manager_name'] = $user['case_manager_code'] ?? $user['full_name'];
+            }
+        }
+
         $updated = Candidate::linkPlacement($id, $data, $scope);
         if (!$updated) {
             Response::notFound("Candidate not found or unauthorized to link placement");
         }
 
-        $user = Auth::getCurrentUser();
         \App\Models\AuditLog::log(
             'CANDIDATE_PLACED',
             'candidate',
@@ -196,6 +209,7 @@ class CandidateController {
 
     public function batchPlacement(array $data): void {
         $scope = Auth::getScopedCaseManagerName();
+        $user = Auth::getCurrentUser();
         $jobId = (int)($data['job_id'] ?? 0);
         $placements = $data['placements'] ?? [];
 
@@ -215,6 +229,11 @@ class CandidateController {
             }
         }
 
+        // Default placement attribution to logged-in Case Manager
+        $isCaseManager = ($user['role'] ?? '') === 'case_manager';
+        $actorCmId = $isCaseManager ? (int)$user['id'] : null;
+        $actorCmName = $isCaseManager ? ($user['case_manager_code'] ?? $user['full_name']) : null;
+
         $results = [];
         foreach ($placements as $p) {
             $candId = (int)($p['candidate_id'] ?? $p['id'] ?? 0);
@@ -233,8 +252,8 @@ class CandidateController {
                 'mol_certified'     => $p['mol_certified'] ?? 'Yes',
                 'long_mol'          => $p['long_mol'] ?? ($data['long_mol'] ?? 'No'),
                 'comments'          => !empty($p['comments']) ? $p['comments'] : ($data['comments'] ?? ''),
-                'case_manager_name' => $p['case_manager_name'] ?? ($data['case_manager_name'] ?? null),
-                'case_manager_id'   => $p['case_manager_id'] ?? ($data['case_manager_id'] ?? null)
+                'case_manager_name' => $p['case_manager_name'] ?? ($data['case_manager_name'] ?? $actorCmName),
+                'case_manager_id'   => $p['case_manager_id'] ?? ($data['case_manager_id'] ?? $actorCmId)
             ];
 
             $updated = Candidate::linkPlacement($candId, $placementData, $scope);
@@ -244,7 +263,6 @@ class CandidateController {
         }
 
         $company = $data['company_name'] ?? ($job['company_name'] ?? 'Employer');
-        $user = Auth::getCurrentUser();
         \App\Models\AuditLog::log(
             'BATCH_PLACED',
             'job',
