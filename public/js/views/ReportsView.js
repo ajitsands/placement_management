@@ -411,6 +411,9 @@ function ReportsView({ state }) {
                     <th>Target Date</th>
                     <th>Days Remaining</th>
                     <th>Status</th>
+                    <th>Company Claim ({currency})</th>
+                    <th>Tamkeen Approved ({currency})</th>
+                    <th>Diff Amount ({currency})</th>
                     <th>Case Manager</th>
                   </tr>
                 )}
@@ -434,7 +437,9 @@ function ReportsView({ state }) {
                     <th>Claim Ref</th>
                     <th>Candidate</th>
                     <th>Employer</th>
-                    <th>Claim Amount</th>
+                    <th>Company Claim</th>
+                    <th>Approved Amount</th>
+                    <th>Diff Amount</th>
                     <th>Total Paid</th>
                     <th>Balance</th>
                     <th>Submission Date</th>
@@ -579,18 +584,40 @@ function ReportsView({ state }) {
                 ))}
 
                 {/* 2. Milestones */}
-                {reportType === 'claim_milestones' && reportData?.data?.map(m => (
-                  <tr key={m.id}>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{m.candidate_ref}</td>
-                    <td><strong>{m.candidate_name}</strong></td>
-                    <td>{m.company_name}</td>
-                    <td><span className="badge badge-info">{m.milestone_title}</span></td>
-                    <td>{window.formatAppDate(m.target_date || m.due_date)}</td>
-                    <td>{m.days_remaining}d</td>
-                    <td><span className="badge badge-neutral">{m.status}</span></td>
-                    <td>{m.case_manager_name || 'System'}</td>
-                  </tr>
-                ))}
+                {reportType === 'claim_milestones' && reportData?.data?.map(m => {
+                  const compVal = m.company_claim_amount_bhd !== null && m.company_claim_amount_bhd !== undefined ? Number(m.company_claim_amount_bhd) : null;
+                  const appVal = m.claim_amount_bhd !== null && m.claim_amount_bhd !== undefined ? Number(m.claim_amount_bhd) : null;
+                  const diffVal = m.difference_amount_bhd !== null && m.difference_amount_bhd !== undefined ? Number(m.difference_amount_bhd) : (compVal !== null && appVal !== null ? Number((compVal - appVal).toFixed(3)) : null);
+                  const hasDiff = diffVal !== null && Math.abs(diffVal) > 0.0001;
+
+                  return (
+                    <tr key={m.id}>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{m.candidate_ref}</td>
+                      <td><strong>{m.candidate_name}</strong></td>
+                      <td>{m.company_name}</td>
+                      <td><span className="badge badge-info">{m.milestone_title}</span></td>
+                      <td>{window.formatAppDate(m.target_date || m.due_date)}</td>
+                      <td>{m.days_remaining}d</td>
+                      <td><span className="badge badge-neutral">{m.status}</span></td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>
+                        {compVal !== null ? `${currency} ${compVal.toFixed(3)}` : '-'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>
+                        {appVal !== null ? `${currency} ${appVal.toFixed(3)}` : '-'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>
+                        {hasDiff ? (
+                          <span className="badge badge-warning" style={{ fontWeight: 800 }}>
+                            {diffVal > 0 ? '+' : ''}{diffVal.toFixed(3)}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>0.000</span>
+                        )}
+                      </td>
+                      <td>{m.case_manager_name || 'System'}</td>
+                    </tr>
+                  );
+                })}
 
                 {/* 3. Unclaimed Milestones */}
                 {reportType === 'unclaimed_milestones' && reportData?.data?.map(m => (
@@ -606,18 +633,35 @@ function ReportsView({ state }) {
                 ))}
 
                 {/* 4. Claim Ledger */}
-                {reportType === 'claim_ledger' && reportData?.data?.map(cl => (
-                  <tr key={cl.id}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{cl.claim_ref}</td>
-                    <td><strong>{cl.candidate_name}</strong></td>
-                    <td>{cl.company_name}</td>
-                    <td style={{ fontWeight: 700 }}>{currency} {Number(cl.claim_amount_bhd).toFixed(3)}</td>
-                    <td style={{ color: 'var(--success)', fontWeight: 700 }}>{currency} {Number(cl.total_paid_bhd || 0).toFixed(3)}</td>
-                    <td style={{ color: cl.balance_bhd > 0 ? 'var(--danger)' : 'inherit', fontWeight: 700 }}>{currency} {Number(cl.balance_bhd || 0).toFixed(3)}</td>
-                    <td>{window.formatAppDate(cl.submission_date || cl.claim_date)}</td>
-                    <td><span className="badge badge-neutral">{cl.status}</span></td>
-                  </tr>
-                ))}
+                {reportType === 'claim_ledger' && reportData?.data?.map(cl => {
+                  const compVal = cl.company_claim_amount_bhd !== null && cl.company_claim_amount_bhd !== undefined ? Number(cl.company_claim_amount_bhd) : Number(cl.claim_amount_bhd || 0);
+                  const appVal = Number(cl.claim_amount_bhd || 0);
+                  const diffVal = cl.difference_amount_bhd !== null && cl.difference_amount_bhd !== undefined ? Number(cl.difference_amount_bhd) : Number((compVal - appVal).toFixed(3));
+                  const hasDiff = Math.abs(diffVal) > 0.0001;
+
+                  return (
+                    <tr key={cl.id}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{cl.claim_ref}</td>
+                      <td><strong>{cl.candidate_name}</strong></td>
+                      <td>{cl.company_name}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{currency} {compVal.toFixed(3)}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{currency} {appVal.toFixed(3)}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>
+                        {hasDiff ? (
+                          <span className="badge badge-warning" style={{ fontWeight: 800 }}>
+                            {diffVal > 0 ? '+' : ''}{diffVal.toFixed(3)}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>0.000</span>
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--success)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{currency} {Number(cl.total_paid_bhd || 0).toFixed(3)}</td>
+                      <td style={{ color: cl.balance_bhd > 0 ? 'var(--danger)' : 'inherit', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{currency} {Number(cl.balance_bhd || 0).toFixed(3)}</td>
+                      <td>{window.formatAppDate(cl.submission_date || cl.claim_date)}</td>
+                      <td><span className="badge badge-neutral">{cl.status}</span></td>
+                    </tr>
+                  );
+                })}
 
                 {/* 5. Categorized Disputes */}
                 {reportType === 'categorized_disputes' && reportData?.data?.map(d => (

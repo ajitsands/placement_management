@@ -114,6 +114,12 @@ class Milestone {
                 ?? null;
 
             $claimAmount = $linkedClaim ? (float)$linkedClaim['claim_amount_bhd'] : null;
+            $companyClaimAmount = $linkedClaim && isset($linkedClaim['company_claim_amount_bhd']) && $linkedClaim['company_claim_amount_bhd'] !== null
+                ? (float)$linkedClaim['company_claim_amount_bhd']
+                : $claimAmount;
+            $differenceAmount = $linkedClaim && isset($linkedClaim['difference_amount_bhd']) && $linkedClaim['difference_amount_bhd'] !== null
+                ? (float)$linkedClaim['difference_amount_bhd']
+                : ($companyClaimAmount !== null && $claimAmount !== null ? round($companyClaimAmount - $claimAmount, 3) : 0.0);
             $claimRef = $linkedClaim['claim_ref'] ?? null;
             $claimId = $linkedClaim ? (int)$linkedClaim['id'] : null;
             $claimStatus = $linkedClaim['status'] ?? null;
@@ -132,6 +138,8 @@ class Milestone {
             $ms['days_remaining'] = $daysRemaining;
             $ms['milestone_stage'] = $stage;
             $ms['claim_amount_bhd'] = $claimAmount;
+            $ms['company_claim_amount_bhd'] = $companyClaimAmount;
+            $ms['difference_amount_bhd'] = $differenceAmount;
             $ms['amount_collected_bhd'] = $collected;
             $ms['total_paid_bhd'] = $collected;
             $ms['balance_bhd'] = $balance;

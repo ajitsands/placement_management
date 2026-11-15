@@ -660,6 +660,16 @@ function MilestonesView({ state }) {
           ? parseFloat(linkedClaim.claim_amount_bhd)
           : ((m.claim_amount_bhd !== undefined && m.claim_amount_bhd !== null) ? parseFloat(m.claim_amount_bhd) : null);
 
+        const companyClaimAmount = (linkedClaim && linkedClaim.company_claim_amount_bhd !== undefined && linkedClaim.company_claim_amount_bhd !== null)
+          ? parseFloat(linkedClaim.company_claim_amount_bhd)
+          : ((m.company_claim_amount_bhd !== undefined && m.company_claim_amount_bhd !== null) ? parseFloat(m.company_claim_amount_bhd) : claimAmount);
+
+        const diffAmount = (linkedClaim && linkedClaim.difference_amount_bhd !== undefined && linkedClaim.difference_amount_bhd !== null)
+          ? parseFloat(linkedClaim.difference_amount_bhd)
+          : ((m.difference_amount_bhd !== undefined && m.difference_amount_bhd !== null)
+              ? parseFloat(m.difference_amount_bhd)
+              : (companyClaimAmount !== null && claimAmount !== null ? Number((companyClaimAmount - claimAmount).toFixed(3)) : 0));
+
         const claimId = m.claim_id || linkedClaim?.id || null;
         const claimRef = m.claim_ref || linkedClaim?.claim_ref || null;
         const claimStatus = m.claim_status || linkedClaim?.status || null;
@@ -699,6 +709,8 @@ function MilestonesView({ state }) {
           days_remaining: days,
           claim_id: claimId,
           claim_amount_bhd: claimAmount,
+          company_claim_amount_bhd: companyClaimAmount,
+          difference_amount_bhd: diffAmount,
           amount_collected_bhd: collected,
           total_paid_bhd: collected,
           balance_bhd: balance,
@@ -1050,6 +1062,19 @@ function MilestonesView({ state }) {
               {row.claim_ref && (
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                   {row.claim_ref}
+                </div>
+              )}
+
+              {/* Diff Amount Badge if non-zero */}
+              {row.difference_amount_bhd !== undefined && row.difference_amount_bhd !== null && Math.abs(Number(row.difference_amount_bhd)) > 0.0001 && (
+                <div style={{ marginTop: '2px' }}>
+                  <span
+                    className="badge badge-warning"
+                    style={{ fontSize: '0.68rem', padding: '1px 5px', fontWeight: 700 }}
+                    title={`Company Claim: ${currency} ${Number(row.company_claim_amount_bhd).toFixed(3)} | Tamkeen Approved: ${currency} ${Number(val).toFixed(3)} | Diff: ${currency} ${Number(row.difference_amount_bhd).toFixed(3)}`}
+                  >
+                    Diff: {Number(row.difference_amount_bhd) > 0 ? '+' : ''}{Number(row.difference_amount_bhd).toFixed(3)}
+                  </span>
                 </div>
               )}
 

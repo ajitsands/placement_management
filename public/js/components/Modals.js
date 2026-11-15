@@ -4420,6 +4420,7 @@ function NewClaimModal({ state, initialProps = {} }) {
     candidate_id: initialCandidate?.id || candidates[0]?.id || '',
     milestone_id: initialMilestoneId ? String(initialMilestoneId) : '',
     claim_type: resolvedClaimType,
+    company_claim_amount_bhd: defaultAmount,
     claim_amount_bhd: defaultAmount,
     remarks: initialCandidate 
       ? `Placement subsidy claim for ${initialCandidate.full_name} (${initialCandidate.company_name || 'Placement'})` 
@@ -4442,25 +4443,27 @@ function NewClaimModal({ state, initialProps = {} }) {
     const sal = Number(selected?.salary_bhd || 0);
     const relatedMs = (milestones || []).filter(m => String(m.candidate_id) === String(candId));
     const firstUnclaimed = relatedMs.find(m => m.status !== 'claimed') || relatedMs[0];
+    const newAmt = sal > 0 ? sal.toFixed(3) : defaultAmount;
 
     setForm({
       ...form,
       candidate_id: candId,
       milestone_id: firstUnclaimed ? String(firstUnclaimed.id) : '',
       claim_type: firstUnclaimed ? (firstUnclaimed.milestone_type || 'placement') : form.claim_type,
-      claim_amount_bhd: sal > 0 ? sal.toFixed(3) : form.claim_amount_bhd,
+      company_claim_amount_bhd: newAmt,
+      claim_amount_bhd: newAmt,
       remarks: selected ? `Placement subsidy claim for ${selected.full_name} (${selected.company_name || 'Placement'})` : form.remarks
     });
   };
 
-  const setAmountPreset = (amt) => {
-    setForm(prev => ({ ...prev, claim_amount_bhd: Number(amt).toFixed(3) }));
-  };
+  const companyAmt = Number(form.company_claim_amount_bhd || 0);
+  const approvedAmt = Number(form.claim_amount_bhd || 0);
+  const diffAmount = Number((companyAmt - approvedAmt).toFixed(3));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.candidate_id || form.claim_amount_bhd === '') {
-      window.AppStore.showNotification('Candidate and Claim Amount are required', 'error');
+    if (!form.candidate_id || form.claim_amount_bhd === '' || form.company_claim_amount_bhd === '') {
+      window.AppStore.showNotification('Candidate, Company Claim Amount, and Tamkeen Approved Amount are required', 'error');
       return;
     }
 
@@ -4470,10 +4473,12 @@ function NewClaimModal({ state, initialProps = {} }) {
         candidate_id: form.candidate_id,
         milestone_id: form.milestone_id || null,
         claim_type: form.claim_type,
+        company_claim_amount_bhd: parseFloat(form.company_claim_amount_bhd),
         claim_amount_bhd: parseFloat(form.claim_amount_bhd),
+        difference_amount_bhd: parseFloat(diffAmount),
         remarks: form.remarks
       });
-      window.AppStore.showNotification(`Claim for ${currency} ${Number(form.claim_amount_bhd).toFixed(3)} registered!`, 'success');
+      window.AppStore.showNotification(`Claim registered! Approved: ${currency} ${Number(form.claim_amount_bhd).toFixed(3)} (Diff: ${currency} ${diffAmount.toFixed(3)})`, 'success');
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
@@ -4561,74 +4566,149 @@ function NewClaimModal({ state, initialProps = {} }) {
             </div>
           )}
 
-          {/* 2. CLAIM AMOUNT INPUT & SMART PRESETS */}
+          {/* 2. CLAIM AMOUNTS: COMPANY CLAIM vs TAMKEEN APPROVED & DIFFERENCE */}
           <div
             style={{
               background: 'var(--bg-card)',
-              border: '2px solid var(--primary)',
+              border: '1px solid var(--border-light)',
               borderRadius: 'var(--radius-md)',
-              padding: '0.85rem 1rem'
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-              <label className="form-label" style={{ margin: 0, fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
-                💰 Claim Amount ({currency}) *
-              </label>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Agreed reimbursement amount to be claimed
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)' }}>
-                {currency}
-              </span>
-              <input
-                type="number"
-                step="0.001"
-                min="0"
-                className="input-control"
-                style={{ fontSize: '1.15rem', fontWeight: 800, padding: '0.45rem 0.75rem' }}
-                value={form.claim_amount_bhd}
-                onChange={e => setForm({ ...form, claim_amount_bhd: e.target.value })}
-                placeholder="0.000"
-                required
-              />
-            </div>
-
-            {/* Quick Presets based on employee's salary */}
-            {activeSalary > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Presets:</span>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)' }}
-                  onClick={() => setAmountPreset(activeSalary)}
-                  title="Set claim amount equal to 1 month salary"
-                >
-                  100% Salary ({currency} {activeSalary.toFixed(3)})
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)' }}
-                  onClick={() => setAmountPreset(activeSalary * 0.7)}
-                  title="Set claim amount to 70% of salary"
-                >
-                  70% ({currency} {(activeSalary * 0.7).toFixed(3)})
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-full)' }}
-                  onClick={() => setAmountPreset(activeSalary * 0.5)}
-                  title="Set claim amount to 50% of salary"
-                >
-                  50% ({currency} {(activeSalary * 0.5).toFixed(3)})
-                </button>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+              {/* Company Claim Amount */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                  🏢 Company Claim Amount ({currency}) *
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-light)',
+                    borderRight: 'none',
+                    borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)'
+                  }}>
+                    {currency}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    className="input-control"
+                    style={{
+                      borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+                      fontSize: '1.05rem',
+                      fontWeight: 800,
+                      fontFamily: 'var(--font-mono)'
+                    }}
+                    value={form.company_claim_amount_bhd}
+                    onChange={e => setForm({ ...form, company_claim_amount_bhd: e.target.value })}
+                    placeholder="0.000"
+                    required
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Amount as per company agreement
+                </div>
               </div>
-            )}
+
+              {/* Tamkeen Approved Amount */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', color: 'var(--primary)' }}>
+                  🏛️ Tamkeen Approved Amount ({currency}) *
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-light)',
+                    borderRight: 'none',
+                    borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: 'var(--primary)'
+                  }}>
+                    {currency}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    className="input-control"
+                    style={{
+                      borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+                      fontSize: '1.05rem',
+                      fontWeight: 800,
+                      fontFamily: 'var(--font-mono)',
+                      borderColor: 'var(--primary)'
+                    }}
+                    value={form.claim_amount_bhd}
+                    onChange={e => setForm({ ...form, claim_amount_bhd: e.target.value })}
+                    placeholder="0.000"
+                    required
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Approved amount eligible in Tamkeen portal
+                </div>
+              </div>
+            </div>
+
+            {/* Difference / Variance Highlight Card */}
+            <div
+              style={{
+                background: Math.abs(diffAmount) > 0.0001 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                border: `1px solid ${Math.abs(diffAmount) > 0.0001 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                borderRadius: 'var(--radius-md)',
+                padding: '0.65rem 0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>{Math.abs(diffAmount) > 0.0001 ? '⚖️' : '✅'}</span>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Variance / Difference Amount
+                  </div>
+                  <div style={{
+                    fontSize: '0.95rem',
+                    fontWeight: 800,
+                    fontFamily: 'var(--font-mono)',
+                    color: Math.abs(diffAmount) > 0.0001 ? 'var(--warning-dark, #b45309)' : 'var(--success)'
+                  }}>
+                    {currency} {diffAmount > 0 ? '+' : ''}{diffAmount.toFixed(3)}
+                    {Math.abs(diffAmount) > 0.0001 && (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: '0.4rem', opacity: 0.9 }}>
+                        ({diffAmount > 0 ? 'Company claim exceeds portal approval' : 'Tamkeen approval exceeds company claim'})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {Math.abs(diffAmount) > 0.0001 && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
+                  onClick={() => setForm(prev => ({ ...prev, claim_amount_bhd: prev.company_claim_amount_bhd }))}
+                  title="Match Tamkeen Approved Amount to Company Claim Amount"
+                >
+                  Match Company Amount
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 3. CLAIM TYPE / MILESTONE STAGE SELECTION */}
@@ -6997,7 +7077,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
     return null;
   }, [claim, milestone?.id, milestone?.claim_id, milestone?.candidate_id, milestone?.milestone_type, claims]);
 
-  // 2. Pre-populate initial amount: prioritizing the current displayed milestone claim amount
+  // 2. Pre-populate initial amounts
   const getInitialAmount = () => {
     if (milestone?.claim_amount_bhd !== undefined && milestone?.claim_amount_bhd !== null && !isNaN(milestone.claim_amount_bhd)) {
       return parseFloat(milestone.claim_amount_bhd).toFixed(3);
@@ -7009,23 +7089,38 @@ function EditClaimAmountModal({ state, milestone, claim }) {
     return fallbackVal;
   };
 
+  const getInitialCompanyAmount = () => {
+    if (milestone?.company_claim_amount_bhd !== undefined && milestone?.company_claim_amount_bhd !== null && !isNaN(milestone.company_claim_amount_bhd)) {
+      return parseFloat(milestone.company_claim_amount_bhd).toFixed(3);
+    }
+    if (activeClaim?.company_claim_amount_bhd !== undefined && activeClaim?.company_claim_amount_bhd !== null && !isNaN(activeClaim.company_claim_amount_bhd)) {
+      return parseFloat(activeClaim.company_claim_amount_bhd).toFixed(3);
+    }
+    return getInitialAmount();
+  };
+
+  const [companyAmount, setCompanyAmount] = useState(getInitialCompanyAmount());
   const [amount, setAmount] = useState(getInitialAmount());
-  const [remarks, setRemarks] = useState(activeClaim?.remarks || 'Adjusted agreed claim amount');
+  const [remarks, setRemarks] = useState(activeClaim?.remarks || 'Adjusted claim amount and difference');
   const [saving, setSaving] = useState(false);
 
-  // 3. Keep modal amount and remarks strictly in sync whenever modal props or claims update
+  // 3. Keep modal amounts and remarks strictly in sync whenever modal props or claims update
   useEffect(() => {
     setAmount(getInitialAmount());
+    setCompanyAmount(getInitialCompanyAmount());
     if (activeClaim?.remarks) {
       setRemarks(activeClaim.remarks);
     }
-  }, [milestone?.id, milestone?.claim_amount_bhd, milestone?.claim_id, activeClaim?.id, activeClaim?.claim_amount_bhd]);
+  }, [milestone?.id, milestone?.claim_amount_bhd, milestone?.company_claim_amount_bhd, milestone?.claim_id, activeClaim?.id, activeClaim?.claim_amount_bhd, activeClaim?.company_claim_amount_bhd]);
+
+  const compNum = parseFloat(companyAmount) || 0;
+  const appNum = parseFloat(amount) || 0;
+  const diffNum = Number((compNum - appNum).toFixed(3));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount < 0) {
-      window.AppStore.showNotification('Please enter a valid non-negative claim amount', 'error');
+    if (isNaN(appNum) || appNum < 0 || isNaN(compNum) || compNum < 0) {
+      window.AppStore.showNotification('Please enter valid non-negative amounts', 'error');
       return;
     }
 
@@ -7033,7 +7128,9 @@ function EditClaimAmountModal({ state, milestone, claim }) {
     try {
       const targetClaimId = activeClaim?.id || milestone?.claim_id;
       const claimPayload = {
-        claim_amount_bhd: parsedAmount,
+        claim_amount_bhd: appNum,
+        company_claim_amount_bhd: compNum,
+        difference_amount_bhd: diffNum,
         remarks: remarks.trim(),
         candidate_id: milestone?.candidate_id || activeClaim?.candidate_id,
         milestone_id: milestone?.id || activeClaim?.milestone_id || null,
@@ -7046,7 +7143,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
         await window.api.claims.create(claimPayload);
       }
 
-      window.AppStore.showNotification(`Claim amount updated to ${currency} ${parsedAmount.toFixed(3)} successfully!`, 'success');
+      window.AppStore.showNotification(`Claim updated! Approved: ${currency} ${appNum.toFixed(3)} | Diff: ${currency} ${diffNum.toFixed(3)}`, 'success');
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
@@ -7120,42 +7217,136 @@ function EditClaimAmountModal({ state, milestone, claim }) {
             </div>
           </div>
 
-          {/* Claim Amount Input */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Revised Claim Amount ({currency}) *</label>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{
-                padding: '0.55rem 0.85rem',
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-light)',
-                borderRight: 'none',
-                borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                color: 'var(--text-primary)'
-              }}>
-                {currency}
-              </span>
-              <input
-                type="number"
-                step="0.001"
-                min="0"
-                className="input-control"
-                style={{
-                  borderRadius: '0 var(--radius-md) var(--radius-md) 0',
-                  fontSize: '1.1rem',
+          {/* Claim Amounts: Company Claim vs Tamkeen Approved & Variance */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.85rem' }}>
+            {/* Company Claim Amount */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                🏢 Company Claim ({currency}) *
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-light)',
+                  borderRight: 'none',
+                  borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)'
+                }}>
+                  {currency}
+                </span>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  className="input-control"
+                  style={{
+                    borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+                    fontSize: '1.05rem',
+                    fontWeight: 800,
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                  value={companyAmount}
+                  onChange={e => setCompanyAmount(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Company's claimed amount
+              </div>
+            </div>
+
+            {/* Tamkeen Approved Amount */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', color: 'var(--primary)' }}>
+                🏛️ Tamkeen Approved ({currency}) *
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-light)',
+                  borderRight: 'none',
+                  borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: 'var(--primary)'
+                }}>
+                  {currency}
+                </span>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  className="input-control"
+                  style={{
+                    borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+                    fontSize: '1.05rem',
+                    fontWeight: 800,
+                    fontFamily: 'var(--font-mono)',
+                    borderColor: 'var(--primary)'
+                  }}
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Official Tamkeen portal approved amount
+              </div>
+            </div>
+          </div>
+
+          {/* Variance / Difference Highlight Card */}
+          <div
+            style={{
+              background: Math.abs(diffNum) > 0.0001 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+              border: `1px solid ${Math.abs(diffNum) > 0.0001 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+              borderRadius: 'var(--radius-md)',
+              padding: '0.65rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.1rem' }}>{Math.abs(diffNum) > 0.0001 ? '⚖️' : '✅'}</span>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Variance / Difference Amount
+                </div>
+                <div style={{
+                  fontSize: '0.95rem',
                   fontWeight: 800,
-                  fontFamily: 'var(--font-mono)'
-                }}
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                required
-                autoFocus
-              />
+                  fontFamily: 'var(--font-mono)',
+                  color: Math.abs(diffNum) > 0.0001 ? 'var(--warning-dark, #b45309)' : 'var(--success)'
+                }}>
+                  {currency} {diffNum > 0 ? '+' : ''}{diffNum.toFixed(3)}
+                  {Math.abs(diffNum) > 0.0001 && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: '0.4rem', opacity: 0.9 }}>
+                      ({diffNum > 0 ? 'Company claim exceeds portal approval' : 'Tamkeen approval exceeds company claim'})
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Standard Bahrain 3-decimal currency precision. Enter the updated manual subsidy claim amount.
-            </div>
+
+            {Math.abs(diffNum) > 0.0001 && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
+                onClick={() => setAmount(companyAmount)}
+                title="Match Tamkeen Approved Amount to Company Claim Amount"
+              >
+                Match Company Amount
+              </button>
+            )}
           </div>
 
           {/* Adjustment Reason */}

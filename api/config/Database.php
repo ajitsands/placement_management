@@ -46,6 +46,7 @@ class Database {
                         self::ensureEventsTables(self::$pdo);
                         self::ensureCandidateApprovalColumns(self::$pdo);
                         self::ensureInterviewTables(self::$pdo);
+                        self::ensureClaimColumns(self::$pdo);
                     } catch (Exception $migrationError) {
                         // Non-fatal: continue with existing schema
                     }
@@ -82,6 +83,28 @@ class Database {
         foreach ($wanted as $col => $def) {
             if (!in_array($col, $existing, true)) {
                 $pdo->exec("ALTER TABLE disputes ADD COLUMN {$col} {$def}");
+            }
+        }
+    }
+
+    /**
+     * Ensure the claims table has the columns needed for tracking company claim amount vs Tamkeen portal approved amount and variance.
+     */
+    private static function ensureClaimColumns(PDO $pdo): void {
+        $wanted = [
+            'company_claim_amount_bhd' => 'DECIMAL(10, 3) NULL DEFAULT NULL',
+            'difference_amount_bhd'    => 'DECIMAL(10, 3) NULL DEFAULT 0.000',
+        ];
+        $stmt = $pdo->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'claims'"
+        );
+        $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'COLUMN_NAME'));
+        if (empty($existing)) {
+            return;
+        }
+        foreach ($wanted as $col => $def) {
+            if (!in_array($col, $existing, true)) {
+                $pdo->exec("ALTER TABLE claims ADD COLUMN {$col} {$def}");
             }
         }
     }
@@ -475,6 +498,12 @@ class Database {
             $cl['candidate_id'] = (int)$cl['candidate_id'];
             $cl['milestone_id'] = $cl['milestone_id'] !== null ? (int)$cl['milestone_id'] : null;
             $cl['claim_amount_bhd'] = (float)$cl['claim_amount_bhd'];
+            $cl['company_claim_amount_bhd'] = isset($cl['company_claim_amount_bhd']) && $cl['company_claim_amount_bhd'] !== null
+                ? (float)$cl['company_claim_amount_bhd']
+                : (float)$cl['claim_amount_bhd'];
+            $cl['difference_amount_bhd'] = isset($cl['difference_amount_bhd']) && $cl['difference_amount_bhd'] !== null
+                ? (float)$cl['difference_amount_bhd']
+                : round((float)$cl['company_claim_amount_bhd'] - (float)$cl['claim_amount_bhd'], 3);
             $cl['case_manager_id'] = $cl['case_manager_id'] !== null ? (int)$cl['case_manager_id'] : null;
             return $cl;
         }, $pdo->query("SELECT * FROM claims ORDER BY id ASC")->fetchAll());
@@ -1144,10 +1173,12 @@ class Database {
 
             // 5. Claims
             if (!empty($data['claims']) && is_array($data['claims'])) {
-                $stmt = $pdo->prepare("INSERT INTO claims (id, claim_ref, candidate_id, milestone_id, claim_type, claim_amount_bhd, status, claim_date, case_manager_id, case_manager_name, remarks, created_at)
-                    VALUES (:id, :claim_ref, :candidate_id, :milestone_id, :claim_type, :claim_amount_bhd, :status, :claim_date, :case_manager_id, :case_manager_name, :remarks, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO claims (id, claim_ref, candidate_id, milestone_id, claim_type, claim_amount_bhd, company_claim_amount_bhd, difference_amount_bhd, status, claim_date, case_manager_id, case_manager_name, remarks, created_at)
+                    VALUES (:id, :claim_ref, :candidate_id, :milestone_id, :claim_type, :claim_amount_bhd, :company_claim_amount_bhd, :difference_amount_bhd, :status, :claim_date, :case_manager_id, :case_manager_name, :remarks, :created_at)
                     ON DUPLICATE KEY UPDATE
                         claim_amount_bhd = VALUES(claim_amount_bhd),
+                        company_claim_amount_bhd = VALUES(company_claim_amount_bhd),
+                        difference_amount_bhd = VALUES(difference_amount_bhd),
                         status = VALUES(status),
                         remarks = VALUES(remarks)");
 
@@ -1159,13 +1190,23 @@ class Database {
                     if ($type === 'year_completion' || $type === 'retention_12m') $type = '365_days';
                     if (!in_array($type, ['placement', '180_days', '365_days'])) $type = 'placement';
 
+                    $claimAmt = (float)($cl['claim_amount_bhd'] ?? 0);
+                    $compAmt = isset($cl['company_claim_amount_bhd']) && $cl['company_claim_amount_bhd'] !== null
+                        ? (float)$cl['company_claim_amount_bhd']
+                        : $claimAmt;
+                    $diffAmt = isset($cl['difference_amount_bhd']) && $cl['difference_amount_bhd'] !== null
+                        ? (float)$cl['difference_amount_bhd']
+                        : round($compAmt - $claimAmt, 3);
+
                     $stmt->execute([
                         ':id' => (int)$cl['id'],
                         ':claim_ref' => $cl['claim_ref'],
                         ':candidate_id' => (int)$cl['candidate_id'],
                         ':milestone_id' => $mId,
                         ':claim_type' => $type,
-                        ':claim_amount_bhd' => (float)$cl['claim_amount_bhd'],
+                        ':claim_amount_bhd' => $claimAmt,
+                        ':company_claim_amount_bhd' => $compAmt,
+                        ':difference_amount_bhd' => $diffAmt,
                         ':status' => $cl['status'] ?? 'undisputed',
                         ':claim_date' => $cl['claim_date'] ?? date('Y-m-d'),
                         ':case_manager_id' => !empty($cl['case_manager_id']) ? (int)$cl['case_manager_id'] : null,

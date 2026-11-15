@@ -54,9 +54,18 @@ class Claim {
                 }
             }
 
+            $companyClaimAmt = isset($c['company_claim_amount_bhd']) && $c['company_claim_amount_bhd'] !== null
+                ? (float)$c['company_claim_amount_bhd']
+                : (float)$c['claim_amount_bhd'];
+            $diffAmt = isset($c['difference_amount_bhd']) && $c['difference_amount_bhd'] !== null
+                ? (float)$c['difference_amount_bhd']
+                : round($companyClaimAmt - $claimAmt, 3);
+
             $c['status'] = $status;
             $c['total_paid_bhd'] = $paid;
             $c['balance_bhd'] = $balance;
+            $c['company_claim_amount_bhd'] = $companyClaimAmt;
+            $c['difference_amount_bhd'] = $diffAmt;
             $c['candidate_ref'] = $cand['ref_no'] ?? 'N/A';
             $c['candidate_name'] = $cand['full_name'] ?? 'N/A';
             $c['candidate_cpr'] = $cand['cpr_no'] ?? 'N/A';
@@ -100,8 +109,14 @@ class Claim {
         }
         $milestoneId = $milestoneId > 0 ? $milestoneId : null;
 
-        // Manual claim amount input in BHD
+        // Manual claim amount input in BHD (Tamkeen approved amount)
         $manualAmount = (float)($data['claim_amount_bhd'] ?? 550.000);
+        $companyClaimAmount = isset($data['company_claim_amount_bhd']) && $data['company_claim_amount_bhd'] !== ''
+            ? (float)$data['company_claim_amount_bhd']
+            : $manualAmount;
+        $diffAmount = isset($data['difference_amount_bhd']) && $data['difference_amount_bhd'] !== ''
+            ? (float)$data['difference_amount_bhd']
+            : round($companyClaimAmount - $manualAmount, 3);
 
         // Check if a claim already exists for this milestone or candidate gate
         foreach ($store['claims'] as &$existingClaim) {
@@ -113,6 +128,8 @@ class Claim {
                     $existingClaim['milestone_id'] = $milestoneId;
                 }
                 $existingClaim['claim_amount_bhd'] = $manualAmount;
+                $existingClaim['company_claim_amount_bhd'] = $companyClaimAmount;
+                $existingClaim['difference_amount_bhd'] = $diffAmount;
                 if (!empty($data['status'])) {
                     $existingClaim['status'] = $data['status'];
                 }
@@ -151,19 +168,21 @@ class Claim {
         $claimRef = !empty($data['claim_ref']) ? trim($data['claim_ref']) : ('CLM-' . date('Y') . '-' . str_pad($id, 3, '0', STR_PAD_LEFT));
 
         $newClaim = [
-            'id'                => $id,
-            'claim_ref'         => $claimRef,
-            'candidate_id'      => $candId,
-            'milestone_id'      => $milestoneId,
-            'claim_type'        => $claimType,
-            'claim_amount_bhd'  => $manualAmount,
-            'status'            => $data['status'] ?? 'undisputed',
-            'claim_date'        => !empty($data['claim_date']) ? $data['claim_date'] : date('Y-m-d'),
-            'case_manager_id'   => $cand['case_manager_id'] ?? $currentUser['id'],
-            'case_manager_name' => $caseManagerName,
-            'remarks'           => trim($data['remarks'] ?? 'Agreed manual claim amount registered'),
-            'created_by'        => $currentUser['id'],
-            'created_at'        => date('Y-m-d H:i:s')
+            'id'                        => $id,
+            'claim_ref'                 => $claimRef,
+            'candidate_id'              => $candId,
+            'milestone_id'              => $milestoneId,
+            'claim_type'                => $claimType,
+            'claim_amount_bhd'          => $manualAmount,
+            'company_claim_amount_bhd'  => $companyClaimAmount,
+            'difference_amount_bhd'     => $diffAmount,
+            'status'                    => $data['status'] ?? 'undisputed',
+            'claim_date'                => !empty($data['claim_date']) ? $data['claim_date'] : date('Y-m-d'),
+            'case_manager_id'           => $cand['case_manager_id'] ?? $currentUser['id'],
+            'case_manager_name'         => $caseManagerName,
+            'remarks'                   => trim($data['remarks'] ?? 'Agreed manual claim amount registered'),
+            'created_by'                => $currentUser['id'],
+            'created_at'                => date('Y-m-d H:i:s')
         ];
 
         $store['claims'][] = $newClaim;
@@ -208,6 +227,16 @@ class Claim {
                 if (isset($data['claim_amount_bhd'])) {
                     $c['claim_amount_bhd'] = (float)$data['claim_amount_bhd'];
                 }
+                if (isset($data['company_claim_amount_bhd'])) {
+                    $c['company_claim_amount_bhd'] = (float)$data['company_claim_amount_bhd'];
+                }
+                if (isset($data['difference_amount_bhd'])) {
+                    $c['difference_amount_bhd'] = (float)$data['difference_amount_bhd'];
+                } elseif (isset($data['company_claim_amount_bhd']) || isset($data['claim_amount_bhd'])) {
+                    $cComp = $c['company_claim_amount_bhd'] ?? $c['claim_amount_bhd'];
+                    $cAmt = $c['claim_amount_bhd'];
+                    $c['difference_amount_bhd'] = round($cComp - $cAmt, 3);
+                }
                 if (isset($data['status'])) {
                     $c['status'] = $data['status'];
                 }
@@ -235,6 +264,16 @@ class Claim {
                     if (isset($data['claim_amount_bhd'])) {
                         $c['claim_amount_bhd'] = (float)$data['claim_amount_bhd'];
                     }
+                    if (isset($data['company_claim_amount_bhd'])) {
+                        $c['company_claim_amount_bhd'] = (float)$data['company_claim_amount_bhd'];
+                    }
+                    if (isset($data['difference_amount_bhd'])) {
+                        $c['difference_amount_bhd'] = (float)$data['difference_amount_bhd'];
+                    } elseif (isset($data['company_claim_amount_bhd']) || isset($data['claim_amount_bhd'])) {
+                        $cComp = $c['company_claim_amount_bhd'] ?? $c['claim_amount_bhd'];
+                        $cAmt = $c['claim_amount_bhd'];
+                        $c['difference_amount_bhd'] = round($cComp - $cAmt, 3);
+                    }
                     if (isset($data['status'])) {
                         $c['status'] = $data['status'];
                     }
@@ -253,13 +292,19 @@ class Claim {
             $candId = (int)($updatedClaim['candidate_id'] ?? 0);
             $cType = $updatedClaim['claim_type'] ?? '';
 
-            if (isset($data['claim_amount_bhd'])) {
-                $newAmt = (float)$data['claim_amount_bhd'];
+            if (isset($data['claim_amount_bhd']) || isset($data['company_claim_amount_bhd'])) {
+                $newAmt = (float)($data['claim_amount_bhd'] ?? $updatedClaim['claim_amount_bhd']);
+                $newCompAmt = isset($data['company_claim_amount_bhd']) ? (float)$data['company_claim_amount_bhd'] : ($updatedClaim['company_claim_amount_bhd'] ?? $newAmt);
+                $newDiffAmt = isset($data['difference_amount_bhd']) ? (float)$data['difference_amount_bhd'] : round($newCompAmt - $newAmt, 3);
                 foreach ($store['claims'] as &$c) {
                     if ($msId > 0 && !empty($c['milestone_id']) && (int)$c['milestone_id'] === $msId) {
                         $c['claim_amount_bhd'] = $newAmt;
+                        $c['company_claim_amount_bhd'] = $newCompAmt;
+                        $c['difference_amount_bhd'] = $newDiffAmt;
                     } elseif ($candId > 0 && (int)$c['candidate_id'] === $candId && $c['claim_type'] === $cType) {
                         $c['claim_amount_bhd'] = $newAmt;
+                        $c['company_claim_amount_bhd'] = $newCompAmt;
+                        $c['difference_amount_bhd'] = $newDiffAmt;
                     }
                 }
             }

@@ -762,10 +762,23 @@ function ClaimsView({ state }) {
       key: 'claim_amount_bhd',
       label: 'Claim Amount',
       sortable: true,
-      render: (val) => (
-        <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
-          {currency} {Number(val || 0).toFixed(3)}
-        </span>
+      render: (val, row) => (
+        <div>
+          <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+            {currency} {Number(val || 0).toFixed(3)}
+          </span>
+          {row && row.difference_amount_bhd !== undefined && row.difference_amount_bhd !== null && Math.abs(Number(row.difference_amount_bhd)) > 0.0001 && (
+            <div style={{ marginTop: '2px' }}>
+              <span
+                className="badge badge-warning"
+                style={{ fontSize: '0.68rem', padding: '1px 5px', fontWeight: 700 }}
+                title={`Company Claim: ${currency} ${Number(row.company_claim_amount_bhd || val).toFixed(3)} | Approved: ${currency} ${Number(val).toFixed(3)}`}
+              >
+                Diff: {Number(row.difference_amount_bhd) > 0 ? '+' : ''}{Number(row.difference_amount_bhd).toFixed(3)}
+              </span>
+            </div>
+          )}
+        </div>
       )
     },
     {
