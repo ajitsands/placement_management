@@ -4,14 +4,19 @@
  */
 
 function DisputesView({ state }) {
-  const { disputes = [], candidates = [], currentUser } = state;
+  const { disputes = [], candidates = [], currentUser = {} } = state;
   const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
 
   const readSaved = (k, d = '') => {
     const v = sessionStorage.getItem('sands_disputes_filter_' + k);
     return v !== null ? v : d;
   };
+  const [scopeFilter, setScopeFilter] = useState(() => {
+    const saved = readSaved('scope', 'mine');
+    return saved === 'global' ? 'global' : 'mine';
+  });
   const [statusFilter, setStatusFilter] = useState(() => {
     const saved = readSaved('status', 'active_dispute');
     return ['active_dispute', 'reinstated', 'terminated', ''].includes(saved) ? saved : 'active_dispute';
@@ -25,6 +30,8 @@ function DisputesView({ state }) {
 
   // Reset all dispute filters to default on user switch or login
   useEffect(() => {
+    setScopeFilter('mine');
+    sessionStorage.setItem('sands_disputes_filter_scope', 'mine');
     setStatusFilter('active_dispute');
     setSelectedCandidate('');
     setSelectedEmployer('');
@@ -38,6 +45,7 @@ function DisputesView({ state }) {
     setter(val);
     sessionStorage.setItem('sands_disputes_filter_' + key, val);
   };
+  const handleScopeChange = persist(setScopeFilter, 'scope');
   const handleStatusChange = persist(setStatusFilter, 'status');
   const handleCandidateChange = persist(setSelectedCandidate, 'candidate');
   const handleEmployerChange = persist(setSelectedEmployer, 'employer');
@@ -121,15 +129,76 @@ function DisputesView({ state }) {
     { value: '365_days', label: 'Day 365 - 1 Year Retention', subLabel: 'Annual completion & 12-month retention gate' }
   ];
 
+  const candidateLookup = useMemo(() => {
+    const m = new Map();
+    (candidates || []).forEach(c => { if (c && c.id) m.set(String(c.id), c); });
+    return m;
+  }, [candidates]);
+
+  const isUserMatch = (cm) => {
+    if (!cm || !currentUser) return false;
+    if (cm.id && currentUser.id && Number(cm.id) === Number(currentUser.id)) return true;
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    const cmName = String(cm.name || cm.full_name || '').trim().toLowerCase();
+    const cmUser = String(cm.username || '').trim().toLowerCase();
+    const cmCode = String(cm.code || cm.case_manager_code || '').trim().toLowerCase();
+    if (myUser && (cmUser === myUser || cmName === myUser)) return true;
+    if (myFull && (cmName === myFull || cmUser === myFull)) return true;
+    if (myCode && (cmCode === myCode || cmName === myCode)) return true;
+    return false;
+  };
+
+  const isMine = (d) => {
+    if (!currentUser) return false;
+    const assigned = Array.isArray(d.assigned_case_managers) ? d.assigned_case_managers : [];
+    if (assigned.some(isUserMatch)) return true;
+    const cand = candidateLookup.get(String(d.candidate_id));
+    const cmId = d.case_manager_id || cand?.case_manager_id;
+    if (cmId && currentUser.id && Number(cmId) === Number(currentUser.id)) return true;
+    const cmName = String(d.case_manager_name || cand?.case_manager_name || '').trim().toLowerCase();
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    if (myCode && cmName === myCode) return true;
+    if (myFull && cmName === myFull) return true;
+    if (myUser && cmName === myUser) return true;
+    return false;
+  };
+
+  const myDisputesCount = useMemo(() => {
+    if (isAdminOrSuper) return (disputes || []).length;
+    return (disputes || []).filter(isMine).length;
+  }, [disputes, isAdminOrSuper, currentUser, candidateLookup]);
+
+  const scopedDisputes = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return (disputes || []).filter(isMine);
+    }
+    return disputes || [];
+  }, [disputes, isAdminOrSuper, scopeFilter, currentUser, candidateLookup]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { active_dispute: 0, reinstated: 0, terminated: 0, all: scopedDisputes.length };
+    scopedDisputes.forEach(d => {
+      const st = String(d.status || '').toLowerCase();
+      if (st === 'active_dispute') counts.active_dispute += 1;
+      else if (st.includes('reinstated')) counts.reinstated += 1;
+      else if (st.includes('terminated')) counts.terminated += 1;
+    });
+    return counts;
+  }, [scopedDisputes]);
+
   const statusOptions = [
-    { id: 'active_dispute', label: 'Disputed' },
-    { id: 'reinstated', label: 'Reinstated' },
-    { id: 'terminated', label: 'Terminated' },
-    { id: '', label: 'All' }
+    { id: 'active_dispute', label: 'Disputed', count: statusCounts.active_dispute },
+    { id: 'reinstated', label: 'Reinstated', count: statusCounts.reinstated },
+    { id: 'terminated', label: 'Terminated', count: statusCounts.terminated },
+    { id: '', label: 'All', count: statusCounts.all }
   ];
 
   const displayData = useMemo(() => {
-    return (disputes || []).filter(d => {
+    return scopedDisputes.filter(d => {
       const st = String(d.status || '').toLowerCase();
       if (statusFilter) {
         if (statusFilter === 'active_dispute') {
@@ -159,8 +228,13 @@ function DisputesView({ state }) {
         if (dateTo && fd > dateTo) return false;
       }
       return true;
-    });
-  }, [disputes, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, selectedCategory, dateFrom, dateTo]);
+    }).map(d => ({
+      ...d,
+      assigned_case_managers_text: Array.isArray(d.assigned_case_managers)
+        ? d.assigned_case_managers.map(cm => cm.name || cm.username || cm.code).filter(Boolean).join(', ')
+        : ''
+    }));
+  }, [scopedDisputes, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, selectedCategory, dateFrom, dateTo]);
 
   const activeFiltersCount = (selectedCandidate ? 1 : 0) + (selectedEmployer ? 1 : 0) + (selectedMilestone ? 1 : 0) + (selectedCategory ? 1 : 0) +
     ((dateFrom || dateTo) ? 1 : 0) + ((statusFilter !== 'active_dispute') ? 1 : 0);
@@ -328,12 +402,6 @@ function DisputesView({ state }) {
       }
     }
   };
-
-  const candidateLookup = useMemo(() => {
-    const m = new Map();
-    (candidates || []).forEach(c => { if (c && c.id) m.set(String(c.id), c); });
-    return m;
-  }, [candidates]);
 
   const categoryIcon = (cat) => {
     const c = String(cat || '').toLowerCase();
@@ -575,12 +643,25 @@ function DisputesView({ state }) {
           ? row.candidate_ref
           : (cand?.ref_no || (row.candidate_id ? `CR-${row.candidate_id}` : 'N/A'));
         const claimRef = row.claim_ref || (row.claim_id ? `CLM-${String(row.claim_id).padStart(4, '0')}` : '');
+        const isMyRow = !isAdminOrSuper && isMine(row);
+        const inGlobal = !isAdminOrSuper && scopeFilter === 'global';
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
-            <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
-              {candName}
-            </strong>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                {candName}
+              </strong>
+              {isMyRow && inGlobal && (
+                <span
+                  className="badge badge-primary"
+                  style={{ fontSize: '0.64rem', padding: '0.08rem 0.4rem', fontWeight: 800 }}
+                  title="Assigned to you"
+                >
+                  ★ Mine
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span>CPR: {row.candidate_cpr || cand?.cpr_no || '—'}</span>
               <span>&bull;</span>
@@ -672,6 +753,53 @@ function DisputesView({ state }) {
       )
     },
     {
+      key: 'assigned_case_managers_text',
+      label: 'Assigned Case Manager(s)',
+      sortable: true,
+      render: (_, row) => {
+        const assigned = Array.isArray(row.assigned_case_managers) ? row.assigned_case_managers : [];
+        if (assigned.length > 0) {
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', maxWidth: '230px' }}>
+              {assigned.map((cm, idx) => {
+                const mine = !isAdminOrSuper && isUserMatch(cm);
+                return (
+                  <span
+                    key={cm.id || cm.username || idx}
+                    className={`badge ${mine ? 'badge-primary' : 'badge-neutral'}`}
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: mine ? 800 : 600,
+                      padding: '0.16rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                  >
+                    {mine && <span>★</span>}
+                    {cm.name || cm.username || cm.code}
+                    {mine && <span style={{ opacity: 0.85, fontSize: '0.66rem' }}>(You)</span>}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              Unassigned
+            </span>
+            {row.case_manager_name && (
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                Owner: {row.case_manager_name}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    {
       key: 'status',
       label: 'Status & Key Dates',
       sortable: true,
@@ -720,6 +848,14 @@ function DisputesView({ state }) {
               <>
                 <button
                   className="btn btn-sm btn-outline"
+                  style={{ color: 'var(--primary)', borderColor: 'rgba(37, 99, 235, 0.4)' }}
+                  title="Edit Dispute & Reassign Case Managers"
+                  onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes', startEditing: true })}
+                >
+                  ✏️ Edit / Reassign
+                </button>
+                <button
+                  className="btn btn-sm btn-outline"
                   style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
                   title="Reinstate to Active Placement"
                   onClick={() => handleReinstate(row.id)}
@@ -752,6 +888,95 @@ function DisputesView({ state }) {
           </p>
         </div>
       </div>
+
+      {/* Case Manager Scope Switcher (My Disputes vs Global View) */}
+      {!isAdminOrSuper && (
+        <div
+          className="card"
+          style={{
+            padding: '0.65rem 1rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            background: 'var(--bg-secondary)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              View Scope:
+            </span>
+            <div style={{
+              display: 'inline-flex',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '999px',
+              padding: '3px',
+              gap: '3px'
+            }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${scopeFilter === 'mine' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{
+                  borderRadius: '999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  padding: '0.3rem 0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+                onClick={() => handleScopeChange('mine')}
+              >
+                <span>👤 My Disputes</span>
+                <span style={{
+                  background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.22)' : 'var(--bg-primary)',
+                  color: scopeFilter === 'mine' ? '#fff' : 'var(--text-primary)',
+                  borderRadius: '999px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}>
+                  {myDisputesCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${scopeFilter === 'global' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{
+                  borderRadius: '999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  padding: '0.3rem 0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+                onClick={() => handleScopeChange('global')}
+              >
+                <span>🌐 Global View</span>
+                <span style={{
+                  background: scopeFilter === 'global' ? 'rgba(255,255,255,0.22)' : 'var(--bg-primary)',
+                  color: scopeFilter === 'global' ? '#fff' : 'var(--text-primary)',
+                  borderRadius: '999px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}>
+                  {(disputes || []).length}
+                </span>
+              </button>
+            </div>
+          </div>
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            {scopeFilter === 'mine'
+              ? 'Showing disputes assigned to you'
+              : 'Showing all disputes (your assigned disputes are highlighted)'}
+          </span>
+        </div>
+      )}
 
       <div
         className="card"
@@ -812,9 +1037,19 @@ function DisputesView({ state }) {
             {statusOptions.map(tab => (
               <button key={tab.id || 'all'} type="button"
                 className={`btn btn-sm ${statusFilter === tab.id ? 'btn-primary' : 'btn-outline'}`}
-                style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
+                style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 onClick={() => handleStatusChange(tab.id)}>
-                {tab.label}
+                <span>{tab.label}</span>
+                <span style={{
+                  background: statusFilter === tab.id ? 'rgba(255,255,255,0.22)' : 'var(--bg-tertiary)',
+                  color: statusFilter === tab.id ? '#fff' : 'var(--text-primary)',
+                  borderRadius: '999px',
+                  padding: '0.02rem 0.4rem',
+                  fontSize: '0.7rem',
+                  fontWeight: 700
+                }}>
+                  {tab.count}
+                </span>
               </button>
             ))}
           </div>
@@ -834,6 +1069,15 @@ function DisputesView({ state }) {
           data={displayData}
           expandable={true}
           renderChildRow={renderDisputeChildRow}
+          rowStyle={row => {
+            if (!isAdminOrSuper && isMine(row) && scopeFilter === 'global') {
+              return {
+                backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                borderLeft: '4px solid var(--primary)'
+              };
+            }
+            return undefined;
+          }}
           searchPlaceholder="🔍 Search Candidate, Ref, CPR, Employer, Dispute Reason, Case Manager..."
           searchKeys={[
             'id',
@@ -850,6 +1094,7 @@ function DisputesView({ state }) {
             'claim_remarks',
             'status',
             'case_manager_name',
+            'assigned_case_managers_text',
             'milestone_title',
             'claim_ref'
           ]}

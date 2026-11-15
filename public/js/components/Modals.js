@@ -6315,7 +6315,7 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
 
   // 4. Edit mode & attachments state - strictly enabled ONLY for Active disputes from Dispute Management page
   const canEdit = isActive && !!dispute?.id && (initialProps?.from === 'disputes' || initialProps?.source === 'disputes' || initialProps?.canEdit === true);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(Boolean(initialProps?.startEditing && canEdit));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
@@ -6632,9 +6632,39 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
           </div>
 
           <div>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', display: 'block', marginBottom: '0.25rem' }}>
-              Assigned Case Manager(s)
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>
+                Assigned Case Manager(s)
+              </span>
+              {editing && (
+                <div style={{ display: 'flex', gap: '0.3rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    style={{ fontSize: '0.7rem', padding: '0.12rem 0.45rem' }}
+                    onClick={() => setEditForm(prev => ({
+                      ...prev,
+                      assigned_case_managers: availableCaseManagers.map(cm => ({
+                        id: cm.id || null,
+                        name: cm.full_name || cm.username || 'Case Manager',
+                        username: cm.username || '',
+                        code: cm.case_manager_code || ''
+                      }))
+                    }))}
+                  >
+                    ✓ Select All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    style={{ fontSize: '0.7rem', padding: '0.12rem 0.45rem' }}
+                    onClick={() => setEditForm(prev => ({ ...prev, assigned_case_managers: [] }))}
+                  >
+                    ✕ Clear All
+                  </button>
+                </div>
+              )}
+            </div>
             {editing ? (
               <div style={{
                 display: 'grid',
