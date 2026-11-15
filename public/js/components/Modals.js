@@ -928,7 +928,7 @@ function LinkPlacementModal({ state, candidate: initialCandidate, job: initialJo
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '720px' }}>
+    <div className="modal-content" style={{ maxWidth: '900px', width: '94vw' }}>
       <div className="modal-header">
         <div>
           <h2 className="modal-title">🔗 Link Employer Placement & Job</h2>
@@ -3120,7 +3120,7 @@ function PlacementDossierModal({ state, candidate }) {
   const cMilestones = (milestones || []).filter(m => String(m.candidate_id) === String(candidate.id));
 
   return (
-    <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto' }}>
+    <div className="modal-content" style={{ maxWidth: '960px', width: '94vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -7707,7 +7707,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto' }}>
+    <div className="modal-content" style={{ maxWidth: '960px', width: '94vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
         <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
