@@ -153,7 +153,9 @@ function DisputesView({ state }) {
   const isMine = (d) => {
     if (!currentUser) return false;
     const assigned = Array.isArray(d.assigned_case_managers) ? d.assigned_case_managers : [];
-    if (assigned.some(isUserMatch)) return true;
+    if (assigned.length > 0) {
+      return assigned.some(isUserMatch);
+    }
     const cand = candidateLookup.get(String(d.candidate_id));
     const cmId = d.case_manager_id || cand?.case_manager_id;
     if (cmId && currentUser.id && Number(cmId) === Number(currentUser.id)) return true;
