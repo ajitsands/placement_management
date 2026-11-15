@@ -294,9 +294,15 @@ function SearchableSelect({
 }
 
 function ClaimsView({ state }) {
-  const { claims = [], candidates = [], disputes = [], currentUser = {}, settings = {} } = state;
-  const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+  const { claims = [], candidates = [], disputes = [], currentUser = {}, settings = {} } = state || {};
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
   const currency = settings.currency || 'BHD';
+
+  // 0. Scope Filter for Case Managers ('mine' | 'global')
+  const [scopeFilter, setScopeFilter] = useState(() => {
+    const saved = sessionStorage.getItem('sands_claims_filter_scope');
+    return (saved === 'mine' || saved === 'global') ? saved : 'mine';
+  });
 
   // 1. Status Filter - Default to 'unsettled'
   const [statusFilter, setStatusFilter] = useState(() => {
@@ -333,6 +339,7 @@ function ClaimsView({ state }) {
 
   // Reset all claim filters to default on user switch or login
   useEffect(() => {
+    setScopeFilter('mine');
     setStatusFilter('unsettled');
     setSelectedCandidate('');
     setSelectedEmployer('');
@@ -342,6 +349,11 @@ function ClaimsView({ state }) {
   }, [currentUser?.id, currentUser?.role]);
 
   // Filter change handlers
+  const handleScopeChange = (val) => {
+    setScopeFilter(val);
+    sessionStorage.setItem('sands_claims_filter_scope', val);
+  };
+
   const handleStatusFilterChange = (id) => {
     setStatusFilter(id);
     sessionStorage.setItem('sands_claims_filter_status', id);
@@ -523,9 +535,49 @@ function ClaimsView({ state }) {
     ((claimDateFrom || claimDateTo) ? 1 : 0) +
     ((statusFilter && statusFilter !== 'unsettled') ? 1 : 0);
 
+  // Helper to check if a claim belongs to the logged-in Case Manager
+  const isMine = (c) => {
+    if (!currentUser) return false;
+    const cand = candidateMap.get(String(c.candidate_id));
+    const cmId = c.case_manager_id || cand?.case_manager_id;
+    if (cmId && currentUser.id && Number(cmId) === Number(currentUser.id)) return true;
+    const cmName = String(c.case_manager_name || cand?.case_manager_name || '').trim().toLowerCase();
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    if (myCode && cmName === myCode) return true;
+    if (myFull && cmName === myFull) return true;
+    if (myUser && cmName === myUser) return true;
+    return false;
+  };
+
+  // Scope Claims (My Claims vs Global View for Case Managers)
+  const myClaimsCount = useMemo(() => {
+    if (isAdminOrSuper) return (claims || []).length;
+    return (claims || []).filter(isMine).length;
+  }, [claims, isAdminOrSuper, currentUser, candidateMap]);
+
+  const scopedClaims = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return (claims || []).filter(isMine);
+    }
+    return claims || [];
+  }, [claims, isAdminOrSuper, scopeFilter, currentUser, candidateMap]);
+
+  // Status Tag Counts within active scope
+  const statusCounts = useMemo(() => {
+    const counts = { unsettled: 0, settled: 0, disputed: 0, all: scopedClaims.length };
+    scopedClaims.forEach(c => {
+      if (c.status === 'settled') counts.settled += 1;
+      else if (c.status === 'disputed') counts.disputed += 1;
+      else if (c.status !== 'terminated') counts.unsettled += 1;
+    });
+    return counts;
+  }, [scopedClaims]);
+
   // Multi-Criteria Display Data Filtering
   const displayData = useMemo(() => {
-    return (claims || []).filter(c => {
+    return scopedClaims.filter(c => {
       // 1. Status Filter: Unsettled, Settled, Disputed, All
       if (statusFilter) {
         if (statusFilter === 'unsettled') {
@@ -603,7 +655,7 @@ function ClaimsView({ state }) {
         employer_cr: empCr
       };
     });
-  }, [claims, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, claimDateFrom, claimDateTo, candidateMap]);
+  }, [scopedClaims, statusFilter, selectedCandidate, selectedEmployer, selectedMilestone, claimDateFrom, claimDateTo, candidateMap]);
 
   // Financial summary for filtered claims
   const filteredMetrics = useMemo(() => {
@@ -899,27 +951,6 @@ function ClaimsView({ state }) {
               </button>
             )}
 
-            {/* View Payment Receipts Modal Button */}
-            <button
-              className="btn btn-sm btn-outline"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-              title="View Payment Breakdown & Receipts"
-              onClick={() => window.AppStore.openModal('CLAIM_PAYMENTS', { claim: row })}
-            >
-              <span>🧾</span>
-              <span>Receipts</span>
-            </button>
-
-            {!isSettled && !isTerminated && hasBalance && (
-              <button
-                className="btn btn-sm btn-outline"
-                title="Record Payment Receipt"
-                onClick={() => window.AppStore.openModal('NEW_PAYMENT', { claim: row })}
-              >
-                💳 Pay
-              </button>
-            )}
-
             {isDisputed && (
               <button
                 className="btn btn-sm btn-outline-danger"
@@ -948,10 +979,10 @@ function ClaimsView({ state }) {
   ];
 
   const statusOptions = [
-    { id: 'unsettled', label: 'Unsettled' },
-    { id: 'settled', label: 'Settled' },
-    { id: 'disputed', label: 'Disputed' },
-    { id: '', label: 'All' }
+    { id: 'unsettled', label: 'Unsettled', count: statusCounts.unsettled },
+    { id: 'settled', label: 'Settled', count: statusCounts.settled },
+    { id: 'disputed', label: 'Disputed', count: statusCounts.disputed },
+    { id: '', label: 'All', count: statusCounts.all }
   ];
 
   return (
@@ -964,6 +995,112 @@ function ClaimsView({ state }) {
           </p>
         </div>
       </div>
+
+      {/* Scope Navigation Segmented Switch for Case Managers: My Claims vs Global View */}
+      {!isAdminOrSuper && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          marginBottom: '1rem',
+          padding: '0.65rem 0.85rem',
+          background: 'var(--bg-tertiary, #f8fafc)',
+          border: '1px solid var(--border-light, #e2e8f0)',
+          borderRadius: 'var(--radius-md, 10px)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.95rem' }}>📂</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              View Scope:
+            </span>
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--bg-card, #ffffff)',
+            border: '1.5px solid var(--border-light, #cbd5e1)',
+            borderRadius: '24px',
+            padding: '3px',
+            gap: '3px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+          }}>
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'mine' ? 'var(--primary, #2563eb)' : 'transparent',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'mine' ? '0 2px 6px rgba(37,99,235,0.35)' : 'none'
+              }}
+              onClick={() => handleScopeChange('mine')}
+            >
+              <span>👤 My Claims</span>
+              <span style={{
+                background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.28)' : 'var(--bg-tertiary, #f1f5f9)',
+                color: scopeFilter === 'mine' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'mine' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {myClaimsCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                background: scopeFilter === 'global' ? '#0f172a' : 'transparent',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                boxShadow: scopeFilter === 'global' ? '0 2px 6px rgba(15,23,42,0.3)' : 'none'
+              }}
+              onClick={() => handleScopeChange('global')}
+            >
+              <span>🌐 Global View</span>
+              <span style={{
+                background: scopeFilter === 'global' ? 'rgba(255,255,255,0.22)' : 'var(--bg-tertiary, #f1f5f9)',
+                color: scopeFilter === 'global' ? '#ffffff' : 'var(--text-primary)',
+                border: scopeFilter === 'global' ? 'none' : '1px solid var(--border-light)',
+                padding: '0.1rem 0.5rem',
+                borderRadius: '12px',
+                fontSize: '0.74rem',
+                fontWeight: 800
+              }}>
+                {(claims || []).length}
+              </span>
+            </button>
+          </div>
+
+          {scopeFilter === 'global' && (
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'rgba(14, 165, 233, 0.25)', border: '1.5px solid #0284c7' }}></span>
+              <span>Highlighted rows belong to your Case Manager portfolio</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Comprehensive Filter Toolbar Card */}
       <div
@@ -1085,19 +1222,32 @@ function ClaimsView({ state }) {
           }}
         >
           {/* Status Tabs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.25rem' }}>Status:</span>
-            {statusOptions.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`btn btn-sm ${statusFilter === tab.id ? 'btn-primary' : 'btn-outline'}`}
-                style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
-                onClick={() => handleStatusFilterChange(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', marginRight: '0.25rem' }}>Status:</span>
+            {statusOptions.map(tab => {
+              const isActive = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id || 'all'}
+                  type="button"
+                  className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ fontSize: '0.76rem', padding: '0.28rem 0.7rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  onClick={() => handleStatusFilterChange(tab.id)}
+                >
+                  <span>{tab.label}</span>
+                  <span style={{
+                    background: isActive ? 'rgba(255,255,255,0.24)' : 'var(--bg-tertiary)',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    padding: '0.05rem 0.42rem',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 800
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Reset All Filters Button */}
@@ -1142,6 +1292,7 @@ function ClaimsView({ state }) {
         <window.DataTable
           columns={columns}
           data={displayData}
+          rowClassName={(row) => (!isAdminOrSuper && scopeFilter === 'global' && isMine(row)) ? 'my-placement-row-highlight' : ''}
           searchPlaceholder="🔍 Search Candidate Ref, Claim Ref, CPR, Employer, CR..."
           searchKeys={['candidate_ref', 'claim_ref', 'candidate_name', 'candidate_cpr', 'company_name', 'employer_cr', 'milestone_title', 'claim_type', 'case_manager_name']}
           exportFilename="Claims_Ledger_Filtered.csv"
