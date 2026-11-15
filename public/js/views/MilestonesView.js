@@ -765,6 +765,18 @@ function MilestonesView({ state }) {
     return enrichedMilestones;
   }, [enrichedMilestones, isAdminOrSuper, scopeFilter, currentUser]);
 
+  const isUnclaimedTodayOnwards = (m) => {
+    if (m.status === 'claimed' || m.status === 'disputed') return false;
+    if (m.days_remaining === undefined || m.days_remaining === null) return true;
+    return Number(m.days_remaining) >= 0;
+  };
+
+  const isDueYesterdayOrEarlier = (m) => {
+    if (m.status === 'claimed' || m.status === 'disputed') return false;
+    if (m.days_remaining === undefined || m.days_remaining === null) return false;
+    return Number(m.days_remaining) < 0;
+  };
+
   // Status Tag Counts within active scope
   const statusCounts = useMemo(() => {
     const counts = { unclaimed: 0, due: 0, claimed: 0, disputed: 0, all: scopedMilestones.length };
@@ -773,11 +785,10 @@ function MilestonesView({ state }) {
         counts.claimed += 1;
       } else if (m.status === 'disputed') {
         counts.disputed += 1;
+      } else if (isDueYesterdayOrEarlier(m)) {
+        counts.due += 1;
       } else {
         counts.unclaimed += 1;
-        if (m.status === 'due' || m.status === 'overdue') {
-          counts.due += 1;
-        }
       }
     });
     return counts;
@@ -789,9 +800,9 @@ function MilestonesView({ state }) {
       // 1. Status Filter
       if (statusFilter) {
         if (statusFilter === 'unclaimed') {
-          if (m.status === 'claimed' || m.status === 'disputed') return false;
+          if (!isUnclaimedTodayOnwards(m)) return false;
         } else if (statusFilter === 'due') {
-          if (m.status !== 'due' && m.status !== 'overdue') return false;
+          if (!isDueYesterdayOrEarlier(m)) return false;
         } else if (m.status !== statusFilter) {
           return false;
         }
