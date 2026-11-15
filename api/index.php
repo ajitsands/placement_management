@@ -201,6 +201,7 @@ $router->put('/disputes/{id}', [DisputeController::class, 'update']);
 $router->post('/disputes/{id}', [DisputeController::class, 'update']);
 $router->get('/dispute-reasons', [DisputeController::class, 'getReasons']);
 $router->post('/dispute-reasons', [DisputeController::class, 'addReason']);
+$router->post('/disputes/{id}/follow-up', [DisputeController::class, 'addFollowUp']);
 $router->post('/disputes/{id}/reinstate', [DisputeController::class, 'reinstate']);
 $router->post('/disputes/{id}/terminate', [DisputeController::class, 'terminate']);
 

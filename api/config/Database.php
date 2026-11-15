@@ -67,6 +67,7 @@ class Database {
         $wanted = [
             'attachments'            => 'LONGTEXT NULL',
             'assigned_case_managers' => 'LONGTEXT NULL',
+            'follow_ups'             => 'LONGTEXT NULL',
             'remarks'                => 'TEXT NULL',
             'milestone_id'           => 'INT NULL',
             'candidate_id'           => 'INT NULL',
@@ -527,6 +528,12 @@ class Database {
                 $d['assigned_case_managers'] = is_array($decodedCms) ? $decodedCms : [];
             } else if (empty($d['assigned_case_managers']) || !is_array($d['assigned_case_managers'])) {
                 $d['assigned_case_managers'] = [];
+            }
+            if (!empty($d['follow_ups']) && is_string($d['follow_ups'])) {
+                $decodedFus = json_decode($d['follow_ups'], true);
+                $d['follow_ups'] = is_array($decodedFus) ? $decodedFus : [];
+            } else if (empty($d['follow_ups']) || !is_array($d['follow_ups'])) {
+                $d['follow_ups'] = [];
             }
             return $d;
         }, $pdo->query("SELECT * FROM disputes ORDER BY id ASC")->fetchAll());
@@ -1226,8 +1233,8 @@ class Database {
 
             // 6. Disputes
             if (!empty($data['disputes']) && is_array($data['disputes'])) {
-                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, milestone_id, candidate_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, remarks, attachments, assigned_case_managers, reinstated_date, terminated_date, handled_by_user_id, created_at)
-                    VALUES (:id, :claim_id, :milestone_id, :candidate_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :remarks, :attachments, :assigned_case_managers, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO disputes (id, claim_id, milestone_id, candidate_id, dispute_category, dispute_reason, dispute_date, status, resolution_notes, remarks, attachments, assigned_case_managers, follow_ups, reinstated_date, terminated_date, handled_by_user_id, created_at)
+                    VALUES (:id, :claim_id, :milestone_id, :candidate_id, :dispute_category, :dispute_reason, :dispute_date, :status, :resolution_notes, :remarks, :attachments, :assigned_case_managers, :follow_ups, :reinstated_date, :terminated_date, :handled_by_user_id, :created_at)
                     ON DUPLICATE KEY UPDATE
                         milestone_id = VALUES(milestone_id),
                         candidate_id = VALUES(candidate_id),
@@ -1239,6 +1246,7 @@ class Database {
                         remarks = VALUES(remarks),
                         attachments = VALUES(attachments),
                         assigned_case_managers = VALUES(assigned_case_managers),
+                        follow_ups = VALUES(follow_ups),
                         reinstated_date = VALUES(reinstated_date),
                         terminated_date = VALUES(terminated_date)");
 
@@ -1250,6 +1258,10 @@ class Database {
                     $dispAssignedCms = null;
                     if (!empty($d['assigned_case_managers'])) {
                         $dispAssignedCms = is_string($d['assigned_case_managers']) ? $d['assigned_case_managers'] : json_encode($d['assigned_case_managers'], JSON_UNESCAPED_UNICODE);
+                    }
+                    $dispFollowUps = null;
+                    if (!empty($d['follow_ups'])) {
+                        $dispFollowUps = is_string($d['follow_ups']) ? $d['follow_ups'] : json_encode($d['follow_ups'], JSON_UNESCAPED_UNICODE);
                     }
                     $stmt->execute([
                         ':id' => (int)$d['id'],
@@ -1264,6 +1276,7 @@ class Database {
                         ':remarks' => $d['remarks'] ?? null,
                         ':attachments' => $dispAttachments,
                         ':assigned_case_managers' => $dispAssignedCms,
+                        ':follow_ups' => $dispFollowUps,
                         ':reinstated_date' => $d['reinstated_date'] ?? null,
                         ':terminated_date' => $d['terminated_date'] ?? null,
                         ':handled_by_user_id' => !empty($d['handled_by_user_id']) ? (int)$d['handled_by_user_id'] : null,

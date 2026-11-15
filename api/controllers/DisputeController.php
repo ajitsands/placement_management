@@ -58,6 +58,22 @@ class DisputeController {
         Response::json($result, 200, 'Dispute details updated successfully');
     }
 
+    public function addFollowUp(array $data, array $params): void {
+        $id = (int)($params['id'] ?? 0);
+        $user = Auth::getCurrentUser();
+        $remarks = trim((string)($data['remarks'] ?? ($data['notes'] ?? '')));
+        if ($remarks === '') {
+            Response::error('Follow-up remarks are required', 400);
+        }
+
+        $result = Dispute::addFollowUp($id, $data, $user);
+        if (!$result) {
+            Response::notFound("Dispute record with ID {$id} not found");
+        }
+
+        Response::json($result, 200, 'Follow-up recorded successfully');
+    }
+
     public function uploadAttachment(array $data): void {
         $uploadDir = dirname(__DIR__, 2) . '/public/uploads/disputes/';
         if (!is_dir($uploadDir)) {

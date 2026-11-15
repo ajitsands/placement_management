@@ -6319,6 +6319,10 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
+  const [followUps, setFollowUps] = useState(Array.isArray(dispute?.follow_ups) ? dispute.follow_ups : []);
+  const [followUpDate, setFollowUpDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [followUpRemarks, setFollowUpRemarks] = useState('');
+  const [addingFollowUp, setAddingFollowUp] = useState(false);
   const availableCaseManagers = useMemo(() => {
     const list = (state.caseManagers && state.caseManagers.length > 0)
       ? state.caseManagers
@@ -6347,7 +6351,34 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
       assigned_case_managers: Array.isArray(dispute?.assigned_case_managers) ? dispute.assigned_case_managers : []
     });
     setAttachments(Array.isArray(dispute?.attachments) ? dispute.attachments : []);
-  }, [dispute?.id, dispute?.dispute_reason, dispute?.remarks, dispute?.attachments, dispute?.assigned_case_managers]);
+    setFollowUps(Array.isArray(dispute?.follow_ups) ? dispute.follow_ups : []);
+  }, [dispute?.id, dispute?.dispute_reason, dispute?.remarks, dispute?.attachments, dispute?.assigned_case_managers, dispute?.follow_ups]);
+
+  const handleAddFollowUp = async () => {
+    const trimmed = followUpRemarks.trim();
+    if (!dispute?.id) return;
+    if (!trimmed) {
+      window.AppStore.showNotification('Please enter follow-up remarks', 'error');
+      return;
+    }
+    setAddingFollowUp(true);
+    try {
+      const updated = await window.api.disputes.addFollowUp(dispute.id, {
+        follow_up_date: followUpDate || new Date().toISOString().split('T')[0],
+        remarks: trimmed
+      });
+      if (updated && Array.isArray(updated.follow_ups)) {
+        setFollowUps(updated.follow_ups);
+      }
+      setFollowUpRemarks('');
+      window.AppStore.showNotification('Follow-up recorded successfully', 'success');
+      await window.AppStore.refreshData();
+    } catch (err) {
+      window.AppStore.showNotification('Failed to log follow-up: ' + err.message, 'error');
+    } finally {
+      setAddingFollowUp(false);
+    }
+  };
 
   const toggleAssignedCaseManager = (cm) => {
     setEditForm(prev => {
@@ -6879,6 +6910,111 @@ function DisputeDetailsModal({ state, initialProps = {} }) {
                       ✕
                     </button>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Dispute Follow-Ups Section */}
+        <div style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.9rem 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>📅 Dispute Follow-Ups</span>
+              <span className="badge badge-primary" style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem' }}>
+                {followUps.length}
+              </span>
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Track calls, employer responses, and investigation updates
+            </span>
+          </div>
+
+          {dispute?.id && (
+            <div style={{
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.7rem',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.6rem',
+              alignItems: 'flex-end'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '150px' }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Follow-Up Date</label>
+                <input
+                  type="date"
+                  className="input-control"
+                  style={{ fontSize: '0.82rem', padding: '0.38rem 0.55rem' }}
+                  value={followUpDate}
+                  onChange={e => setFollowUpDate(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 280px' }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Follow-Up Remarks *</label>
+                <input
+                  type="text"
+                  className="input-control"
+                  style={{ fontSize: '0.82rem', padding: '0.38rem 0.65rem' }}
+                  placeholder="Enter follow-up notes, employer response, next action..."
+                  value={followUpRemarks}
+                  onChange={e => setFollowUpRemarks(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddFollowUp(); } }}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: '0.78rem', padding: '0.42rem 0.85rem', whiteSpace: 'nowrap' }}
+                disabled={addingFollowUp || !followUpRemarks.trim()}
+                onClick={handleAddFollowUp}
+              >
+                {addingFollowUp ? 'Saving...' : '➕ Add Follow-Up'}
+              </button>
+            </div>
+          )}
+
+          {followUps.length === 0 ? (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No follow-ups logged yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '220px', overflowY: 'auto' }}>
+              {followUps.map((fu, idx) => (
+                <div
+                  key={fu.id || idx}
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-light)',
+                    borderLeft: '3px solid var(--primary)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.55rem 0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.74rem' }}>
+                    <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}>
+                      📅 {window.formatAppDate ? window.formatAppDate(fu.follow_up_date) : fu.follow_up_date}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      Logged by <strong style={{ color: 'var(--text-secondary)' }}>{fu.logged_by_name || 'User'}</strong>
+                      {fu.created_at ? ` • ${fu.created_at}` : ''}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.83rem', color: 'var(--text-primary)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                    {fu.remarks}
+                  </div>
                 </div>
               ))}
             </div>

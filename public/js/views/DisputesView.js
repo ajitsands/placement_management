@@ -808,6 +808,7 @@ function DisputesView({ state }) {
         const isReinstated = val === 'reinstated';
         const filedDate = row.filed_date || row.dispute_date;
         const resDate = row.reinstated_date || row.terminated_date;
+        const followUps = Array.isArray(row.follow_ups) ? row.follow_ups : [];
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
             <div>
@@ -823,6 +824,19 @@ function DisputesView({ state }) {
             {resDate && resDate !== '0000-00-00' && (
               <div style={{ fontSize: '0.72rem', color: isReinstated ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
                 {isReinstated ? 'Reinstated:' : 'Terminated:'} <span style={{ fontFamily: 'var(--font-mono)' }}>{window.formatAppDate ? window.formatAppDate(resDate) : resDate}</span>
+              </div>
+            )}
+            {followUps.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  className="badge badge-info"
+                  style={{ border: 'none', cursor: 'pointer', fontSize: '0.68rem', padding: '0.12rem 0.45rem' }}
+                  title={`Latest follow-up: ${followUps[0]?.follow_up_date || ''} — ${followUps[0]?.remarks || ''}`}
+                  onClick={() => window.AppStore.openModal('DISPUTE_DETAILS', { dispute: row, dispute_id: row.id, from: 'disputes' })}
+                >
+                  📅 {followUps.length} Follow-Up{followUps.length > 1 ? 's' : ''} ({window.formatAppDate ? window.formatAppDate(followUps[0]?.follow_up_date) : followUps[0]?.follow_up_date})
+                </button>
               </div>
             )}
           </div>

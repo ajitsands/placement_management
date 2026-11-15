@@ -158,6 +158,7 @@ class ApiService {
     create: (disputeData) => this.request('/disputes', { method: 'POST', body: disputeData }),
     update: (id, disputeData) => this.request(`/disputes/${id}`, { method: 'PUT', body: disputeData }),
     uploadAttachment: (data) => this.request('/disputes/upload', { method: 'POST', body: data }),
+    addFollowUp: (id, data) => this.request(`/disputes/${id}/follow-up`, { method: 'POST', body: data }),
     reinstate: (id, payload) => {
       const body = typeof payload === 'object' ? payload : { notes: payload };
       return this.request(`/disputes/${id}/reinstate`, { method: 'POST', body });

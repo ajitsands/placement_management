@@ -51,6 +51,7 @@ class Dispute {
             $d['milestone_id'] = $msId;
             $d['milestone_title'] = $milestone['milestone_title'] ?? 'Retention Gate';
             $d['assigned_case_managers'] = is_array($d['assigned_case_managers'] ?? null) ? $d['assigned_case_managers'] : [];
+            $d['follow_ups'] = is_array($d['follow_ups'] ?? null) ? $d['follow_ups'] : [];
 
             $result[] = $d;
         }
@@ -180,6 +181,7 @@ class Dispute {
             'remarks'            => $remarks,
             'attachments'            => self::cleanAttachments($data['attachments'] ?? []),
             'assigned_case_managers' => self::cleanAssignedCaseManagers($data['assigned_case_managers'] ?? []),
+            'follow_ups'             => [],
             'handled_by_user_id'     => $currentUser['id'],
             'created_at'         => date('Y-m-d H:i:s')
         ];
@@ -281,6 +283,61 @@ class Dispute {
                 'entity_type' => 'dispute',
                 'entity_id' => $disputeId,
                 'details' => 'Dispute details edited',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            Database::saveStore($store);
+            return $d;
+        }
+        return null;
+    }
+
+    /**
+     * Append a dated follow-up entry with remarks to a dispute.
+     */
+    public static function addFollowUp(int $disputeId, array $data, array $currentUser): ?array {
+        $store = Database::getStore();
+        foreach ($store['disputes'] as &$d) {
+            if ((int)$d['id'] !== $disputeId) {
+                continue;
+            }
+
+            $followUpDate = trim((string)($data['follow_up_date'] ?? ($data['date'] ?? '')));
+            if ($followUpDate === '') {
+                $followUpDate = date('Y-m-d');
+            }
+            $remarks = trim((string)($data['remarks'] ?? ($data['notes'] ?? '')));
+            if ($remarks === '') {
+                return null;
+            }
+
+            $existing = is_array($d['follow_ups'] ?? null) ? $d['follow_ups'] : [];
+            $entry = [
+                'id'             => 'FU-' . time() . '-' . rand(100, 999),
+                'follow_up_date' => $followUpDate,
+                'remarks'        => $remarks,
+                'logged_by_id'   => $currentUser['id'] ?? null,
+                'logged_by_name' => $currentUser['full_name'] ?? ($currentUser['username'] ?? 'User'),
+                'created_at'     => date('Y-m-d H:i:s')
+            ];
+            array_unshift($existing, $entry);
+            usort($existing, function($a, $b) {
+                $da = ($a['follow_up_date'] ?? '') . ' ' . ($a['created_at'] ?? '');
+                $db = ($b['follow_up_date'] ?? '') . ' ' . ($b['created_at'] ?? '');
+                return strcmp($db, $da);
+            });
+            $d['follow_ups'] = $existing;
+            $d['updated_at'] = date('Y-m-d H:i:s');
+
+            $store['audit_logs'][] = [
+                'id' => count($store['audit_logs']) + 1,
+                'user_id' => $currentUser['id'],
+                'username' => $currentUser['username'],
+                'role' => $currentUser['role'],
+                'action' => 'DISPUTE_FOLLOW_UP',
+                'entity_type' => 'dispute',
+                'entity_id' => $disputeId,
+                'details' => "Follow-up logged ({$followUpDate}): {$remarks}",
                 'created_at' => date('Y-m-d H:i:s')
             ];
 
