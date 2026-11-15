@@ -39,6 +39,23 @@ class Report {
         ];
     }
 
+    private static function inDateRange(?string $rawDate, ?string $dateFrom, ?string $dateTo): bool {
+        if (empty($dateFrom) && empty($dateTo)) {
+            return true;
+        }
+        $d = substr(trim((string)$rawDate), 0, 10);
+        if ($d === '' || $d === '0000-00-00') {
+            return false;
+        }
+        if (!empty($dateFrom) && $d < $dateFrom) {
+            return false;
+        }
+        if (!empty($dateTo) && $d > $dateTo) {
+            return false;
+        }
+        return true;
+    }
+
     public static function generate(string $type, ?string $caseManagerScope = null, ?string $dateFrom = null, ?string $dateTo = null): array {
         switch ($type) {
             case 'case_manager_audit_log':
@@ -71,10 +88,18 @@ class Report {
                     'data'  => Claim::all($caseManagerScope)
                 ];
 
+            case 'categorized_disputes':
             case 'disputed_claims':
+                $allDisputes = Dispute::all($caseManagerScope);
+                $filteredDisputes = array_values(array_filter($allDisputes, function($d) use ($dateFrom, $dateTo) {
+                    $filedDate = $d['dispute_date'] ?? ($d['created_at'] ?? '');
+                    return self::inDateRange($filedDate, $dateFrom, $dateTo);
+                }));
                 return [
-                    'title' => 'Disputed Claims Investigation Report',
-                    'data'  => Dispute::all($caseManagerScope)
+                    'title' => $type === 'categorized_disputes'
+                        ? 'Categorized Disputes & Terminations Analysis'
+                        : 'Disputed Claims Investigation Report',
+                    'data'  => $filteredDisputes
                 ];
 
             case 'terminated_claims':
@@ -127,7 +152,10 @@ class Report {
                     $cands = Candidate::all($name);
                     $cClaims = Claim::all($name);
                     $cPayments = Payment::all($name);
-                    $cDisputes = Dispute::all($name);
+                    $cDisputes = array_values(array_filter(Dispute::all($name), function($d) use ($dateFrom, $dateTo) {
+                        $filedDate = $d['dispute_date'] ?? ($d['created_at'] ?? '');
+                        return self::inDateRange($filedDate, $dateFrom, $dateTo);
+                    }));
 
                     $claimed = array_sum(array_column($cClaims, 'claim_amount_bhd'));
                     $collected = array_sum(array_column($cPayments, 'amount_paid_bhd'));
@@ -139,6 +167,7 @@ class Report {
                         'claimed_bhd'       => $claimed,
                         'collected_bhd'     => $collected,
                         'balance_bhd'       => max(0.0, $claimed - $collected),
+                        'disputes_count'    => count($cDisputes),
                         'active_disputes'   => count(array_filter($cDisputes, fn($d) => $d['status'] === 'active_dispute')),
                         'collection_rate'   => $claimed > 0 ? round(($collected / $claimed) * 100, 1) . '%' : '0%'
                     ];

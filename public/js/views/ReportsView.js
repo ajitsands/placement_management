@@ -666,13 +666,17 @@ function ReportsView({ state }) {
                 {/* 5. Categorized Disputes */}
                 {reportType === 'categorized_disputes' && reportData?.data?.map(d => (
                   <tr key={d.id}>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{d.dispute_ref || `DISP-${d.id}`}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)' }}>{d.dispute_ref || `DSP-${String(d.id).padStart(4, '0')}`}</td>
                     <td><strong>{d.candidate_name}</strong></td>
                     <td>{d.company_name}</td>
                     <td><span className="badge badge-warning">{d.dispute_category}</span></td>
                     <td style={{ maxWidth: '300px' }}>{d.dispute_reason}</td>
                     <td>{window.formatAppDate(d.dispute_date)}</td>
-                    <td><span className="badge badge-danger">{d.status}</span></td>
+                    <td>
+                      <span className={`badge ${d.status === 'reinstated' ? 'badge-success' : 'badge-danger'}`}>
+                        {d.status === 'active_dispute' ? 'Active Dispute' : (d.status === 'reinstated' ? 'Reinstated' : 'Terminated')}
+                      </span>
+                    </td>
                   </tr>
                 ))}
 

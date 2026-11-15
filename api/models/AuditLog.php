@@ -248,6 +248,43 @@ class AuditLog {
             }
         }
 
+        // 5. Disputes (always include historical disputes filed in range, even if later reinstated or terminated)
+        $claimsById = array_column($store['claims'] ?? [], null, 'id');
+        $candsById = array_column($store['candidates'] ?? [], null, 'id');
+        foreach ($store['disputes'] ?? [] as $d) {
+            $claim = $claimsById[$d['claim_id'] ?? 0] ?? null;
+            $candId = $d['candidate_id'] ?? ($claim['candidate_id'] ?? 0);
+            $cand = $candsById[$candId] ?? null;
+            $cm = !empty($claim['case_manager_name']) ? $claim['case_manager_name'] : ($cand['case_manager_name'] ?? 'Husain Al-Mulla');
+            if (!$matchesFilter($cm)) continue;
+
+            $dispRef = 'DSP-' . str_pad((string)$d['id'], 4, '0', STR_PAD_LEFT);
+            $candLabel = $cand['full_name'] ?? 'Candidate';
+            $cat = $d['dispute_category'] ?? 'Dispute';
+            $dTime = !empty($d['dispute_date']) ? ($d['dispute_date'] . ' 12:00:00') : ($d['created_at'] ?? date('Y-m-d H:i:s'));
+            $dispKey = 'DISPUTE_LOGGED_dispute_' . $d['id'] . '_' . substr($dTime, 0, 10);
+            $claimDispKey = 'DISPUTE_LOGGED_claim_' . ($d['claim_id'] ?? 0) . '_' . substr($dTime, 0, 10);
+            if (!isset($seen[$dispKey]) && !isset($seen[$claimDispKey]) && $inDateRange($dTime)) {
+                $seen[$dispKey] = true;
+                $records[] = [
+                    'id'             => 'disp_' . $d['id'],
+                    'created_at'     => $dTime,
+                    'date'           => substr($dTime, 0, 10),
+                    'user_full_name' => $cm,
+                    'username'       => strtolower(explode(' ', trim($cm))[0]),
+                    'role'           => 'case_manager',
+                    'action'         => 'DISPUTE_LOGGED',
+                    'category'       => 'dispute',
+                    'action_label'   => 'Claim Dispute Logged',
+                    'entity_type'    => 'dispute',
+                    'entity_id'      => (int)$d['id'],
+                    'entity_ref'     => $dispRef,
+                    'details'        => "Dispute {$dispRef} logged for {$candLabel} ({$cat}). Current Status: " . ($d['status'] ?? 'active_dispute') . ".",
+                    'ip_address'     => '127.0.0.1'
+                ];
+            }
+        }
+
         // Sort descending by timestamp
         usort($records, function($a, $b) {
             return strcmp($b['created_at'], $a['created_at']);
