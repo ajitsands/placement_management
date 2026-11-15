@@ -6,8 +6,8 @@
 
 function CandidatesView({ state }) {
   const { useState, useMemo, useEffect } = React;
-  const { candidates = [], jobs = [], currentUser, caseManagers = [], settings = {} } = state;
-  const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+  const { candidates = [], jobs = [], currentUser = {}, caseManagers = [], settings = {} } = state || {};
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
   const currency = settings.currency || 'BHD';
 
   const [selectedCaseManager, setSelectedCaseManager] = useState(() => {

@@ -11,14 +11,28 @@ class ApiService {
   }
 
   getHeaders() {
-    const user = window.AppStore ? window.AppStore.getState().currentUser : null;
+    let user = null;
+    if (window.AppStore && typeof window.AppStore.getState === 'function') {
+      user = window.AppStore.getState().currentUser;
+    }
+    if (!user) {
+      try {
+        const stored = localStorage.getItem('sands_claims_user');
+        if (stored) {
+          user = JSON.parse(stored);
+        }
+      } catch (e) {
+        user = null;
+      }
+    }
+
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
-    if (user) {
-      headers['X-User-Id'] = user.id;
-      headers['X-User-Role'] = user.role;
+    if (user && user.id) {
+      headers['X-User-Id'] = String(user.id);
+      headers['X-User-Role'] = String(user.role || '');
     }
     return headers;
   }
@@ -26,6 +40,7 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
     const config = {
+      credentials: 'same-origin',
       ...options,
       headers: {
         ...this.getHeaders(),

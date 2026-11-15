@@ -4,9 +4,9 @@
  */
 
 function PlacementsView({ state }) {
-  const { candidates = [], jobs = [], milestones = [], claims = [], payments = [], settings = {}, currentUser, caseManagers = [] } = state;
+  const { candidates = [], jobs = [], milestones = [], claims = [], payments = [], settings = {}, currentUser = {}, caseManagers = [] } = state || {};
   const currency = settings.currency || 'BHD';
-  const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
   const { useState, useMemo, useEffect } = React;
   const SearchableSelect = window.SearchableSelect;
 

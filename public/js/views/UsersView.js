@@ -6,8 +6,8 @@
 const { useState, useMemo } = React;
 
 function UsersView({ state }) {
-  const { currentUser, users = [] } = state;
-  const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+  const { currentUser = {}, users = [] } = state || {};
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
 
   // State for user creation form
   const [formData, setFormData] = useState({

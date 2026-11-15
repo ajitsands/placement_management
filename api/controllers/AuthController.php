@@ -38,6 +38,7 @@ class AuthController {
         }
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_role'] = $user['role'];
+        Auth::setCurrentUser($user);
 
         unset($user['password_hash']);
         Response::json([
@@ -47,7 +48,16 @@ class AuthController {
     }
 
     public function me(array $data): void {
-        $user = Auth::getCurrentUser();
+        $user = Auth::getCurrentUser(false);
+        if (!$user) {
+            Response::json([
+                'user' => null,
+                'authenticated' => false
+            ], 200);
+            return;
+        }
+
+        unset($user['password_hash']);
         Response::json([
             'user' => $user,
             'is_admin_or_superadmin' => in_array($user['role'], ['superadmin', 'admin']),
@@ -96,7 +106,9 @@ class AuthController {
         }
         $_SESSION['user_id'] = $targetUser['id'];
         $_SESSION['user_role'] = $targetUser['role'];
+        Auth::setCurrentUser($targetUser);
 
+        unset($targetUser['password_hash']);
         Response::json([
             'user' => $targetUser,
             'scoped_case_manager' => ($targetUser['role'] === 'case_manager') ? ($targetUser['case_manager_code'] ?? $targetUser['full_name']) : null
@@ -116,6 +128,7 @@ class AuthController {
             );
         }
         @session_destroy();
+        Auth::setCurrentUser(null);
         Response::json(null, 200, 'Logged out successfully');
     }
 

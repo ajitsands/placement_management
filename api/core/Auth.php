@@ -11,27 +11,53 @@ class Auth {
     private static ?array $currentUser = null;
 
     public static function user(): array {
-        return self::getCurrentUser();
+        return self::getCurrentUser(true) ?? [];
     }
 
-    public static function getCurrentUser(): array {
+    public static function setCurrentUser(?array $user): void {
+        self::$currentUser = $user;
+    }
+
+    public static function getCurrentUser(bool $fallbackToDefault = true): ?array {
         if (self::$currentUser !== null) {
             return self::$currentUser;
         }
 
-        // 1. Check custom headers (X-User-Id, X-User-Role) for micro-API client flexibility
+        $store = Database::getStore();
+        $users = $store['users'] ?? [];
+
+        // 1. Authoritative check: Active PHP Session
+        if (session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
+        if (!empty($_SESSION['user_id'])) {
+            foreach ($users as $u) {
+                if ((int)$u['id'] === (int)$_SESSION['user_id']) {
+                    if (!isset($u['is_active']) || (int)$u['is_active'] === 1) {
+                        self::$currentUser = $u;
+                        return self::$currentUser;
+                    }
+                }
+            }
+        }
+
+        // 2. Micro-API custom headers (X-User-Id, X-User-Role) for client flexibility
         $headers = function_exists('getallheaders') ? getallheaders() : [];
         $headerUserId = $headers['X-User-Id'] ?? $headers['x-user-id'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
         $headerRole = $headers['X-User-Role'] ?? $headers['x-user-role'] ?? $_SERVER['HTTP_X_USER_ROLE'] ?? null;
 
-        $store = Database::getStore();
-        $users = $store['users'] ?? [];
-
         if ($headerUserId) {
             foreach ($users as $u) {
                 if ((int)$u['id'] === (int)$headerUserId) {
-                    self::$currentUser = $u;
-                    return self::$currentUser;
+                    if (!isset($u['is_active']) || (int)$u['is_active'] === 1) {
+                        self::$currentUser = $u;
+                        if (session_status() === PHP_SESSION_NONE) {
+                            @session_start();
+                        }
+                        $_SESSION['user_id'] = $u['id'];
+                        $_SESSION['user_role'] = $u['role'];
+                        return self::$currentUser;
+                    }
                 }
             }
         }
@@ -39,47 +65,39 @@ class Auth {
         if ($headerRole) {
             foreach ($users as $u) {
                 if ($u['role'] === $headerRole) {
-                    self::$currentUser = $u;
-                    return self::$currentUser;
+                    if (!isset($u['is_active']) || (int)$u['is_active'] === 1) {
+                        self::$currentUser = $u;
+                        return self::$currentUser;
+                    }
                 }
             }
         }
 
-        // 2. Check PHP Session
-        if (session_status() === PHP_SESSION_NONE) {
-            @session_start();
-        }
-        if (!empty($_SESSION['user_id'])) {
-            foreach ($users as $u) {
-                if ((int)$u['id'] === (int)$_SESSION['user_id']) {
-                    self::$currentUser = $u;
-                    return self::$currentUser;
-                }
-            }
+        // 3. Optional fallback for CLI scripts or headless tests
+        if ($fallbackToDefault) {
+            self::$currentUser = $users[0] ?? [
+                'id' => 1,
+                'username' => 'superadmin',
+                'full_name' => 'Dr. Salman (Super Admin)',
+                'role' => 'superadmin',
+                'case_manager_code' => null
+            ];
+            return self::$currentUser;
         }
 
-        // Default to Superadmin for initial bootstrap/demo if unauthenticated
-        self::$currentUser = $users[0] ?? [
-            'id' => 1,
-            'username' => 'superadmin',
-            'full_name' => 'Dr. Salman (Super Admin)',
-            'role' => 'superadmin',
-            'case_manager_code' => null
-        ];
-
-        return self::$currentUser;
+        return null;
     }
 
     public static function requireAdminOrSuperadmin(): void {
         $user = self::getCurrentUser();
-        if ($user['role'] !== 'superadmin' && $user['role'] !== 'admin') {
+        if (!$user || ($user['role'] !== 'superadmin' && $user['role'] !== 'admin')) {
             Response::forbidden('Only Administrator or Superadmin can perform this action.');
         }
     }
 
     public static function requireSuperadmin(): void {
         $user = self::getCurrentUser();
-        if ($user['role'] !== 'superadmin') {
+        if (!$user || $user['role'] !== 'superadmin') {
             Response::forbidden('Superadmin access required.');
         }
     }

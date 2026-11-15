@@ -50,8 +50,8 @@ function ProfileView({ state }) {
     return () => { isMounted = false; };
   }, []);
 
-  const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
-  const isSuperadmin = currentUser.role === 'superadmin';
+  const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
+  const isSuperadmin = currentUser?.role === 'superadmin';
 
   // Handle Profile Update
   const handleSaveProfile = async (e) => {

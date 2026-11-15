@@ -152,6 +152,19 @@ class AppStoreClass {
     const savedLanguage = localStorage.getItem('sands_claims_lang') || 'en';
     const savedAuth = localStorage.getItem('sands_claims_auth') === 'true';
 
+    let savedUser = null;
+    try {
+      const stored = localStorage.getItem('sands_claims_user');
+      if (stored) {
+        savedUser = JSON.parse(stored);
+      }
+    } catch (e) {
+      savedUser = null;
+    }
+
+    const isAuthenticated = Boolean(savedAuth && savedUser);
+    const initialUser = isAuthenticated ? savedUser : null;
+
     // Resolve initial active tab from URL hash, fallback to localStorage, fallback to 'dashboard'
     let initialTab = 'dashboard';
     const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
@@ -167,14 +180,8 @@ class AppStoreClass {
     }
 
     this.state = {
-      isAuthenticated: savedAuth,
-      currentUser: {
-        id: 1,
-        username: 'superadmin',
-        full_name: 'Dr. Salman (Super Admin)',
-        role: 'superadmin',
-        case_manager_code: null
-      },
+      isAuthenticated: isAuthenticated,
+      currentUser: initialUser,
       activeTab: initialTab,
       theme: savedTheme,
       language: savedLanguage,
@@ -350,6 +357,7 @@ class AppStoreClass {
   setAuthenticatedUser(user) {
     clearAppFiltersStorage();
     localStorage.setItem('sands_claims_auth', 'true');
+    localStorage.setItem('sands_claims_user', JSON.stringify(user));
     this.state.currentUser = user;
     this.state.isAuthenticated = true;
 
@@ -371,10 +379,12 @@ class AppStoreClass {
       // ignore network errors on logout
     }
     localStorage.removeItem('sands_claims_auth');
+    localStorage.removeItem('sands_claims_user');
     localStorage.removeItem('sands_claims_active_tab');
     window.location.hash = '';
     this.setState({
       isAuthenticated: false,
+      currentUser: null,
       activeTab: 'dashboard'
     });
     this.showNotification('Signed out from portal successfully.', 'info');
@@ -385,6 +395,13 @@ class AppStoreClass {
     this.setState({ loading: true });
     try {
       const savedAuth = localStorage.getItem('sands_claims_auth');
+      const savedUserRaw = localStorage.getItem('sands_claims_user');
+      let cachedUser = null;
+      try {
+        if (savedUserRaw) cachedUser = JSON.parse(savedUserRaw);
+      } catch (e) {
+        cachedUser = null;
+      }
 
       // 1. Fetch current profile, settings & case managers in parallel for fastest boot time
       const [authData, settingsData, cms] = await Promise.all([
@@ -393,13 +410,21 @@ class AppStoreClass {
         window.api.users.getCaseManagers().catch(() => [])
       ]);
 
-      if (authData?.user) {
+      if (authData && authData.user) {
         this.state.currentUser = authData.user;
-        // If auth was explicitly set or active session exists
-        if (savedAuth !== 'false') {
-          this.state.isAuthenticated = true;
-          localStorage.setItem('sands_claims_auth', 'true');
-        }
+        this.state.isAuthenticated = true;
+        localStorage.setItem('sands_claims_auth', 'true');
+        localStorage.setItem('sands_claims_user', JSON.stringify(authData.user));
+      } else if (cachedUser && savedAuth === 'true') {
+        // Fallback to cached identity if network error on me()
+        this.state.currentUser = cachedUser;
+        this.state.isAuthenticated = true;
+      } else {
+        // Explicitly unauthenticated / session terminated
+        this.state.currentUser = null;
+        this.state.isAuthenticated = false;
+        localStorage.removeItem('sands_claims_auth');
+        localStorage.removeItem('sands_claims_user');
       }
 
       // 2. Load Settings & GCC specs
@@ -435,6 +460,8 @@ class AppStoreClass {
         }
 
         await this.refreshData();
+      } else {
+        this.notify();
       }
     } catch (err) {
       console.error('Initialization error:', err);
@@ -497,6 +524,9 @@ class AppStoreClass {
     try {
       const res = await window.api.auth.switchRole({ user_id: userId });
       this.state.currentUser = res.user;
+      this.state.isAuthenticated = true;
+      localStorage.setItem('sands_claims_auth', 'true');
+      localStorage.setItem('sands_claims_user', JSON.stringify(res.user));
 
       // When acting as a Case Manager, immediately land on Dashboard where their activities are featured
       if (res.user.role === 'case_manager') {
@@ -538,6 +568,7 @@ class AppStoreClass {
     try {
       const updated = await window.api.profile.update(profileData);
       this.state.currentUser = { ...this.state.currentUser, ...updated };
+      localStorage.setItem('sands_claims_user', JSON.stringify(this.state.currentUser));
       this.showNotification('Profile details updated successfully!', 'success');
       this.notify();
       return updated;
