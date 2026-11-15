@@ -26,6 +26,7 @@ function PlacementsView({ state }) {
   const [filingDateFrom, setFilingDateFrom] = useState(() => readSaved('filing_from'));
   const [filingDateTo, setFilingDateTo] = useState(() => readSaved('filing_to'));
   const [statusFilter, setStatusFilter] = useState(() => readSaved('status', 'active'));
+  const [scopeFilter, setScopeFilter] = useState(() => readSaved('scope', 'mine'));
 
   // Reset all placement filters to default on user switch or login
   useEffect(() => {
@@ -39,6 +40,7 @@ function PlacementsView({ state }) {
     setFilingDateFrom('');
     setFilingDateTo('');
     setStatusFilter('active');
+    setScopeFilter('mine');
   }, [currentUser?.id, currentUser?.role]);
 
   const persist = (setter, key) => (val) => {
@@ -56,6 +58,7 @@ function PlacementsView({ state }) {
   const handleFilingDateFrom = persist(setFilingDateFrom, 'filing_from');
   const handleFilingDateTo = persist(setFilingDateTo, 'filing_to');
   const handleStatusChange = persist(setStatusFilter, 'status');
+  const handleScopeChange = persist(setScopeFilter, 'scope');
 
   const handleClearJoinDates = () => {
     handleJoinDateFrom('');
@@ -76,6 +79,9 @@ function PlacementsView({ state }) {
     handleClearJoinDates();
     handleClearFilingDates();
     handleStatusChange('active');
+    if (!isAdminOrSuper) {
+      handleScopeChange('mine');
+    }
   };
 
   const activeFiltersCount = (selectedEmployer ? 1 : 0) +
@@ -186,20 +192,42 @@ function PlacementsView({ state }) {
     });
   }, [candidates, jobsMap, candidateMilestonesMap, candidateClaimsMap]);
 
-  // Filter options for dropdowns
+  // Helper to determine if a placement is assigned to the currently logged in Case Manager
+  const isMine = (p) => {
+    if (!currentUser) return false;
+    if (p.case_manager_id && currentUser.id && Number(p.case_manager_id) === Number(currentUser.id)) return true;
+    const cmName = String(p.case_manager_name || '').trim().toLowerCase();
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    if (myCode && cmName === myCode) return true;
+    if (myFull && cmName === myFull) return true;
+    if (myUser && cmName === myUser) return true;
+    return false;
+  };
+
+  // Scoped list: My Placements vs Global Placements (Case Manager) or All (Admin)
+  const scopedPlacementsList = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return placementsList.filter(isMine);
+    }
+    return placementsList;
+  }, [placementsList, isAdminOrSuper, scopeFilter, currentUser]);
+
+  // Filter options for dropdowns (scoped to current view)
   const candidateOptions = useMemo(() => {
-    const list = placementsList.map(p => ({
+    const list = scopedPlacementsList.map(p => ({
       value: String(p.id),
       label: p.full_name,
       subLabel: `Ref: ${p.ref_no} • CPR: ${p.cpr_no} • ${p.company_name}`,
       searchKeywords: `${p.full_name} ${p.cpr_no} ${p.ref_no} ${p.company_name}`
     })).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: '', label: `All Candidates (${list.length})`, subLabel: 'Filter by placed candidate' }, ...list];
-  }, [placementsList]);
+  }, [scopedPlacementsList]);
 
   const employerOptions = useMemo(() => {
     const map = new Map();
-    placementsList.forEach(p => {
+    scopedPlacementsList.forEach(p => {
       const comp = (p.company_name || '').trim();
       if (comp && !map.has(comp.toLowerCase())) {
         map.set(comp.toLowerCase(), {
@@ -212,11 +240,11 @@ function PlacementsView({ state }) {
     });
     const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: '', label: `All Employers (${list.length})`, subLabel: 'Filter by employer company' }, ...list];
-  }, [placementsList]);
+  }, [scopedPlacementsList]);
 
   const positionOptions = useMemo(() => {
     const map = new Map();
-    placementsList.forEach(p => {
+    scopedPlacementsList.forEach(p => {
       const pos = (p.job_display_title || p.position_title || '').trim();
       if (pos && !map.has(pos.toLowerCase())) {
         map.set(pos.toLowerCase(), {
@@ -229,11 +257,11 @@ function PlacementsView({ state }) {
     });
     const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: '', label: `All Positions (${list.length})`, subLabel: 'Filter by job position' }, ...list];
-  }, [placementsList]);
+  }, [scopedPlacementsList]);
 
   const departmentOptions = useMemo(() => {
     const map = new Map();
-    placementsList.forEach(p => {
+    scopedPlacementsList.forEach(p => {
       const dept = (p.department_display || p.department || '').trim();
       if (dept && !map.has(dept.toLowerCase())) {
         map.set(dept.toLowerCase(), {
@@ -246,11 +274,11 @@ function PlacementsView({ state }) {
     });
     const list = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: '', label: `All Departments (${list.length})`, subLabel: 'Filter by department' }, ...list];
-  }, [placementsList]);
+  }, [scopedPlacementsList]);
 
   // Filter display dataset
   const displayData = useMemo(() => {
-    return placementsList.filter(p => {
+    return scopedPlacementsList.filter(p => {
       if (selectedEmployer && (p.company_name || '').toLowerCase() !== selectedEmployer.toLowerCase()) return false;
       if (selectedCandidate && String(p.id) !== String(selectedCandidate)) return false;
       if (selectedPosition) {
@@ -299,7 +327,7 @@ function PlacementsView({ state }) {
 
       return true;
     });
-  }, [placementsList, selectedEmployer, selectedCandidate, selectedPosition, selectedDepartment, selectedCaseManager, statusFilter, joinDateFrom, joinDateTo, filingDateFrom, filingDateTo]);
+  }, [scopedPlacementsList, selectedEmployer, selectedCandidate, selectedPosition, selectedDepartment, selectedCaseManager, statusFilter, joinDateFrom, joinDateTo, filingDateFrom, filingDateTo]);
 
   // Compute KPI summary
   const kpis = useMemo(() => {
@@ -323,8 +351,8 @@ function PlacementsView({ state }) {
     };
   }, [placementsList]);
 
-  // Status breakdown counts across all placements: Active Placements, Completed 12 Months, All
-  const statusCounts = useMemo(() => {
+  // Status breakdown for Global Placements
+  const globalStatusCounts = useMemo(() => {
     let active = 0;
     let completed = 0;
     const all = placementsList.length;
@@ -341,6 +369,36 @@ function PlacementsView({ state }) {
 
     return { all, active, completed };
   }, [placementsList]);
+
+  // Status breakdown for My Placements (assigned to logged in Case Manager)
+  const myStatusCounts = useMemo(() => {
+    let active = 0;
+    let completed = 0;
+    let all = 0;
+
+    placementsList.forEach(p => {
+      if (isMine(p)) {
+        all++;
+        const st = (p.status || 'placed').toLowerCase();
+        const isCompleted12m = st === 'completed' || (p.days_elapsed !== null && p.days_elapsed >= 365);
+        if (isCompleted12m) {
+          completed++;
+        } else if (st !== 'resigned') {
+          active++;
+        }
+      }
+    });
+
+    return { all, active, completed };
+  }, [placementsList, currentUser]);
+
+  // Active status counts depending on scope (My Placements vs Global Placements)
+  const statusCounts = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return myStatusCounts;
+    }
+    return globalStatusCounts;
+  }, [isAdminOrSuper, scopeFilter, myStatusCounts, globalStatusCounts]);
 
   // Real-time filtered metrics
   const filteredMetrics = useMemo(() => {
@@ -569,64 +627,77 @@ function PlacementsView({ state }) {
       key: 'ref_no',
       label: 'Candidate / CPR',
       sortable: true,
-      render: (val, row) => (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)', fontSize: '0.85rem' }}>
-              {val}
-            </span>
+      render: (val, row) => {
+        const isMyRow = !isAdminOrSuper && isMine(row);
+        const inGlobal = !isAdminOrSuper && scopeFilter === 'global';
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)', fontSize: '0.85rem' }}>
+                {val}
+              </span>
+              {isMyRow && inGlobal && (
+                <span
+                  className="badge badge-primary"
+                  style={{ fontSize: '0.64rem', padding: '0.08rem 0.4rem', fontWeight: 800 }}
+                  title="Your assigned placement"
+                >
+                  ★ Mine
+                </span>
+              )}
+            </div>
+            <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'block', marginTop: '2px' }}>
+              {row.full_name}
+            </strong>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              CPR: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{row.cpr_no}</span> • {row.education}
+            </div>
+            <div style={{ marginTop: '3px' }}>
+              {(() => {
+                const isJc = row.approved_by_job_center === true || String(row.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
+                const isTamkeen = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
+                if (isJc && isTamkeen) {
+                  return (
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 800,
+                      color: '#059669',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      padding: '0.05rem 0.35rem',
+                      borderRadius: '3px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }} title="Approved by both Job Center & Tamkeen">
+                      ✓ Both Approved
+                    </span>
+                  );
+                }
+                if (isJc) {
+                  return (
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 800,
+                      color: '#d97706',
+                      background: 'rgba(245, 158, 11, 0.14)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      padding: '0.05rem 0.35rem',
+                      borderRadius: '3px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }} title="Approved by Job Center only (Tamkeen Pending)">
+                      🏬 Job Center Only
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </div>
           </div>
-          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'block', marginTop: '2px' }}>
-            {row.full_name}
-          </strong>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            CPR: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{row.cpr_no}</span> • {row.education}
-          </div>
-          <div style={{ marginTop: '3px' }}>
-            {(() => {
-              const isJc = row.approved_by_job_center === true || String(row.approved_by_job_center || 'Yes').toLowerCase() === 'yes';
-              const isTamkeen = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
-              if (isJc && isTamkeen) {
-                return (
-                  <span style={{
-                    fontSize: '0.66rem',
-                    fontWeight: 800,
-                    color: '#059669',
-                    background: 'rgba(16, 185, 129, 0.12)',
-                    border: '1px solid rgba(16, 185, 129, 0.35)',
-                    padding: '0.05rem 0.35rem',
-                    borderRadius: '3px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '2px'
-                  }} title="Approved by both Job Center & Tamkeen">
-                    ✓ Both Approved
-                  </span>
-                );
-              }
-              if (isJc) {
-                return (
-                  <span style={{
-                    fontSize: '0.66rem',
-                    fontWeight: 800,
-                    color: '#d97706',
-                    background: 'rgba(245, 158, 11, 0.14)',
-                    border: '1px solid rgba(245, 158, 11, 0.35)',
-                    padding: '0.05rem 0.35rem',
-                    borderRadius: '3px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '2px'
-                  }} title="Approved by Job Center only (Tamkeen Pending)">
-                    🏬 Job Center Only
-                  </span>
-                );
-              }
-              return null;
-            })()}
-          </div>
-        </div>
-      )
+        );
+      }
     },
     {
       key: 'company_name',
@@ -716,11 +787,29 @@ function PlacementsView({ state }) {
       key: 'case_manager_name',
       label: 'Case Manager',
       sortable: true,
-      render: (val) => (
-        <span className="badge badge-neutral" style={{ fontWeight: 600, fontSize: '0.74rem' }}>
-          {val || 'System'}
-        </span>
-      )
+      render: (val, row) => {
+        const isMyRow = !isAdminOrSuper && isMine(row);
+        const inGlobal = !isAdminOrSuper && scopeFilter === 'global';
+        return (
+          <span
+            className={`badge ${isMyRow ? 'badge-primary' : 'badge-neutral'}`}
+            style={{
+              fontWeight: isMyRow ? 800 : 600,
+              fontSize: '0.74rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              border: isMyRow && inGlobal ? '1px solid var(--primary)' : undefined,
+              boxShadow: isMyRow && inGlobal ? '0 1px 3px rgba(37,99,235,0.25)' : undefined
+            }}
+            title={isMyRow ? 'Assigned to your caseload' : ''}
+          >
+            {isMyRow && <span>★</span>}
+            {val || 'System'}
+            {isMyRow && <span style={{ opacity: 0.85, fontSize: '0.68rem' }}>(You)</span>}
+          </span>
+        );
+      }
     },
     {
       key: 'actions',
@@ -807,6 +896,94 @@ function PlacementsView({ state }) {
           </button>
         </div>
       </div>
+
+      {/* Scope Navigation Tags for Case Managers: My Placements vs Global Placements */}
+      {!isAdminOrSuper && (
+        <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={`btn ${scopeFilter === 'mine' ? 'btn-primary' : 'btn-outline'}`}
+            style={{
+              borderRadius: 'var(--radius-md)',
+              padding: '0.45rem 1.1rem',
+              fontSize: '0.86rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: scopeFilter === 'mine' ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
+            }}
+            onClick={() => handleScopeChange('mine')}
+          >
+            <span>👤 My Placements</span>
+            <span style={{
+              background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+              padding: '0.1rem 0.5rem',
+              borderRadius: 'var(--radius-full)',
+              fontSize: '0.74rem',
+              fontWeight: 800
+            }}>
+              {myStatusCounts.all}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`btn ${scopeFilter === 'global' ? 'btn-primary' : 'btn-outline'}`}
+            style={{
+              borderRadius: 'var(--radius-md)',
+              padding: '0.45rem 1.1rem',
+              fontSize: '0.86rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: scopeFilter === 'global' ? '0 2px 4px rgba(37,99,235,0.2)' : 'none'
+            }}
+            onClick={() => handleScopeChange('global')}
+          >
+            <span>🌐 Global Placements</span>
+            <span style={{
+              background: scopeFilter === 'global' ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+              padding: '0.1rem 0.5rem',
+              borderRadius: 'var(--radius-full)',
+              fontSize: '0.74rem',
+              fontWeight: 800
+            }}>
+              {globalStatusCounts.all}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Scope Info Banner for Global Placements in Case Manager Login */}
+      {!isAdminOrSuper && scopeFilter === 'global' && (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.55rem 0.85rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(37, 99, 235, 0.08)',
+            border: '1px solid rgba(37, 99, 235, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            fontSize: '0.8rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.05rem' }}>🌐</span>
+            <span>
+              <strong>Global Placements View:</strong> Viewing all {globalStatusCounts.all} placements. Your assigned placements are highlighted in blue with <strong style={{ color: 'var(--primary)' }}>★ Mine</strong>.
+            </span>
+          </div>
+          <span className="badge badge-primary" style={{ fontWeight: 800, fontSize: '0.74rem' }}>
+            ★ {myStatusCounts.all} of Yours Highlighted
+          </span>
+        </div>
+      )}
 
       {/* Lifecycle Status Navigation Tabs: Active Placements (Default) -> Completed 12 Months -> All */}
       <div className="placement-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -1045,14 +1222,22 @@ function PlacementsView({ state }) {
 
         {/* Row 3: Filter Summary Strip */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.78rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--text-muted)' }}>
-              Showing <strong style={{ color: 'var(--primary)' }}>{filteredMetrics.count}</strong> of {placementsList.length} placements
+              Showing <strong style={{ color: 'var(--primary)' }}>{filteredMetrics.count}</strong> of {scopedPlacementsList.length} placements
             </span>
             <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
             <span style={{ color: 'var(--text-muted)' }}>
               Filtered Wage Commitment: <strong style={{ color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>{currency} {filteredMetrics.totalWage}</strong>
             </span>
+            {!isAdminOrSuper && (
+              <>
+                <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  View Scope: <strong style={{ color: scopeFilter === 'mine' ? 'var(--primary)' : 'inherit' }}>{scopeFilter === 'mine' ? '👤 My Placements' : '🌐 Global View'}</strong>
+                </span>
+              </>
+            )}
           </div>
           {statusFilter !== 'all' && (
             <span className="badge badge-info" style={{ fontSize: '0.72rem' }}>
@@ -1069,6 +1254,15 @@ function PlacementsView({ state }) {
           data={displayData}
           expandable={true}
           renderChildRow={renderPlacementChildRow}
+          rowStyle={row => {
+            if (!isAdminOrSuper && isMine(row) && scopeFilter === 'global') {
+              return {
+                backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                borderLeft: '4px solid var(--primary)'
+              };
+            }
+            return undefined;
+          }}
           searchPlaceholder="🔍 Search Candidate, CPR, Employer, CR, Job Title, Job Code..."
           searchKeys={[
             'ref_no',

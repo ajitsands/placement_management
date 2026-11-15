@@ -20,7 +20,9 @@ function DataTable({
   exportFilename = 'export_data.csv',
   expandable = false,
   renderChildRow = null,
-  defaultExpandedAll = false
+  defaultExpandedAll = false,
+  rowClassName = null,
+  rowStyle = null
 }) {
   const [search, setSearch] = useState('');
   const [pageSize, setPageSize] = useState(initialPageSize);
@@ -285,9 +287,11 @@ function DataTable({
             {paginatedData.map((row, rowIdx) => {
               const rowId = row.id !== undefined && row.id !== null ? row.id : rowIdx;
               const isExpanded = expandedRowIds.has(rowId);
+              const customClass = typeof rowClassName === 'function' ? (rowClassName(row, rowIdx) || '') : (rowClassName || '');
+              const customStyle = typeof rowStyle === 'function' ? (rowStyle(row, rowIdx) || {}) : (rowStyle || {});
               return (
                 <React.Fragment key={rowId}>
-                  <tr className={`datatable-row ${isExpanded ? 'expanded' : ''}`}>
+                  <tr className={`datatable-row ${isExpanded ? 'expanded' : ''} ${customClass}`.trim()} style={customStyle}>
                     {expandable && (
                       <td style={{ width: '42px', minWidth: '42px', textAlign: 'center', padding: '0.65rem 0.35rem', verticalAlign: 'middle' }}>
                         <button
