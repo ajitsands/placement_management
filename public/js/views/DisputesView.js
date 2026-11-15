@@ -754,7 +754,7 @@ function DisputesView({ state }) {
     },
     {
       key: 'assigned_case_managers_text',
-      label: 'Assigned Case Manager(s)',
+      label: 'Assigned Dispute Manager(s)',
       sortable: true,
       render: (_, row) => {
         const assigned = Array.isArray(row.assigned_case_managers) ? row.assigned_case_managers : [];
