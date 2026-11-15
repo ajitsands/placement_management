@@ -732,12 +732,25 @@ function ClaimsView({ state }) {
         const cand = candidateMap.get(String(row.candidate_id));
         const candidateRef = (val && val !== 'N/A') ? val : (cand?.ref_no || (row.candidate_id ? `CR-${row.candidate_id}` : 'N/A'));
         const claimRef = row.claim_ref || (row.id ? `CLM-${row.id}` : 'N/A');
+        const isMyRow = !isAdminOrSuper && isMine(row);
+        const inGlobal = !isAdminOrSuper && scopeFilter === 'global';
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.22rem' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.86rem' }}>
-              {candidateRef}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.86rem' }}>
+                {candidateRef}
+              </span>
+              {isMyRow && inGlobal && (
+                <span
+                  className="badge badge-primary"
+                  style={{ fontSize: '0.64rem', padding: '0.08rem 0.4rem', fontWeight: 800 }}
+                  title="Your assigned claim"
+                >
+                  ★ Mine
+                </span>
+              )}
+            </div>
             <span
               className="badge badge-primary"
               style={{
@@ -873,7 +886,29 @@ function ClaimsView({ state }) {
       key: 'case_manager_name',
       label: 'Case Manager',
       sortable: true,
-      render: (val) => <span className="badge badge-neutral">{val || 'Unassigned'}</span>
+      render: (val, row) => {
+        const isMyRow = !isAdminOrSuper && isMine(row);
+        const inGlobal = !isAdminOrSuper && scopeFilter === 'global';
+        return (
+          <span
+            className={`badge ${isMyRow ? 'badge-primary' : 'badge-neutral'}`}
+            style={{
+              fontWeight: isMyRow ? 800 : 600,
+              fontSize: '0.74rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              border: isMyRow && inGlobal ? '1px solid var(--primary)' : undefined,
+              boxShadow: isMyRow && inGlobal ? '0 1px 3px rgba(37,99,235,0.25)' : undefined
+            }}
+            title={isMyRow ? 'Assigned to your caseload' : ''}
+          >
+            {isMyRow && <span>★</span>}
+            {val || 'Unassigned'}
+            {isMyRow && <span style={{ opacity: 0.85, fontSize: '0.68rem' }}>(You)</span>}
+          </span>
+        );
+      }
     },
     {
       key: 'status',
@@ -1292,7 +1327,15 @@ function ClaimsView({ state }) {
         <window.DataTable
           columns={columns}
           data={displayData}
-          rowClassName={(row) => (!isAdminOrSuper && scopeFilter === 'global' && isMine(row)) ? 'my-placement-row-highlight' : ''}
+          rowStyle={row => {
+            if (!isAdminOrSuper && isMine(row) && scopeFilter === 'global') {
+              return {
+                backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                borderLeft: '4px solid var(--primary)'
+              };
+            }
+            return undefined;
+          }}
           searchPlaceholder="🔍 Search Candidate Ref, Claim Ref, CPR, Employer, CR..."
           searchKeys={['candidate_ref', 'claim_ref', 'candidate_name', 'candidate_cpr', 'company_name', 'employer_cr', 'milestone_title', 'claim_type', 'case_manager_name']}
           exportFilename="Claims_Ledger_Filtered.csv"
