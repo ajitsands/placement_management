@@ -41,7 +41,8 @@ function ReportsView({ state }) {
     { id: 'candidate_placement', title: '1. Candidate Placement Master Report' },
     { id: 'claim_milestones', title: '2. Claim Milestones (+0d, +180d, +365d) Retention Gates' },
     { id: 'unclaimed_milestones', title: '3. Unclaimed Milestones Overdue Report' },
-    { id: 'claim_ledger', title: '4. Claim Ledger & Aging Report' },
+    { id: 'claim_ledger', title: '4. Claim Ledger & Historical Status Report' },
+    { id: 'outstanding_balance', title: '4b. Active Claims Outstanding Balance Report' },
     { id: 'categorized_disputes', title: '5. Categorized Disputes & Terminations Analysis' },
     { id: 'financial_collections', title: '6. Financial Collections Ledger & Receipts' },
     { id: 'case_manager_performance', title: '7. Case Manager Performance & Allocation Audit' },
@@ -431,8 +432,8 @@ function ReportsView({ state }) {
                   </tr>
                 )}
 
-                {/* 4. Claim Ledger */}
-                {reportType === 'claim_ledger' && (
+                {/* 4. Claim Ledger & 4b. Active Outstanding Balance */}
+                {(reportType === 'claim_ledger' || reportType === 'outstanding_balance') && (
                   <tr>
                     <th>Claim Ref</th>
                     <th>Candidate</th>
@@ -632,12 +633,14 @@ function ReportsView({ state }) {
                   </tr>
                 ))}
 
-                {/* 4. Claim Ledger */}
-                {reportType === 'claim_ledger' && reportData?.data?.map(cl => {
+                {/* 4. Claim Ledger & 4b. Active Outstanding Balance */}
+                {(reportType === 'claim_ledger' || reportType === 'outstanding_balance') && reportData?.data?.map(cl => {
                   const compVal = cl.company_claim_amount_bhd !== null && cl.company_claim_amount_bhd !== undefined ? Number(cl.company_claim_amount_bhd) : Number(cl.claim_amount_bhd || 0);
                   const appVal = Number(cl.claim_amount_bhd || 0);
                   const diffVal = cl.difference_amount_bhd !== null && cl.difference_amount_bhd !== undefined ? Number(cl.difference_amount_bhd) : Number((compVal - appVal).toFixed(3));
                   const hasDiff = Math.abs(diffVal) > 0.0001;
+                  const st = String(cl.status || '').toLowerCase();
+                  const statusBadgeClass = st === 'disputed' ? 'badge-danger' : (st === 'settled' ? 'badge-success' : (st === 'terminated' ? 'badge-neutral' : 'badge-warning'));
 
                   return (
                     <tr key={cl.id}>
@@ -658,7 +661,7 @@ function ReportsView({ state }) {
                       <td style={{ color: 'var(--success)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{currency} {Number(cl.total_paid_bhd || 0).toFixed(3)}</td>
                       <td style={{ color: cl.balance_bhd > 0 ? 'var(--danger)' : 'inherit', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{currency} {Number(cl.balance_bhd || 0).toFixed(3)}</td>
                       <td>{window.formatAppDate(cl.submission_date || cl.claim_date)}</td>
-                      <td><span className="badge badge-neutral">{cl.status}</span></td>
+                      <td><span className={`badge ${statusBadgeClass}`}>{cl.status}</span></td>
                     </tr>
                   );
                 })}

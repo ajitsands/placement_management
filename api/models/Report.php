@@ -56,6 +56,134 @@ class Report {
         return true;
     }
 
+    /**
+     * Resolve claims with their point-in-time status, paid amount, and balance as of $dateTo (or current if null).
+     * Ensures historical reports (e.g. Jan) show a claim as 'disputed' if it was disputed in Jan even if reinstated in Feb.
+     */
+    private static function resolveClaimsAsOf(?string $caseManagerScope, ?string $dateFrom, ?string $dateTo, bool $forOutstanding = false): array {
+        $store = Database::getStore();
+        $claims = Claim::all($caseManagerScope);
+        $disputes = $store['disputes'] ?? [];
+        $payments = $store['payments'] ?? [];
+
+        $disputesByClaim = [];
+        foreach ($disputes as $d) {
+            $cid = (int)($d['claim_id'] ?? 0);
+            if ($cid > 0) {
+                $disputesByClaim[$cid][] = $d;
+            }
+        }
+
+        $paymentsByClaim = [];
+        foreach ($payments as $p) {
+            $cid = (int)($p['claim_id'] ?? 0);
+            if ($cid > 0) {
+                $paymentsByClaim[$cid][] = $p;
+            }
+        }
+
+        $asOf = !empty($dateTo) ? $dateTo : null;
+        $result = [];
+
+        foreach ($claims as $c) {
+            $cid = (int)$c['id'];
+            $claimDate = substr(trim((string)($c['claim_date'] ?? ($c['created_at'] ?? ''))), 0, 10);
+            $createdDate = substr(trim((string)($c['created_at'] ?? $claimDate)), 0, 10);
+            $earliestDate = ($createdDate !== '' && $createdDate !== '0000-00-00' && $claimDate !== '' && $createdDate < $claimDate)
+                ? $createdDate
+                : $claimDate;
+
+            $cDisputes = $disputesByClaim[$cid] ?? [];
+
+            // Check if claim existed on or before $asOf
+            if ($asOf !== null && $earliestDate !== '' && $earliestDate > $asOf) {
+                $hadDisputeByAsOf = false;
+                foreach ($cDisputes as $d) {
+                    $dDate = substr(trim((string)($d['dispute_date'] ?? ($d['created_at'] ?? ''))), 0, 10);
+                    if ($dDate !== '' && $dDate <= $asOf) {
+                        $hadDisputeByAsOf = true;
+                        break;
+                    }
+                }
+                if (!$hadDisputeByAsOf) {
+                    continue;
+                }
+            }
+
+            // Compute point-in-time status as of $asOf
+            $statusAsOf = $c['status'] ?? 'undisputed';
+            if ($asOf !== null) {
+                $statusAsOf = 'undisputed';
+                $relevantDisputes = [];
+                foreach ($cDisputes as $d) {
+                    $dDate = substr(trim((string)($d['dispute_date'] ?? ($d['created_at'] ?? ''))), 0, 10);
+                    if ($dDate !== '' && $dDate <= $asOf) {
+                        $relevantDisputes[] = $d;
+                    }
+                }
+
+                if (!empty($relevantDisputes)) {
+                    // Use the latest dispute filed on or before $asOf
+                    usort($relevantDisputes, fn($a, $b) => strcmp(
+                        ($b['dispute_date'] ?? '') . ($b['id'] ?? ''),
+                        ($a['dispute_date'] ?? '') . ($a['id'] ?? '')
+                    ));
+                    $latestDisp = $relevantDisputes[0];
+                    $reinstDate = substr(trim((string)($latestDisp['reinstated_date'] ?? '')), 0, 10);
+                    $termDate = substr(trim((string)($latestDisp['terminated_date'] ?? '')), 0, 10);
+
+                    if ($termDate !== '' && $termDate !== '0000-00-00' && $termDate <= $asOf) {
+                        $statusAsOf = 'terminated';
+                    } elseif ($reinstDate !== '' && $reinstDate !== '0000-00-00' && $reinstDate <= $asOf) {
+                        $statusAsOf = 'undisputed';
+                    } else {
+                        $statusAsOf = 'disputed';
+                    }
+                } elseif (($c['status'] ?? '') === 'terminated') {
+                    $statusAsOf = 'terminated';
+                }
+            }
+
+            // Compute payments received on or before $asOf
+            $paidAsOf = 0.0;
+            foreach ($paymentsByClaim[$cid] ?? [] as $p) {
+                $pDate = substr(trim((string)($p['payment_date'] ?? ($p['created_at'] ?? ''))), 0, 10);
+                if ($asOf === null || ($pDate !== '' && $pDate <= $asOf)) {
+                    $paidAsOf += (float)($p['amount_paid_bhd'] ?? 0);
+                }
+            }
+            $claimAmt = (float)($c['claim_amount_bhd'] ?? 0);
+            $balanceAsOf = max(0.0, round($claimAmt - $paidAsOf, 3));
+
+            if ($statusAsOf === 'undisputed' && $balanceAsOf <= 0.0001 && $claimAmt > 0) {
+                $statusAsOf = 'settled';
+            }
+
+            // Period inclusion check when $dateFrom is provided
+            if (!empty($dateFrom) && !$forOutstanding) {
+                $inPeriod = self::inDateRange($claimDate, $dateFrom, $dateTo)
+                    || self::inDateRange($createdDate, $dateFrom, $dateTo)
+                    || ($statusAsOf === 'disputed');
+                if (!$inPeriod) {
+                    continue;
+                }
+            } elseif (!empty($dateFrom) && $forOutstanding) {
+                // For outstanding report with dateFrom..dateTo: include active unpaid claims that existed by $dateTo
+                // and (if dateFrom is set) were active in or before the period
+                if ($asOf !== null && $earliestDate !== '' && $earliestDate > $asOf) {
+                    continue;
+                }
+            }
+
+            $c['status'] = $statusAsOf;
+            $c['total_paid_bhd'] = round($paidAsOf, 3);
+            $c['balance_bhd'] = $balanceAsOf;
+            $result[] = $c;
+        }
+
+        return $result;
+    }
+
     public static function generate(string $type, ?string $caseManagerScope = null, ?string $dateFrom = null, ?string $dateTo = null): array {
         switch ($type) {
             case 'case_manager_audit_log':
@@ -82,19 +210,38 @@ class Report {
                     'data'  => array_values(array_filter($all, fn($m) => in_array($m['current_status'], ['due', 'overdue'])))
                 ];
 
+            case 'claim_ledger':
             case 'claims_summary':
                 return [
-                    'title' => 'Claims Summary & Status Pipeline Report',
-                    'data'  => Claim::all($caseManagerScope)
+                    'title' => $type === 'claim_ledger'
+                        ? 'Claim Ledger & Historical Status Report'
+                        : 'Claims Summary & Status Pipeline Report',
+                    'data'  => self::resolveClaimsAsOf($caseManagerScope, $dateFrom, $dateTo, false)
                 ];
 
             case 'categorized_disputes':
             case 'disputed_claims':
                 $allDisputes = Dispute::all($caseManagerScope);
-                $filteredDisputes = array_values(array_filter($allDisputes, function($d) use ($dateFrom, $dateTo) {
+                $asOf = !empty($dateTo) ? $dateTo : null;
+                $filteredDisputes = [];
+                foreach ($allDisputes as $d) {
                     $filedDate = $d['dispute_date'] ?? ($d['created_at'] ?? '');
-                    return self::inDateRange($filedDate, $dateFrom, $dateTo);
-                }));
+                    if (!self::inDateRange($filedDate, $dateFrom, $dateTo)) {
+                        continue;
+                    }
+                    if ($asOf !== null) {
+                        $reinstDate = substr(trim((string)($d['reinstated_date'] ?? '')), 0, 10);
+                        $termDate = substr(trim((string)($d['terminated_date'] ?? '')), 0, 10);
+                        if ($termDate !== '' && $termDate !== '0000-00-00' && $termDate <= $asOf) {
+                            $d['status'] = 'terminated';
+                        } elseif ($reinstDate !== '' && $reinstDate !== '0000-00-00' && $reinstDate <= $asOf) {
+                            $d['status'] = 'reinstated';
+                        } else {
+                            $d['status'] = 'active_dispute';
+                        }
+                    }
+                    $filteredDisputes[] = $d;
+                }
                 return [
                     'title' => $type === 'categorized_disputes'
                         ? 'Categorized Disputes & Terminations Analysis'
@@ -116,10 +263,10 @@ class Report {
                 ];
 
             case 'outstanding_balance':
-                $claims = Claim::all($caseManagerScope);
-                $unpaid = array_filter($claims, fn($c) => (float)$c['balance_bhd'] > 0.001 && $c['status'] !== 'terminated');
+                $claims = self::resolveClaimsAsOf($caseManagerScope, $dateFrom, $dateTo, true);
+                $unpaid = array_filter($claims, fn($c) => (float)$c['balance_bhd'] > 0.001 && !in_array($c['status'], ['disputed', 'terminated'], true));
                 return [
-                    'title' => 'Outstanding Claims Balance Aging Report',
+                    'title' => 'Active Claims Outstanding Balance Report',
                     'data'  => array_values($unpaid)
                 ];
 
