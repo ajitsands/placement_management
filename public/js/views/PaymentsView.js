@@ -837,7 +837,7 @@ function PaymentsView({ state }) {
     },
     {
       key: 'amount_paid_bhd',
-      label: 'Amount Paid',
+      label: 'Amount Received',
       sortable: true,
       render: (val) => (
         <strong style={{ fontWeight: 800, color: 'var(--success)', fontSize: '0.92rem', fontFamily: 'var(--font-mono)' }}>
@@ -1137,7 +1137,7 @@ function PaymentsView({ state }) {
     <div>
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Financial Collections Ledger</h1>
+          <h1>Collection Ledger</h1>
           <p className="page-subtitle">
             Tamkeen and Directorate disbursement receipt tracking with datewise &amp; candidate-wise reconciliation
           </p>

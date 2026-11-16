@@ -5445,7 +5445,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Amount Paid ({currency}) *</label>
+              <label className="form-label">Amount Received ({currency}) *</label>
               <input
                 type="number"
                 step="0.001"
@@ -5851,7 +5851,7 @@ function ClaimPaymentsModal({ state, claim: initialClaim }) {
                   <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-light)', textAlign: 'left' }}>
                     <th style={{ padding: '0.65rem 0.75rem' }}>Receipt Ref</th>
                     <th style={{ padding: '0.65rem 0.75rem' }}>Date</th>
-                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>Amount Paid</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>Amount Received</th>
                     <th style={{ padding: '0.65rem 0.75rem' }}>Method</th>
                     <th style={{ padding: '0.65rem 0.75rem' }}>Cheque / Wire Ref</th>
                     <th style={{ padding: '0.65rem 0.75rem' }}>Cashier Notes</th>

@@ -190,7 +190,7 @@ function Navbar({ state }) {
     { id: 'milestones', label: 'Retention Milestones' },
     { id: 'claims', label: 'Claims Ledger' },
     { id: 'disputes', label: 'Dispute Management' },
-    { id: 'payments', label: 'Payment Receipts' },
+    { id: 'payments', label: 'Collection Ledger' },
     { id: 'reports', label: 'Reports' },
     ...(isAdminOrSuper ? [{ id: 'users', label: 'Users' }] : [])
   ];

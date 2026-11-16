@@ -519,7 +519,7 @@ function ReportsView({ state }) {
                     <th>Employer</th>
                     <th>Case Manager</th>
                     <th>Claim Ref</th>
-                    <th>Amount Paid</th>
+                    <th>Amount Received</th>
                     <th>Method</th>
                   </tr>
                 )}
