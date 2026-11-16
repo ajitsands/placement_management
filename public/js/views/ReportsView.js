@@ -5,12 +5,18 @@
 const { useState, useEffect, useMemo } = React;
 
 function ReportsView({ state }) {
+  const now = new Date();
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const defaultMonthStart = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const defaultMonthEnd = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(lastDay)}`;
+
   const [reportType, setReportType] = useState('case_manager_audit_log');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedCaseManager, setSelectedCaseManager] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(defaultMonthStart);
+  const [dateTo, setDateTo] = useState(defaultMonthEnd);
 
   const { settings = {}, currentUser = {}, caseManagers = [], users = [] } = state;
   const currency = settings.currency || 'BHD';
@@ -44,7 +50,8 @@ function ReportsView({ state }) {
     { id: 'claim_ledger', title: '4. Claim Ledger & Historical Status Report' },
     { id: 'outstanding_balance', title: '4b. Active Claims Outstanding Balance Report' },
     { id: 'categorized_disputes', title: '5. Categorized Disputes & Terminations Analysis' },
-    { id: 'financial_collections', title: '6. Financial Collections Ledger & Receipts' },
+    { id: 'financial_collections', title: '6. Financial Collections Ledger & Receipts (Datewise)' },
+    { id: 'payment_candidate_summary', title: '6b. Payment Receipts — Candidate & Placement Summary' },
     { id: 'case_manager_performance', title: '7. Case Manager Performance & Allocation Audit' },
     { id: 'termination_audit', title: '8. Termination & Reinstatement Audit' },
     { id: 'employer_retention', title: '9. Employer Retention League & Placement Density' },
@@ -74,12 +81,45 @@ function ReportsView({ state }) {
 
   const handleResetFilters = () => {
     setSelectedCaseManager('all');
-    setDateFrom('');
-    setDateTo('');
+    setDateFrom(defaultMonthStart);
+    setDateTo(defaultMonthEnd);
   };
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleExportExcel = () => {
+    if (!reportData?.data || reportData.data.length === 0) {
+      window.AppStore.showNotification('No data to export', 'warning');
+      return;
+    }
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const sample = reportData.data[0];
+    const keys = Object.keys(sample).filter(k => typeof sample[k] !== 'object');
+    const headerHtml = keys.map(k => `<th>${esc(k.replace(/_/g, ' ').toUpperCase())}</th>`).join('');
+    const bodyHtml = reportData.data.map(row =>
+      `<tr>${keys.map(k => `<td>${esc(row[k])}</td>`).join('')}</tr>`
+    ).join('');
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <h3>${esc(reportData.title || reportType)} (${esc(dateFrom || 'Start')} to ${esc(dateTo || 'Latest')})</h3>
+        <table border="1" cellspacing="0" cellpadding="4">
+          <thead><tr style="background:#e2e8f0;font-weight:bold;">${headerHtml}</tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Report_${reportType}_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Export current report dataset to Excel-ready CSV
@@ -197,6 +237,14 @@ function ReportsView({ state }) {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             <span>Export to Excel (CSV)</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleExportExcel}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+          >
+            <span>📥 Export Excel</span>
           </button>
           <button
             type="button"
@@ -466,11 +514,29 @@ function ReportsView({ state }) {
                   <tr>
                     <th>Receipt No</th>
                     <th>Payment Date</th>
-                    <th>Claim Ref</th>
+                    <th>Candidate Ref</th>
                     <th>Candidate</th>
                     <th>Employer</th>
+                    <th>Case Manager</th>
+                    <th>Claim Ref</th>
                     <th>Amount Paid</th>
                     <th>Method</th>
+                  </tr>
+                )}
+
+                {/* 6b. Payment Receipts Candidate & Placement Summary */}
+                {reportType === 'payment_candidate_summary' && (
+                  <tr>
+                    <th>Candidate Ref</th>
+                    <th>Candidate Name</th>
+                    <th>Employer / Placement</th>
+                    <th>Case Manager</th>
+                    <th>Receipts</th>
+                    <th>Latest Date</th>
+                    <th>Total Claimed</th>
+                    <th>Amount Received</th>
+                    <th>Balance</th>
+                    <th>Datewise Breakdown</th>
                   </tr>
                 )}
 
@@ -688,11 +754,29 @@ function ReportsView({ state }) {
                   <tr key={p.id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{p.receipt_no}</td>
                     <td>{window.formatAppDate(p.payment_date)}</td>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{p.claim_ref || `CLM-${p.claim_id}`}</td>
-                    <td>{p.candidate_name}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--primary)' }}>{p.candidate_ref || 'N/A'}</td>
+                    <td><strong>{p.candidate_name}</strong></td>
                     <td>{p.company_name}</td>
+                    <td><span className="badge badge-neutral">{p.case_manager_name || 'System'}</span></td>
+                    <td style={{ fontFamily: 'var(--font-mono)' }}>{p.claim_ref || (p.claim_id ? `CLM-${p.claim_id}` : 'Tamkeen Direct')}</td>
                     <td style={{ fontWeight: 700, color: 'var(--success)' }}>{currency} {Number(p.amount_paid_bhd).toFixed(3)}</td>
                     <td><span className="badge badge-neutral">{p.payment_method}</span></td>
+                  </tr>
+                ))}
+
+                {/* 6b. Payment Receipts Candidate & Placement Summary */}
+                {reportType === 'payment_candidate_summary' && reportData?.data?.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>{s.candidate_ref}</td>
+                    <td><strong>{s.candidate_name}</strong></td>
+                    <td>{s.company_name}{s.employer_cr ? ` (CR: ${s.employer_cr})` : ''}</td>
+                    <td><span className="badge badge-neutral">{s.case_manager_name || 'System'}</span></td>
+                    <td>{s.receipts_count}</td>
+                    <td>{window.formatAppDate(s.latest_payment_date)}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)' }}>{currency} {Number(s.total_claimed_bhd || 0).toFixed(3)}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>{currency} {Number(s.total_received_bhd || 0).toFixed(3)}</td>
+                    <td style={{ fontWeight: 700, color: Number(s.balance_bhd) > 0.0001 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-mono)' }}>{currency} {Number(s.balance_bhd || 0).toFixed(3)}</td>
+                    <td style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)', maxWidth: '280px' }}>{s.datewise_breakdown}</td>
                   </tr>
                 ))}
 

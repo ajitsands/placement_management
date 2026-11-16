@@ -256,10 +256,76 @@ class Report {
                     'data'  => array_values(array_filter($claims, fn($c) => $c['status'] === 'terminated'))
                 ];
 
+            case 'financial_collections':
             case 'payment_collection':
+                $allPayments = Payment::all($caseManagerScope);
+                $filteredPayments = array_values(array_filter($allPayments, function($p) use ($dateFrom, $dateTo) {
+                    $pDate = $p['payment_date'] ?? ($p['created_at'] ?? '');
+                    return self::inDateRange($pDate, $dateFrom, $dateTo);
+                }));
                 return [
-                    'title' => 'Payment Collections Ledger Report',
-                    'data'  => Payment::all($caseManagerScope)
+                    'title' => 'Financial Collections Ledger & Receipts',
+                    'data'  => $filteredPayments
+                ];
+
+            case 'payment_candidate_summary':
+                $allPayments = Payment::all($caseManagerScope);
+                $filteredPayments = array_values(array_filter($allPayments, function($p) use ($dateFrom, $dateTo) {
+                    $pDate = $p['payment_date'] ?? ($p['created_at'] ?? '');
+                    return self::inDateRange($pDate, $dateFrom, $dateTo);
+                }));
+                $allClaims = Claim::all($caseManagerScope);
+                $claimedByCand = [];
+                foreach ($allClaims as $cl) {
+                    if (($cl['status'] ?? '') === 'terminated') continue;
+                    $cid = (int)($cl['candidate_id'] ?? 0);
+                    if ($cid > 0) {
+                        $claimedByCand[$cid] = ($claimedByCand[$cid] ?? 0.0) + (float)($cl['claim_amount_bhd'] ?? 0);
+                    }
+                }
+                $grouped = [];
+                foreach ($filteredPayments as $p) {
+                    $cid = !empty($p['candidate_id']) ? (int)$p['candidate_id'] : ($p['candidate_ref'] ?? $p['id']);
+                    $key = (string)$cid;
+                    if (!isset($grouped[$key])) {
+                        $claimedAmt = is_int($cid) ? (float)($claimedByCand[$cid] ?? 0.0) : 0.0;
+                        $grouped[$key] = [
+                            'id'                  => $key,
+                            'candidate_id'        => $p['candidate_id'] ?? null,
+                            'candidate_ref'       => $p['candidate_ref'] ?? 'N/A',
+                            'candidate_name'      => $p['candidate_name'] ?? 'N/A',
+                            'candidate_cpr'       => $p['candidate_cpr'] ?? 'N/A',
+                            'company_name'        => $p['company_name'] ?? 'N/A',
+                            'employer_cr'         => $p['employer_cr'] ?? '',
+                            'position_title'      => $p['position_title'] ?? '',
+                            'case_manager_name'   => $p['case_manager_name'] ?? 'System',
+                            'total_claimed_bhd'   => round($claimedAmt, 3),
+                            'total_received_bhd'  => 0.0,
+                            'balance_bhd'         => round($claimedAmt, 3),
+                            'receipts_count'      => 0,
+                            'latest_payment_date' => $p['payment_date'] ?? '',
+                            'datewise_items'      => []
+                        ];
+                    }
+                    $amt = (float)($p['amount_paid_bhd'] ?? 0);
+                    $grouped[$key]['total_received_bhd'] = round($grouped[$key]['total_received_bhd'] + $amt, 3);
+                    $grouped[$key]['balance_bhd'] = round($grouped[$key]['total_claimed_bhd'] - $grouped[$key]['total_received_bhd'], 3);
+                    $grouped[$key]['receipts_count'] += 1;
+                    $pDate = $p['payment_date'] ?? '';
+                    if ($pDate !== '' && ($grouped[$key]['latest_payment_date'] === '' || $pDate > $grouped[$key]['latest_payment_date'])) {
+                        $grouped[$key]['latest_payment_date'] = $pDate;
+                    }
+                    $grouped[$key]['datewise_items'][] = $pDate . ': ' . number_format($amt, 3) . ' (' . ($p['receipt_no'] ?? '') . ')';
+                }
+                $summaryRows = array_values(array_map(function($row) {
+                    $row['datewise_breakdown'] = implode(' | ', $row['datewise_items']);
+                    unset($row['datewise_items']);
+                    return $row;
+                }, $grouped));
+                usort($summaryRows, fn($a, $b) => $b['total_received_bhd'] <=> $a['total_received_bhd']);
+                return [
+                    'title' => 'Payment Receipts — Candidate & Placement Summary',
+                    'data'  => $summaryRows
                 ];
 
             case 'outstanding_balance':
