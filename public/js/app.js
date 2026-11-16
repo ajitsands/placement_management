@@ -41,6 +41,8 @@ function App() {
         return <window.DisputesView state={state} />;
       case 'payments':
         return <window.PaymentsView state={state} />;
+      case 'monthly_reports':
+        return <window.MonthlyReportsView state={state} />;
       case 'reports':
         return <window.ReportsView state={state} />;
       case 'users':

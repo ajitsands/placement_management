@@ -191,6 +191,7 @@ function Navbar({ state }) {
     { id: 'claims', label: 'Claims Ledger' },
     { id: 'disputes', label: 'Dispute Management' },
     { id: 'payments', label: 'Collection Ledger' },
+    { id: 'monthly_reports', label: 'Monthly Claims' },
     { id: 'reports', label: 'Reports' },
     ...(isAdminOrSuper ? [{ id: 'users', label: 'Users' }] : [])
   ];

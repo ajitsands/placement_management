@@ -118,6 +118,7 @@ const APP_VALID_TABS = [
   'claims',
   'disputes',
   'payments',
+  'monthly_reports',
   'reports',
   'users',
   'settings',
