@@ -1145,14 +1145,6 @@ function PaymentsView({ state }) {
         <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className="btn btn-outline"
-            onClick={handleExportExcel}
-            title="Export Datewise & Candidate/Placement-wise Receipts Report to Excel"
-          >
-            📥 Export Excel
-          </button>
-          <button
-            type="button"
             className="btn btn-primary"
             onClick={() => window.AppStore.openModal('NEW_PAYMENT', {})}
           >
