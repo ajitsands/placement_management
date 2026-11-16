@@ -4551,11 +4551,24 @@ function TamkeenApprovalModal({ state, candidate }) {
 function NewClaimModal({ state, initialProps = {} }) {
   const { candidates = [], milestones = [], claims = [], currentUser, settings = {} } = state;
   const currency = settings.currency || 'BHD';
+  const SearchableSelect = window.SearchableSelect;
+
+  const nowDate = new Date();
+  const firstDayOfCurrentMonth = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-01`;
 
   const selectableCandidates = useMemo(() => {
     const placed = (candidates || []).filter(c => c.status === 'placed' || c.company_name || c.joining_date);
     return placed.length > 0 ? placed : (candidates || []);
   }, [candidates]);
+
+  const candidateSelectOptions = useMemo(() => {
+    return selectableCandidates.map(c => ({
+      value: String(c.id),
+      label: `${c.ref_no || `CR-${c.id}`} — ${c.full_name}`,
+      subLabel: `CPR: ${c.cpr_no || 'N/A'} • ${c.company_name || 'No Company'} • ${currency} ${Number(c.salary_bhd || 0).toFixed(3)}`,
+      searchKeywords: `${c.ref_no || ''} ${c.full_name || ''} ${c.cpr_no || ''} ${c.company_name || ''} ${c.employer_cr || ''}`
+    }));
+  }, [selectableCandidates, currency]);
 
   // Determine pre-selected candidate
   const initialCandidate = initialProps.candidate || candidates.find(c => String(c.id) === String(initialProps.candidate_id || initialProps.candidate?.id));
@@ -4673,6 +4686,10 @@ function NewClaimModal({ state, initialProps = {} }) {
       window.AppStore.showNotification('Candidate and Claim Amount are required', 'error');
       return;
     }
+    if (form.claim_date && form.claim_date < firstDayOfCurrentMonth) {
+      window.AppStore.showNotification(`Claim Date cannot be earlier than ${firstDayOfCurrentMonth} (current month)`, 'error');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -4764,18 +4781,28 @@ function NewClaimModal({ state, initialProps = {} }) {
           ) : (
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Select Candidate Placement (Ref No. &amp; Employer) *</label>
-              <select
-                className="select-control"
-                value={form.candidate_id}
-                onChange={e => handleCandidateChange(parseInt(e.target.value))}
-                required
-              >
-                {selectableCandidates.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.ref_no || `CR-${c.id}`} — {c.full_name} • {c.company_name || 'No Company'} ({currency} {Number(c.salary_bhd || 0).toFixed(3)})
-                  </option>
-                ))}
-              </select>
+              {SearchableSelect ? (
+                <SearchableSelect
+                  options={candidateSelectOptions}
+                  value={String(form.candidate_id || '')}
+                  onChange={val => handleCandidateChange(val)}
+                  placeholder="Search by Candidate Ref No., Name, CPR, or Employer..."
+                  searchPlaceholder="Type Candidate Ref (CR-...), Name, CPR, or Employer..."
+                />
+              ) : (
+                <select
+                  className="select-control"
+                  value={form.candidate_id}
+                  onChange={e => handleCandidateChange(parseInt(e.target.value))}
+                  required
+                >
+                  {selectableCandidates.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.ref_no || `CR-${c.id}`} — {c.full_name} • {c.company_name || 'No Company'} ({currency} {Number(c.salary_bhd || 0).toFixed(3)})
+                    </option>
+                  ))}
+                </select>
+              )}
               {activeCandidate && (
                 <div style={{
                   marginTop: '0.5rem',
@@ -4923,10 +4950,14 @@ function NewClaimModal({ state, initialProps = {} }) {
                 <input
                   type="date"
                   className="input-control"
+                  min={firstDayOfCurrentMonth}
                   value={form.claim_date}
                   onChange={e => setForm({ ...form, claim_date: e.target.value })}
                   required
                 />
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Current month onwards (min: {firstDayOfCurrentMonth}; future dates allowed)
+                </div>
               </div>
             </div>
           ) : (
