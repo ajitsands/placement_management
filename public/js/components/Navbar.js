@@ -177,9 +177,22 @@ function getUserInitials(name) {
 }
 
 function Navbar({ state }) {
+  const { useState, useEffect, useRef } = React;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [reportsMenuOpen, setReportsMenuOpen] = useState(false);
+  const reportsMenuRef = useRef(null);
   const { currentUser = {}, activeTab, theme, settings = {}, databaseStatus, language = 'en', events = [] } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (reportsMenuRef.current && !reportsMenuRef.current.contains(e.target)) {
+        setReportsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   // Dedicated horizontal menu items (clean 10 core operational modules for seamless laptop resolution fit)
   const navItems = [
@@ -191,14 +204,21 @@ function Navbar({ state }) {
     { id: 'claims', label: 'Claims Ledger' },
     { id: 'disputes', label: 'Dispute Management' },
     { id: 'payments', label: 'Collection Ledger' },
-    { id: 'monthly_reports', label: 'Monthly Claims' },
-    { id: 'reports', label: 'Reports' },
+    {
+      id: 'reports',
+      label: 'Reports',
+      subItems: [
+        { id: 'monthly_reports', label: '📅 Monthly Claims', desc: 'Outstanding Due & Monthly Claims' },
+        { id: 'reports', label: '📊 Other Reports', desc: 'Audit Logs, Collections & KPIs' }
+      ]
+    },
     ...(isAdminOrSuper ? [{ id: 'users', label: 'Users' }] : [])
   ];
 
   const handleNavClick = (tabId) => {
     window.AppStore.setActiveTab(tabId);
     setMobileOpen(false);
+    setReportsMenuOpen(false);
   };
 
   const handleLogout = async () => {
@@ -386,7 +406,78 @@ function Navbar({ state }) {
         <div className="horizontal-menu-container">
           <ul className="horizontal-menu-list">
             {navItems.map((item) => {
-              const isActive = activeTab === item.id;
+              const hasSub = Array.isArray(item.subItems) && item.subItems.length > 0;
+              const isActive = hasSub
+                ? item.subItems.some(sub => sub.id === activeTab)
+                : activeTab === item.id;
+
+              if (hasSub) {
+                return (
+                  <li
+                    key={item.id}
+                    ref={reportsMenuRef}
+                    className={`horizontal-menu-item ${isActive ? 'active' : ''}`}
+                    style={{ position: 'relative' }}
+                    onClick={() => setReportsMenuOpen(prev => !prev)}
+                  >
+                    <span className="menu-icon">
+                      <NavIcon type={item.id} />
+                    </span>
+                    <span className="menu-label">{item.label}</span>
+                    <span style={{ fontSize: '0.65rem', marginLeft: '0.2rem', opacity: 0.8 }}>▾</span>
+
+                    {reportsMenuOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          marginTop: '6px',
+                          minWidth: '245px',
+                          background: 'var(--bg-card, #ffffff)',
+                          border: '1px solid var(--border-light, #e2e8f0)',
+                          borderRadius: '10px',
+                          boxShadow: '0 10px 25px rgba(15, 23, 42, 0.14)',
+                          padding: '0.4rem',
+                          zIndex: 2000,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.subItems.map(sub => {
+                          const subActive = activeTab === sub.id;
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              onClick={() => handleNavClick(sub.id)}
+                              style={{
+                                textAlign: 'left',
+                                width: '100%',
+                                border: 'none',
+                                background: subActive ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
+                                color: subActive ? 'var(--primary, #2563eb)' : 'var(--text-primary, #0f172a)',
+                                borderRadius: '7px',
+                                padding: '0.55rem 0.75rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '2px'
+                              }}
+                            >
+                              <span style={{ fontWeight: 700, fontSize: '0.84rem' }}>{sub.label}</span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>{sub.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </li>
+                );
+              }
+
               return (
                 <li
                   key={item.id}
