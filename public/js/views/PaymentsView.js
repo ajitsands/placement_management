@@ -1161,49 +1161,6 @@ function PaymentsView({ state }) {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="kpi-grid" style={{ marginBottom: '1.25rem' }}>
-        <div className="kpi-card success">
-          <div className="kpi-header">
-            <span className="kpi-title">Total Collected</span>
-            <div className="kpi-icon">💰</div>
-          </div>
-          <div className="kpi-value">
-            {currency} {Number(hasActiveFilters ? totalFilteredCollected : (kpis.total_collected_bhd || totalFilteredCollected)).toLocaleString('en-US', { minimumFractionDigits: 3 })}
-          </div>
-          <div className="kpi-subtext">
-            {hasActiveFilters ? `Filtered across ${displayData.length} receipts` : 'Realized revenue across all receipts'}
-          </div>
-        </div>
-
-        <div className="kpi-card danger">
-          <div className="kpi-header">
-            <span className="kpi-title">Uncollected Balance</span>
-            <div className="kpi-icon">📉</div>
-          </div>
-          <div className="kpi-value">
-            {currency} {Number(kpis.total_outstanding_bhd || 0).toLocaleString('en-US', { minimumFractionDigits: 3 })}
-          </div>
-          <div className="kpi-subtext">Pending payment from ministry / treasury</div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-header">
-            <span className="kpi-title">Total Receipts Issued</span>
-            <div className="kpi-icon">🧾</div>
-          </div>
-          <div className="kpi-value">
-            {displayData.length}
-            {hasActiveFilters && (
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, marginLeft: '0.35rem' }}>
-                of {payments.length}
-              </span>
-            )}
-          </div>
-          <div className="kpi-subtext">Audited financial transactions</div>
-        </div>
-      </div>
-
       {/* Top Filter Bar */}
       <div
         className="card"
