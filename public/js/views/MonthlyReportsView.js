@@ -28,8 +28,9 @@ function MonthlyReportsView({ state }) {
   // Report 1 Filter: Candidate (default All)
   const [selectedCandidate, setSelectedCandidate] = useState('');
 
-  // Report 2 Filter: Case Manager (default All)
+  // Report 2 Filters: Case Manager & Status (both default All)
   const [selectedCaseManager, setSelectedCaseManager] = useState('all');
+  const [selectedClaimStatus, setSelectedClaimStatus] = useState('all');
 
   const [loading, setLoading] = useState(false);
   const [outstandingClaimsRaw, setOutstandingClaimsRaw] = useState([]);
@@ -53,6 +54,7 @@ function MonthlyReportsView({ state }) {
     setDateTo(defaultMonthEnd);
     setSelectedCandidate('');
     setSelectedCaseManager('all');
+    setSelectedClaimStatus('all');
   };
 
   // Candidate lookup & SearchableSelect options (Report 1)
@@ -230,16 +232,21 @@ function MonthlyReportsView({ state }) {
 
   // Report 2: Claims Claimed for the Month (with point-in-time status)
   const monthlyClaimsData = useMemo(() => {
-    return monthlyClaimsRaw.map(cl => {
-      const cand = cl.candidate_id ? candidateLookup.get(String(cl.candidate_id)) : null;
-      return {
-        ...cl,
-        candidate_ref: cl.candidate_ref || cand?.ref_no || (cl.candidate_id ? `CR-${cl.candidate_id}` : 'N/A'),
-        candidate_name: cl.candidate_name || cand?.full_name || 'N/A',
-        company_name: cl.company_name || cand?.company_name || 'N/A'
-      };
-    });
-  }, [monthlyClaimsRaw, candidateLookup]);
+    return monthlyClaimsRaw
+      .filter(cl => {
+        if (selectedClaimStatus === 'all') return true;
+        return String(cl.status || '').toLowerCase() === selectedClaimStatus;
+      })
+      .map(cl => {
+        const cand = cl.candidate_id ? candidateLookup.get(String(cl.candidate_id)) : null;
+        return {
+          ...cl,
+          candidate_ref: cl.candidate_ref || cand?.ref_no || (cl.candidate_id ? `CR-${cl.candidate_id}` : 'N/A'),
+          candidate_name: cl.candidate_name || cand?.full_name || 'N/A',
+          company_name: cl.company_name || cand?.company_name || 'N/A'
+        };
+      });
+  }, [monthlyClaimsRaw, selectedClaimStatus, candidateLookup]);
 
   const monthlyTotals = useMemo(() => {
     return monthlyClaimsData.reduce(
@@ -611,24 +618,43 @@ function MonthlyReportsView({ state }) {
               )}
             </div>
           ) : (
-            <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
-              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '4px' }}>
-                🧑‍💼 Filter by Case Manager:
-              </label>
-              {SearchableSelect ? (
-                <SearchableSelect
-                  options={caseManagerOptions}
-                  value={selectedCaseManager}
-                  onChange={val => setSelectedCaseManager(val)}
-                  placeholder="All Case Managers"
-                  searchPlaceholder="Search Case Manager..."
-                />
-              ) : (
-                <select className="select-control" value={selectedCaseManager} onChange={e => setSelectedCaseManager(e.target.value)}>
-                  {caseManagerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <>
+              <div style={{ flex: '1 1 240px', minWidth: '200px' }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '4px' }}>
+                  🧑‍💼 Filter by Case Manager:
+                </label>
+                {SearchableSelect ? (
+                  <SearchableSelect
+                    options={caseManagerOptions}
+                    value={selectedCaseManager}
+                    onChange={val => setSelectedCaseManager(val)}
+                    placeholder="All Case Managers"
+                    searchPlaceholder="Search Case Manager..."
+                  />
+                ) : (
+                  <select className="select-control" value={selectedCaseManager} onChange={e => setSelectedCaseManager(e.target.value)}>
+                    {caseManagerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                )}
+              </div>
+              <div style={{ minWidth: '170px' }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '4px' }}>
+                  🏷️ Filter by Status:
+                </label>
+                <select
+                  className="select-control"
+                  value={selectedClaimStatus}
+                  onChange={e => setSelectedClaimStatus(e.target.value)}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="undisputed">Unsettled</option>
+                  <option value="settled">Settled</option>
+                  <option value="disputed">Disputed</option>
+                  <option value="terminated">Terminated</option>
                 </select>
-              )}
-            </div>
+              </div>
+            </>
           )}
 
           <button type="button" className="btn btn-outline btn-sm" onClick={handleResetFilters} style={{ padding: '0.42rem 0.85rem' }}>
