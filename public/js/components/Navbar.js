@@ -180,6 +180,7 @@ function Navbar({ state }) {
   const { useState, useEffect, useRef } = React;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [reportsMenuOpen, setReportsMenuOpen] = useState(false);
+  const [reportsDropdownPos, setReportsDropdownPos] = useState({ top: 96, left: 0 });
   const reportsMenuRef = useRef(null);
   const { currentUser = {}, activeTab, theme, settings = {}, databaseStatus, language = 'en', events = [] } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
@@ -418,7 +419,14 @@ function Navbar({ state }) {
                     ref={reportsMenuRef}
                     className={`horizontal-menu-item ${isActive ? 'active' : ''}`}
                     style={{ position: 'relative' }}
-                    onClick={() => setReportsMenuOpen(prev => !prev)}
+                    onClick={() => {
+                      if (!reportsMenuOpen && reportsMenuRef.current) {
+                        const rect = reportsMenuRef.current.getBoundingClientRect();
+                        const left = Math.min(rect.left, Math.max(8, window.innerWidth - 260));
+                        setReportsDropdownPos({ top: rect.bottom + 6, left });
+                      }
+                      setReportsMenuOpen(prev => !prev);
+                    }}
                   >
                     <span className="menu-icon">
                       <NavIcon type={item.id} />
@@ -429,17 +437,16 @@ function Navbar({ state }) {
                     {reportsMenuOpen && (
                       <div
                         style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          marginTop: '6px',
+                          position: 'fixed',
+                          top: `${reportsDropdownPos.top}px`,
+                          left: `${reportsDropdownPos.left}px`,
                           minWidth: '245px',
                           background: 'var(--bg-card, #ffffff)',
                           border: '1px solid var(--border-light, #e2e8f0)',
                           borderRadius: '10px',
-                          boxShadow: '0 10px 25px rgba(15, 23, 42, 0.14)',
+                          boxShadow: '0 10px 25px rgba(15, 23, 42, 0.18)',
                           padding: '0.4rem',
-                          zIndex: 2000,
+                          zIndex: 9999,
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '0.25rem'
