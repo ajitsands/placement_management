@@ -1148,7 +1148,7 @@ function PaymentsView({ state }) {
             className="btn btn-primary"
             onClick={() => window.AppStore.openModal('NEW_PAYMENT', {})}
           >
-            ➕ Record Payment Receipt
+            ➕ Record Collection Ledger
           </button>
         </div>
       </div>
