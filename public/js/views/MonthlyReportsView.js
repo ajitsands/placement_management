@@ -6,7 +6,7 @@
 
 function MonthlyReportsView({ state }) {
   const { useState, useEffect, useMemo } = React;
-  const { settings = {}, candidates = [], caseManagers = [], users = [] } = state;
+  const { settings = {}, candidates = [], payments = [], caseManagers = [], users = [] } = state;
   const currency = settings.currency || 'BHD';
   const SearchableSelect = window.SearchableSelect;
 
@@ -144,6 +144,24 @@ function MonthlyReportsView({ state }) {
     return () => { mounted = false; };
   }, [dateFrom, dateTo, selectedCaseManager]);
 
+  // Collection Ledger payments summed per candidate up to dateTo (and from dateFrom if needed)
+  const collectionPaidByCandidate = useMemo(() => {
+    const paidMap = {};
+    (payments || []).forEach(p => {
+      const pDate = String(p.payment_date || p.created_at || '').split('T')[0].split(' ')[0];
+      if (dateTo && (!pDate || pDate > dateTo)) return;
+      const amt = Number(p.amount_paid_bhd || 0);
+      if (p.candidate_id) {
+        const key = String(p.candidate_id);
+        paidMap[key] = (paidMap[key] || 0) + amt;
+      } else if (p.candidate_ref && p.candidate_ref !== 'N/A') {
+        const key = String(p.candidate_ref);
+        paidMap[key] = (paidMap[key] || 0) + amt;
+      }
+    });
+    return paidMap;
+  }, [payments, dateTo]);
+
   // Report 1: Group Active Outstanding Claims by Candidate Reference Number
   const outstandingByCandidate = useMemo(() => {
     const filtered = selectedCandidate
@@ -174,23 +192,28 @@ function MonthlyReportsView({ state }) {
       const entry = map.get(cid);
       entry.active_claims_count += 1;
       entry.total_claimed_bhd += Number(cl.claim_amount_bhd || 0);
-      entry.total_paid_bhd += Number(cl.total_paid_bhd || 0);
-      entry.outstanding_bhd += Number(cl.balance_bhd || 0);
       entry.claims_list.push(cl);
     });
 
     return Array.from(map.values())
-      .map(row => ({
-        ...row,
-        total_claimed_bhd: Number(row.total_claimed_bhd.toFixed(3)),
-        total_paid_bhd: Number(row.total_paid_bhd.toFixed(3)),
-        outstanding_bhd: Number(row.outstanding_bhd.toFixed(3)),
-        claims_summary_text: row.claims_list
-          .map(c => `${c.claim_ref} (${c.milestone_title || c.claim_type}): ${currency} ${Number(c.balance_bhd || 0).toFixed(3)}`)
-          .join(' | ')
-      }))
+      .map(row => {
+        const candKey = row.candidate_id ? String(row.candidate_id) : String(row.candidate_ref || '');
+        const paidFromLedger = Number((collectionPaidByCandidate[candKey] || 0).toFixed(3));
+        const totalClaimed = Number(row.total_claimed_bhd.toFixed(3));
+        const outstanding = Math.max(0, Number((totalClaimed - paidFromLedger).toFixed(3)));
+        return {
+          ...row,
+          total_claimed_bhd: totalClaimed,
+          total_paid_bhd: paidFromLedger,
+          outstanding_bhd: outstanding,
+          claims_summary_text: row.claims_list
+            .map(c => `${c.claim_ref} (${c.milestone_title || c.claim_type}): ${currency} ${Number(c.claim_amount_bhd || 0).toFixed(3)}`)
+            .join(' | ')
+        };
+      })
+      .filter(row => row.outstanding_bhd > 0.001)
       .sort((a, b) => b.outstanding_bhd - a.outstanding_bhd);
-  }, [outstandingClaimsRaw, selectedCandidate, candidateLookup, currency]);
+  }, [outstandingClaimsRaw, selectedCandidate, candidateLookup, collectionPaidByCandidate, currency]);
 
   const outstandingTotals = useMemo(() => {
     return outstandingByCandidate.reduce(
@@ -672,3 +695,4 @@ function MonthlyReportsView({ state }) {
 }
 
 window.MonthlyReportsView = MonthlyReportsView;
+
