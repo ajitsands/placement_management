@@ -496,10 +496,11 @@ function ClaimsView({ state }) {
       { value: '', label: 'All Milestone Gates', subLabel: 'Show all claim types & retention checkpoints' },
       { value: 'placement', label: 'Day 0 - Placement Joining', subLabel: 'Initial contract signing & placement subsidy' },
       { value: '180_days', label: 'Day 180 - 6 Months Retention', subLabel: 'Probation completion & 6-month retention gate' },
-      { value: '365_days', label: 'Day 365 - 1 Year Retention', subLabel: 'Annual completion & 12-month retention gate' }
+      { value: '365_days', label: 'Day 365 - 1 Year Retention', subLabel: 'Annual completion & 12-month retention gate' },
+      { value: 'additional', label: 'Additional Gate', subLabel: 'Difference / supplementary claims approved by Tamkeen' }
     ];
 
-    const standardKeys = ['placement', '180_days', '365_days'];
+    const standardKeys = ['placement', '180_days', '365_days', 'additional'];
     const customTypes = new Set();
     (claims || []).forEach(cl => {
       const t = (cl.claim_type || '').toLowerCase();
@@ -824,7 +825,9 @@ function ClaimsView({ state }) {
       label: 'Claim Type / Gate',
       sortable: true,
       render: (val, row) => (
-        <span className="badge badge-info">{val || row.claim_type}</span>
+        row.claim_type === 'additional'
+          ? <span className="badge badge-primary">✨ Additional Gate</span>
+          : <span className="badge badge-info">{val || row.claim_type}</span>
       )
     },
     {
@@ -1011,6 +1014,15 @@ function ClaimsView({ state }) {
           <p className="page-subtitle">
             User-directed claim amounts with automated balance tracking against payments
           </p>
+        </div>
+        <div className="page-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => window.AppStore.openModal('NEW_CLAIM', { claim_type: 'additional', isAdditionalGate: true })}
+          >
+            ➕ Additional Gate Claim
+          </button>
         </div>
       </div>
 

@@ -4549,18 +4549,25 @@ function TamkeenApprovalModal({ state, candidate }) {
 // 6. New Claim Modal (User enters the claim amount manually)
 // 6. New Claim Modal (User sets claim amount for the selected employee)
 function NewClaimModal({ state, initialProps = {} }) {
-  const { candidates = [], milestones = [], currentUser, settings = {} } = state;
+  const { candidates = [], milestones = [], claims = [], currentUser, settings = {} } = state;
   const currency = settings.currency || 'BHD';
 
+  const selectableCandidates = useMemo(() => {
+    const placed = (candidates || []).filter(c => c.status === 'placed' || c.company_name || c.joining_date);
+    return placed.length > 0 ? placed : (candidates || []);
+  }, [candidates]);
+
   // Determine pre-selected candidate
-  const initialCandidate = initialProps.candidate || candidates.find(c => c.id === (initialProps.candidate_id || initialProps.candidate?.id));
+  const initialCandidate = initialProps.candidate || candidates.find(c => String(c.id) === String(initialProps.candidate_id || initialProps.candidate?.id));
   const candidateSalary = Number(initialCandidate?.salary_bhd || 0);
 
   // Normalize initial claim type / milestone stage
   const rawType = initialProps.claim_type || initialProps.milestone_type || '';
   const rawStage = initialProps.milestone_stage;
   let resolvedClaimType = 'placement';
-  if (rawStage === 180 || rawType === '180_days' || rawType === 'probation_completion' || rawType === 'retention_6m') {
+  if (rawType === 'additional' || initialProps.isAdditionalGate) {
+    resolvedClaimType = 'additional';
+  } else if (rawStage === 180 || rawType === '180_days' || rawType === 'probation_completion' || rawType === 'retention_6m') {
     resolvedClaimType = '180_days';
   } else if (rawStage === 365 || rawType === '365_days' || rawType === 'year_completion' || rawType === 'retention_12m') {
     resolvedClaimType = '365_days';
@@ -4569,27 +4576,61 @@ function NewClaimModal({ state, initialProps = {} }) {
   }
 
   // Pre-selected milestone ID
-  const initialMilestoneId = initialProps.milestone_id || initialProps.milestone?.id || '';
+  const initialMilestoneId = resolvedClaimType === 'additional' ? '' : (initialProps.milestone_id || initialProps.milestone?.id || '');
 
   // Default claim amount: placement salary if set, otherwise standard tier value from settings
   const standardTierVal = state.settings?.standard_tier_amount_bhd ? Number(state.settings.standard_tier_amount_bhd).toFixed(3) : '500.000';
   const defaultAmount = candidateSalary > 0 ? candidateSalary.toFixed(3) : standardTierVal;
 
+  const getCandidateDiffInfo = (candId) => {
+    const candClaims = (claims || []).filter(cl => String(cl.candidate_id) === String(candId) && cl.status !== 'terminated');
+    let totalCompany = 0;
+    let totalApproved = 0;
+    let totalDiff = 0;
+    let totalAdditionalClaimed = 0;
+    candClaims.forEach(cl => {
+      const approved = Number(cl.claim_amount_bhd || 0);
+      if (cl.claim_type === 'additional') {
+        totalAdditionalClaimed += approved;
+      } else {
+        const comp = cl.company_claim_amount_bhd !== undefined && cl.company_claim_amount_bhd !== null
+          ? Number(cl.company_claim_amount_bhd)
+          : approved;
+        const diff = cl.difference_amount_bhd !== undefined && cl.difference_amount_bhd !== null
+          ? Number(cl.difference_amount_bhd)
+          : Number((comp - approved).toFixed(3));
+        totalCompany += comp;
+        totalApproved += approved;
+        totalDiff += diff;
+      }
+    });
+    const remainingDiff = Number((totalDiff - totalAdditionalClaimed).toFixed(3));
+    return { candClaims, totalCompany, totalApproved, totalDiff, totalAdditionalClaimed, remainingDiff };
+  };
+
+  const initialCandId = initialCandidate?.id || selectableCandidates[0]?.id || '';
+  const initialDiffInfo = getCandidateDiffInfo(initialCandId);
+  const initialAdditionalAmt = initialDiffInfo.remainingDiff > 0 ? initialDiffInfo.remainingDiff.toFixed(3) : '0.000';
+
   const [form, setForm] = useState({
-    candidate_id: initialCandidate?.id || candidates[0]?.id || '',
+    candidate_id: initialCandId,
     milestone_id: initialMilestoneId ? String(initialMilestoneId) : '',
     claim_type: resolvedClaimType,
-    company_claim_amount_bhd: defaultAmount,
-    claim_amount_bhd: defaultAmount,
-    remarks: initialCandidate 
-      ? `Placement subsidy claim for ${initialCandidate.full_name} (${initialCandidate.company_name || 'Placement'})` 
-      : 'Standard retention claim under program guidelines'
+    claim_date: new Date().toISOString().split('T')[0],
+    company_claim_amount_bhd: resolvedClaimType === 'additional' ? initialAdditionalAmt : defaultAmount,
+    claim_amount_bhd: resolvedClaimType === 'additional' ? initialAdditionalAmt : defaultAmount,
+    remarks: resolvedClaimType === 'additional'
+      ? `Additional Gate difference claim approved by Tamkeen${initialCandidate ? ` for ${initialCandidate.full_name} (${initialCandidate.ref_no || ''})` : ''}`
+      : (initialCandidate
+        ? `Placement subsidy claim for ${initialCandidate.full_name} (${initialCandidate.company_name || 'Placement'})`
+        : 'Standard retention claim under program guidelines')
   });
   const [saving, setSaving] = useState(false);
 
   // Active candidate object for display
-  const activeCandidate = initialCandidate || candidates.find(c => c.id === form.candidate_id);
+  const activeCandidate = initialCandidate || candidates.find(c => String(c.id) === String(form.candidate_id));
   const activeSalary = Number(activeCandidate?.salary_bhd || 0);
+  const candidateDiffInfo = useMemo(() => getCandidateDiffInfo(form.candidate_id), [claims, form.candidate_id]);
 
   // Filter milestones belonging to currently selected candidate
   const candidateMilestones = useMemo(() => {
@@ -4598,31 +4639,38 @@ function NewClaimModal({ state, initialProps = {} }) {
   }, [milestones, form.candidate_id]);
 
   const handleCandidateChange = (candId) => {
-    const selected = candidates.find(c => c.id === candId);
+    const selected = candidates.find(c => String(c.id) === String(candId));
     const sal = Number(selected?.salary_bhd || 0);
+    const isAdditional = form.claim_type === 'additional';
+    const diffInfo = getCandidateDiffInfo(candId);
     const relatedMs = (milestones || []).filter(m => String(m.candidate_id) === String(candId));
     const firstUnclaimed = relatedMs.find(m => m.status !== 'claimed') || relatedMs[0];
-    const newAmt = sal > 0 ? sal.toFixed(3) : defaultAmount;
+    const newAmt = isAdditional
+      ? (diffInfo.remainingDiff > 0 ? diffInfo.remainingDiff.toFixed(3) : '0.000')
+      : (sal > 0 ? sal.toFixed(3) : defaultAmount);
 
     setForm({
       ...form,
       candidate_id: candId,
-      milestone_id: firstUnclaimed ? String(firstUnclaimed.id) : '',
-      claim_type: firstUnclaimed ? (firstUnclaimed.milestone_type || 'placement') : form.claim_type,
+      milestone_id: isAdditional ? '' : (firstUnclaimed ? String(firstUnclaimed.id) : ''),
+      claim_type: isAdditional ? 'additional' : (firstUnclaimed ? (firstUnclaimed.milestone_type || 'placement') : form.claim_type),
       company_claim_amount_bhd: newAmt,
       claim_amount_bhd: newAmt,
-      remarks: selected ? `Placement subsidy claim for ${selected.full_name} (${selected.company_name || 'Placement'})` : form.remarks
+      remarks: isAdditional
+        ? `Additional Gate difference claim approved by Tamkeen${selected ? ` for ${selected.full_name} (${selected.ref_no || ''})` : ''}`
+        : (selected ? `Placement subsidy claim for ${selected.full_name} (${selected.company_name || 'Placement'})` : form.remarks)
     });
   };
 
-  const companyAmt = Number(form.company_claim_amount_bhd || 0);
+  const isAdditionalGate = form.claim_type === 'additional';
+  const companyAmt = Number(isAdditionalGate ? (form.claim_amount_bhd || 0) : (form.company_claim_amount_bhd || 0));
   const approvedAmt = Number(form.claim_amount_bhd || 0);
-  const diffAmount = Number((companyAmt - approvedAmt).toFixed(3));
+  const diffAmount = isAdditionalGate ? 0 : Number((companyAmt - approvedAmt).toFixed(3));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.candidate_id || form.claim_amount_bhd === '' || form.company_claim_amount_bhd === '') {
-      window.AppStore.showNotification('Candidate, Company Claim Amount, and Tamkeen Approved Amount are required', 'error');
+    if (!form.candidate_id || form.claim_amount_bhd === '' || (!isAdditionalGate && form.company_claim_amount_bhd === '')) {
+      window.AppStore.showNotification('Candidate and Claim Amount are required', 'error');
       return;
     }
 
@@ -4630,14 +4678,20 @@ function NewClaimModal({ state, initialProps = {} }) {
     try {
       await window.api.claims.create({
         candidate_id: form.candidate_id,
-        milestone_id: form.milestone_id || null,
+        milestone_id: isAdditionalGate ? null : (form.milestone_id || null),
         claim_type: form.claim_type,
-        company_claim_amount_bhd: parseFloat(form.company_claim_amount_bhd),
+        claim_date: form.claim_date || new Date().toISOString().split('T')[0],
+        company_claim_amount_bhd: isAdditionalGate ? parseFloat(form.claim_amount_bhd) : parseFloat(form.company_claim_amount_bhd),
         claim_amount_bhd: parseFloat(form.claim_amount_bhd),
-        difference_amount_bhd: parseFloat(diffAmount),
+        difference_amount_bhd: isAdditionalGate ? 0 : parseFloat(diffAmount),
         remarks: form.remarks
       });
-      window.AppStore.showNotification(`Claim registered! Approved: ${currency} ${Number(form.claim_amount_bhd).toFixed(3)} (Diff: ${currency} ${diffAmount.toFixed(3)})`, 'success');
+      window.AppStore.showNotification(
+        isAdditionalGate
+          ? `Additional Gate claim registered for ${activeCandidate?.ref_no || activeCandidate?.full_name || 'Candidate'} (${currency} ${Number(form.claim_amount_bhd).toFixed(3)})!`
+          : `Claim registered! Approved: ${currency} ${Number(form.claim_amount_bhd).toFixed(3)} (Diff: ${currency} ${diffAmount.toFixed(3)})`,
+        'success'
+      );
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
@@ -4709,23 +4763,173 @@ function NewClaimModal({ state, initialProps = {} }) {
             </div>
           ) : (
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Select Employee Placement *</label>
+              <label className="form-label">Select Candidate Placement (Ref No. &amp; Employer) *</label>
               <select
                 className="select-control"
                 value={form.candidate_id}
                 onChange={e => handleCandidateChange(parseInt(e.target.value))}
                 required
               >
-                {candidates.map(c => (
+                {selectableCandidates.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.full_name} ({c.ref_no}) - {c.company_name || 'No Company'} ({currency} {Number(c.salary_bhd || 0).toFixed(3)})
+                    {c.ref_no || `CR-${c.id}`} — {c.full_name} • {c.company_name || 'No Company'} ({currency} {Number(c.salary_bhd || 0).toFixed(3)})
                   </option>
                 ))}
               </select>
+              {activeCandidate && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.55rem 0.75rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                  fontSize: '0.78rem'
+                }}>
+                  <span>
+                    Ref: <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{activeCandidate.ref_no || `CR-${activeCandidate.id}`}</strong>
+                    {' '}• CPR: <span style={{ fontFamily: 'var(--font-mono)' }}>{activeCandidate.cpr_no || 'N/A'}</span>
+                  </span>
+                  <span>
+                    🏢 <strong>{activeCandidate.company_name || 'Employer'}</strong>
+                    {activeCandidate.position_title ? ` • ${activeCandidate.position_title}` : ''}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 2. CLAIM AMOUNTS: COMPANY CLAIM vs TAMKEEN APPROVED & DIFFERENCE */}
+          {/* CANDIDATE EXISTING CLAIMS & DIFFERENCE SUMMARY (shown for Additional Gate or when variance exists) */}
+          {(isAdditionalGate || Math.abs(candidateDiffInfo.totalDiff) > 0.0001) && (
+            <div style={{
+              background: 'rgba(37, 99, 235, 0.04)',
+              border: '1px solid rgba(37, 99, 235, 0.22)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  ⚖️ Placement Claims &amp; Difference Summary ({activeCandidate?.ref_no || `CR-${form.candidate_id}`})
+                </div>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.76rem' }}>
+                  <span>Company Total: <strong>{currency} {candidateDiffInfo.totalCompany.toFixed(3)}</strong></span>
+                  <span>• Tamkeen Approved: <strong>{currency} {candidateDiffInfo.totalApproved.toFixed(3)}</strong></span>
+                  <span>• Net Difference: <strong style={{ color: candidateDiffInfo.remainingDiff > 0 ? '#b45309' : 'var(--success)' }}>{currency} {candidateDiffInfo.remainingDiff.toFixed(3)}</strong></span>
+                </div>
+              </div>
+
+              {candidateDiffInfo.candClaims.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '130px', overflowY: 'auto' }}>
+                  {candidateDiffInfo.candClaims.map(cl => {
+                    const comp = cl.company_claim_amount_bhd !== undefined && cl.company_claim_amount_bhd !== null ? Number(cl.company_claim_amount_bhd) : Number(cl.claim_amount_bhd || 0);
+                    const app = Number(cl.claim_amount_bhd || 0);
+                    const d = cl.claim_type === 'additional' ? 0 : (cl.difference_amount_bhd !== undefined && cl.difference_amount_bhd !== null ? Number(cl.difference_amount_bhd) : Number((comp - app).toFixed(3)));
+                    return (
+                      <div key={cl.id} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '0.4rem',
+                        fontSize: '0.75rem',
+                        background: 'var(--bg-card, #fff)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '4px',
+                        padding: '0.32rem 0.55rem'
+                      }}>
+                        <span>
+                          <strong style={{ fontFamily: 'var(--font-mono)' }}>{cl.claim_ref}</strong>
+                          {' '}• <span className="badge badge-neutral" style={{ fontSize: '0.66rem' }}>{cl.milestone_title || cl.claim_type}</span>
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>
+                          {cl.claim_type === 'additional'
+                            ? <span style={{ color: 'var(--primary)', fontWeight: 700 }}>Additional Claimed: {currency} {app.toFixed(3)}</span>
+                            : <>Co: {currency} {comp.toFixed(3)} | Tamkeen: {currency} {app.toFixed(3)} | <strong style={{ color: Math.abs(d) > 0.0001 ? '#b45309' : 'var(--success)' }}>Diff: {currency} {d.toFixed(3)}</strong></>
+                          }
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No existing claims found for this candidate placement yet.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. CLAIM AMOUNTS: COMPANY CLAIM vs TAMKEEN APPROVED & DIFFERENCE (or single Amount + Date for Additional Gate) */}
+          {isAdditionalGate ? (
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '0.85rem'
+            }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem', color: 'var(--primary)' }}>
+                  🏛️ Additional Gate Claim Amount ({currency}) *
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '0.45rem 0.65rem',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-light)',
+                    borderRight: 'none',
+                    borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: 'var(--primary)'
+                  }}>
+                    {currency}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    className="input-control"
+                    style={{
+                      borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+                      fontSize: '1.05rem',
+                      fontWeight: 800,
+                      fontFamily: 'var(--font-mono)',
+                      borderColor: 'var(--primary)'
+                    }}
+                    value={form.claim_amount_bhd}
+                    onChange={e => setForm({ ...form, claim_amount_bhd: e.target.value, company_claim_amount_bhd: e.target.value })}
+                    placeholder="0.000"
+                    required
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Enter any difference / supplementary amount approved by Tamkeen
+                </div>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '0.35rem' }}>
+                  📅 Claim Date *
+                </label>
+                <input
+                  type="date"
+                  className="input-control"
+                  value={form.claim_date}
+                  onChange={e => setForm({ ...form, claim_date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+          ) : (
           <div
             style={{
               background: 'var(--bg-card)',
@@ -4869,6 +5073,7 @@ function NewClaimModal({ state, initialProps = {} }) {
               )}
             </div>
           </div>
+          )}
 
           {/* 3. CLAIM TYPE / MILESTONE STAGE SELECTION */}
           <div className="form-group" style={{ margin: 0 }}>
@@ -4886,7 +5091,17 @@ function NewClaimModal({ state, initialProps = {} }) {
               onChange={e => {
                 const selectedVal = e.target.value;
                 const ms = candidateMilestones.find(m => String(m.id) === String(selectedVal));
-                if (ms) {
+                if (selectedVal === 'additional') {
+                  const diffInfo = getCandidateDiffInfo(form.candidate_id);
+                  const addAmt = diffInfo.remainingDiff > 0 ? diffInfo.remainingDiff.toFixed(3) : '0.000';
+                  setForm(prev => ({
+                    ...prev,
+                    milestone_id: '',
+                    claim_type: 'additional',
+                    company_claim_amount_bhd: addAmt,
+                    claim_amount_bhd: addAmt
+                  }));
+                } else if (ms) {
                   setForm(prev => ({
                     ...prev,
                     milestone_id: String(ms.id),
@@ -4908,21 +5123,25 @@ function NewClaimModal({ state, initialProps = {} }) {
               required
             >
               {candidateMilestones.length > 0 ? (
-                candidateMilestones.map(m => {
-                  const stageLabel = m.milestone_stage === 0 ? 'Day 0 Gate' : (m.milestone_stage === 180 ? 'Day 180 Gate (+6m)' : 'Day 365 Gate (+12m)');
-                  const targetStr = m.target_date || m.due_date ? ` • Target: ${window.formatAppDate(m.target_date || m.due_date)}` : '';
-                  const statusStr = m.status === 'claimed' ? ' [Already Claimed]' : (m.status === 'due' || m.status === 'overdue' ? ' [Action Required]' : '');
-                  return (
-                    <option key={m.id} value={String(m.id)}>
-                      {m.milestone_title || `Retention Milestone (${stageLabel})`} ({stageLabel}){targetStr}{statusStr}
-                    </option>
-                  );
-                })
+                <>
+                  {candidateMilestones.map(m => {
+                    const stageLabel = m.milestone_stage === 0 ? 'Day 0 Gate' : (m.milestone_stage === 180 ? 'Day 180 Gate (+6m)' : 'Day 365 Gate (+12m)');
+                    const targetStr = m.target_date || m.due_date ? ` • Target: ${window.formatAppDate(m.target_date || m.due_date)}` : '';
+                    const statusStr = m.status === 'claimed' ? ' [Already Claimed]' : (m.status === 'due' || m.status === 'overdue' ? ' [Action Required]' : '');
+                    return (
+                      <option key={m.id} value={String(m.id)}>
+                        {m.milestone_title || `Retention Milestone (${stageLabel})`} ({stageLabel}){targetStr}{statusStr}
+                      </option>
+                    );
+                  })}
+                  <option value="additional">✨ Additional Gate (Difference / Supplementary Claim)</option>
+                </>
               ) : (
                 <>
                   <option value="placement">Placement Claim (Day 0 / Initial Placement Gate)</option>
                   <option value="180_days">6-Month Retention Claim (+180 Days / Month 6)</option>
                   <option value="365_days">12-Month Retention Claim (+365 Days / Month 12)</option>
+                  <option value="additional">✨ Additional Gate (Difference / Supplementary Claim)</option>
                 </>
               )}
             </select>

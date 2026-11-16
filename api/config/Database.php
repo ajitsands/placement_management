@@ -109,6 +109,15 @@ class Database {
                 $pdo->exec("ALTER TABLE claims ADD COLUMN {$col} {$def}");
             }
         }
+
+        // Ensure claim_type supports 'additional' (Additional Gate)
+        $colStmt = $pdo->query(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'claims' AND COLUMN_NAME = 'claim_type'"
+        );
+        $colInfo = $colStmt ? $colStmt->fetch() : null;
+        if ($colInfo && isset($colInfo['COLUMN_TYPE']) && stripos($colInfo['COLUMN_TYPE'], 'enum(') !== false && stripos($colInfo['COLUMN_TYPE'], 'additional') === false) {
+            $pdo->exec("ALTER TABLE claims MODIFY COLUMN claim_type VARCHAR(50) NOT NULL DEFAULT 'placement'");
+        }
     }
 
     private static function ensureJobsTable(PDO $pdo): void {
@@ -1202,7 +1211,7 @@ class Database {
                     if ($type === 'initial_placement') $type = 'placement';
                     if ($type === 'probation_completion' || $type === 'retention_6m') $type = '180_days';
                     if ($type === 'year_completion' || $type === 'retention_12m') $type = '365_days';
-                    if (!in_array($type, ['placement', '180_days', '365_days'])) $type = 'placement';
+                    if (!in_array($type, ['placement', '180_days', '365_days', 'additional'])) $type = 'placement';
 
                     $claimAmt = (float)($cl['claim_amount_bhd'] ?? 0);
                     $compAmt = isset($cl['company_claim_amount_bhd']) && $cl['company_claim_amount_bhd'] !== null

@@ -71,7 +71,9 @@ class Claim {
             $c['candidate_cpr'] = $cand['cpr_no'] ?? 'N/A';
             $c['company_name'] = $cand['company_name'] ?? 'N/A';
             $c['employer_cr'] = $cand['employer_cr'] ?? 'N/A';
-            $c['milestone_title'] = $ms['milestone_title'] ?? ucfirst(str_replace('_', ' ', $c['claim_type']));
+            $c['milestone_title'] = ($c['claim_type'] === 'additional')
+                ? 'Additional Gate'
+                : ($ms['milestone_title'] ?? ucfirst(str_replace('_', ' ', $c['claim_type'])));
 
             $result[] = $c;
         }
@@ -98,16 +100,20 @@ class Claim {
         if ($claimType === 'probation_completion' || $claimType === 'retention_6m') $claimType = '180_days';
         if ($claimType === 'year_completion' || $claimType === 'retention_12m') $claimType = '365_days';
 
-        // Auto-link milestone if not explicitly provided
-        if ($milestoneId <= 0 && $candId > 0) {
-            foreach ($store['milestones'] ?? [] as $m) {
-                if ((int)$m['candidate_id'] === $candId && $m['milestone_type'] === $claimType) {
-                    $milestoneId = (int)$m['id'];
-                    break;
+        // Auto-link milestone if not explicitly provided (Additional Gate claims are standalone, not tied to a retention milestone)
+        if ($claimType === 'additional') {
+            $milestoneId = null;
+        } else {
+            if ($milestoneId <= 0 && $candId > 0) {
+                foreach ($store['milestones'] ?? [] as $m) {
+                    if ((int)$m['candidate_id'] === $candId && $m['milestone_type'] === $claimType) {
+                        $milestoneId = (int)$m['id'];
+                        break;
+                    }
                 }
             }
+            $milestoneId = $milestoneId > 0 ? $milestoneId : null;
         }
-        $milestoneId = $milestoneId > 0 ? $milestoneId : null;
 
         // Manual claim amount input in BHD (Tamkeen approved amount)
         $manualAmount = (float)($data['claim_amount_bhd'] ?? 550.000);
@@ -118,7 +124,8 @@ class Claim {
             ? (float)$data['difference_amount_bhd']
             : round($companyClaimAmount - $manualAmount, 3);
 
-        // Check if a claim already exists for this milestone or candidate gate
+        // Check if a claim already exists for this milestone or candidate gate (skip for Additional Gate so multiple difference claims can be filed)
+        if ($claimType !== 'additional') {
         foreach ($store['claims'] as &$existingClaim) {
             $isSameMilestone = ($milestoneId > 0 && !empty($existingClaim['milestone_id']) && (int)$existingClaim['milestone_id'] === $milestoneId);
             $isSameCandidateGate = ($candId > 0 && (int)$existingClaim['candidate_id'] === $candId && $existingClaim['claim_type'] === $claimType);
@@ -149,6 +156,7 @@ class Claim {
                 Database::saveStore($store);
                 return $existingClaim;
             }
+        }
         }
 
         // Fetch candidate details
