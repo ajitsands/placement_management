@@ -1292,59 +1292,8 @@ function PaymentsView({ state }) {
         )}
       </div>
 
-      {/* View Mode Switcher: Datewise Receipt Ledger vs Candidate & Placement Summary */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.9rem' }}>
-        <div style={{
-          display: 'inline-flex',
-          background: 'var(--bg-tertiary)',
-          border: '1px solid var(--border-light)',
-          borderRadius: '999px',
-          padding: '3px',
-          gap: '3px'
-        }}>
-          <button
-            type="button"
-            className={`btn btn-sm ${viewMode === 'ledger' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem' }}
-            onClick={() => setViewMode('ledger')}
-          >
-            🧾 Datewise Receipt Ledger ({displayData.length})
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${viewMode === 'summary' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem' }}
-            onClick={() => setViewMode('summary')}
-          >
-            📊 Candidate &amp; Placement Summary ({candidatePlacementSummary.length})
-          </button>
-        </div>
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Total Received in View: <strong style={{ color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>{currency} {totalFilteredCollected.toFixed(3)}</strong>
-        </span>
-      </div>
-
       {/* DataTable */}
       <div className="card">
-        {viewMode === 'summary' ? (
-          <window.DataTable
-            columns={summaryColumns}
-            data={candidatePlacementSummary}
-            searchPlaceholder="🔍 Search Candidate Ref, Name, CPR, Employer, CR, Case Manager..."
-            searchKeys={[
-              'candidate_ref',
-              'candidate_name',
-              'candidate_cpr',
-              'company_name',
-              'employer_cr',
-              'position_title',
-              'case_manager_name',
-              'datewise_text'
-            ]}
-            exportFilename="Candidate_Placement_Receipts_Summary.csv"
-            emptyMessage="No candidate receipt summary records found matching your filters."
-          />
-        ) : (
         <window.DataTable
           columns={columns}
           data={displayData}
@@ -1369,7 +1318,6 @@ function PaymentsView({ state }) {
           exportFilename="Payment_Collections_SaNDS.csv"
           emptyMessage="No payment receipt records found matching your filters."
         />
-        )}
       </div>
     </div>
   );
