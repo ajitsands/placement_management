@@ -5366,7 +5366,7 @@ function NewPaymentModal({ state, initialProps = {} }) {
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '720px', width: '94vw' }}>
+    <div className="modal-content" style={{ maxWidth: '860px', width: '94vw' }}>
       <div className="modal-header">
         <h2 className="modal-title">💰 Record Payment Receipt</h2>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
@@ -5456,12 +5456,13 @@ function NewPaymentModal({ state, initialProps = {} }) {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Receipt / Voucher Ref *</label>
+              <label className="form-label">Payment / Receipt Number *</label>
               <input
                 type="text"
                 className="input-control"
                 value={form.receipt_reference}
                 onChange={e => setForm({ ...form, receipt_reference: e.target.value })}
+                placeholder="e.g. RCPT-2026-0001"
                 required
               />
             </div>
@@ -5492,21 +5493,21 @@ function NewPaymentModal({ state, initialProps = {} }) {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Cheque / Bank Wire Ref No</label>
+              <label className="form-label">Tamkeen / Bank Payment Ref No. <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional)</span></label>
               <input
                 type="text"
                 className="input-control"
-                placeholder="e.g. BBK-TRF-994102 or Cheque #44810"
+                placeholder="e.g. BBK-TRF-994102 or Tamkeen Ref #"
                 value={form.reference_doc_no}
                 onChange={e => setForm({ ...form, reference_doc_no: e.target.value })}
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Cashier / Settlement Notes</label>
+              <label className="form-label">Remarks <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(if any)</span></label>
               <input
                 type="text"
                 className="input-control"
-                placeholder="e.g. Direct EFT Ministry Settlement"
+                placeholder="Enter remarks if any..."
                 value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
               />
@@ -8059,7 +8060,7 @@ function EditClaimAmountModal({ state, milestone, claim }) {
   const claimRef = activeClaim?.claim_ref || milestone?.claim_ref || 'Pending';
 
   return (
-    <div className="modal-content" style={{ maxWidth: '720px', width: '94vw' }}>
+    <div className="modal-content" style={{ maxWidth: '860px', width: '94vw' }}>
       <div className="modal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
