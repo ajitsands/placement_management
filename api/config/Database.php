@@ -36,6 +36,8 @@ class Database {
                     self::$useMySQL = true;
                     try {
                         self::ensureDisputeColumns(self::$pdo);
+                        self::ensureClaimColumns(self::$pdo);
+                        self::ensurePaymentColumns(self::$pdo);
                         self::ensureJobsTable(self::$pdo);
                         self::ensureCandidateJobColumn(self::$pdo);
                         self::ensureCandidateCenterColumn(self::$pdo);
@@ -117,6 +119,29 @@ class Database {
         $colInfo = $colStmt ? $colStmt->fetch() : null;
         if ($colInfo && isset($colInfo['COLUMN_TYPE']) && stripos($colInfo['COLUMN_TYPE'], 'enum(') !== false && stripos($colInfo['COLUMN_TYPE'], 'additional') === false) {
             $pdo->exec("ALTER TABLE claims MODIFY COLUMN claim_type VARCHAR(50) NOT NULL DEFAULT 'placement'");
+        }
+    }
+
+    /**
+     * Ensure payments table supports candidate-direct Tamkeen receipts (candidate_id column & nullable claim_id).
+     */
+    private static function ensurePaymentColumns(PDO $pdo): void {
+        $stmt = $pdo->query(
+            "SELECT COLUMN_NAME, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments'"
+        );
+        $cols = $stmt ? $stmt->fetchAll() : [];
+        if (empty($cols)) {
+            return;
+        }
+        $existing = [];
+        foreach ($cols as $col) {
+            $existing[strtolower($col['COLUMN_NAME'])] = strtoupper((string)$col['IS_NULLABLE']);
+        }
+        if (!isset($existing['candidate_id'])) {
+            $pdo->exec("ALTER TABLE payments ADD COLUMN candidate_id INT NULL AFTER claim_id");
+        }
+        if (isset($existing['claim_id']) && $existing['claim_id'] === 'NO') {
+            $pdo->exec("ALTER TABLE payments MODIFY COLUMN claim_id INT NULL");
         }
     }
 
@@ -550,7 +575,8 @@ class Database {
         // Payments
         $payments = array_map(function($p) {
             $p['id'] = (int)$p['id'];
-            $p['claim_id'] = (int)$p['claim_id'];
+            $p['claim_id'] = !empty($p['claim_id']) ? (int)$p['claim_id'] : null;
+            $p['candidate_id'] = !empty($p['candidate_id']) ? (int)$p['candidate_id'] : null;
             $p['amount_paid_bhd'] = (float)$p['amount_paid_bhd'];
             if (!empty($p['attachments']) && is_string($p['attachments'])) {
                 $decoded = json_decode($p['attachments'], true);
@@ -1296,9 +1322,11 @@ class Database {
 
             // 7. Payments
             if (!empty($data['payments']) && is_array($data['payments'])) {
-                $stmt = $pdo->prepare("INSERT INTO payments (id, receipt_no, claim_id, payment_date, amount_paid_bhd, payment_method, reference_doc_no, cashier_notes, attachments, created_at)
-                    VALUES (:id, :receipt_no, :claim_id, :payment_date, :amount_paid_bhd, :payment_method, :reference_doc_no, :cashier_notes, :attachments, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO payments (id, receipt_no, claim_id, candidate_id, payment_date, amount_paid_bhd, payment_method, reference_doc_no, cashier_notes, attachments, created_at)
+                    VALUES (:id, :receipt_no, :claim_id, :candidate_id, :payment_date, :amount_paid_bhd, :payment_method, :reference_doc_no, :cashier_notes, :attachments, :created_at)
                     ON DUPLICATE KEY UPDATE
+                        claim_id = VALUES(claim_id),
+                        candidate_id = VALUES(candidate_id),
                         amount_paid_bhd = VALUES(amount_paid_bhd),
                         payment_method = VALUES(payment_method),
                         reference_doc_no = VALUES(reference_doc_no),
@@ -1314,7 +1342,8 @@ class Database {
                     $stmt->execute([
                         ':id' => (int)$p['id'],
                         ':receipt_no' => $p['receipt_no'],
-                        ':claim_id' => (int)$p['claim_id'],
+                        ':claim_id' => !empty($p['claim_id']) ? (int)$p['claim_id'] : null,
+                        ':candidate_id' => !empty($p['candidate_id']) ? (int)$p['candidate_id'] : null,
                         ':payment_date' => $p['payment_date'],
                         ':amount_paid_bhd' => (float)$p['amount_paid_bhd'],
                         ':payment_method' => $p['payment_method'] ?? 'Bank Transfer',

@@ -20,6 +20,7 @@ function PaymentsView({ state }) {
   const [selectedMilestone, setSelectedMilestone] = useState(() => readSaved('milestone'));
   const [dateFrom, setDateFrom] = useState(() => readSaved('date_from'));
   const [dateTo, setDateTo] = useState(() => readSaved('date_to'));
+  const [viewMode, setViewMode] = useState('ledger');
 
   // Reset all payment filters to default on user switch or login
   useEffect(() => {
@@ -901,14 +902,262 @@ function PaymentsView({ state }) {
     return displayData.reduce((sum, p) => sum + Number(p.amount_paid_bhd || 0), 0);
   }, [displayData]);
 
+  // Candidate & Placement-Wise Summary (Date-filtered)
+  const candidatePlacementSummary = useMemo(() => {
+    const claimedByCand = {};
+    (claims || []).forEach(cl => {
+      if (cl.status === 'terminated') return;
+      const cid = String(cl.candidate_id || '');
+      if (!cid) return;
+      claimedByCand[cid] = (claimedByCand[cid] || 0) + Number(cl.claim_amount_bhd || 0);
+    });
+
+    const map = new Map();
+    displayData.forEach(p => {
+      const cid = String(p.candidate_id || p.candidate_ref || p.id);
+      const cand = p.candidate_id ? candidateLookup.get(String(p.candidate_id)) : null;
+      if (!map.has(cid)) {
+        map.set(cid, {
+          id: cid,
+          candidate_id: p.candidate_id,
+          candidate_ref: p.candidate_ref || cand?.ref_no || (p.candidate_id ? `CR-${p.candidate_id}` : 'N/A'),
+          candidate_name: p.candidate_name || cand?.full_name || 'N/A',
+          candidate_cpr: p.candidate_cpr || cand?.cpr_no || 'N/A',
+          company_name: p.company_name || cand?.company_name || 'N/A',
+          employer_cr: p.employer_cr || cand?.employer_cr || '',
+          position_title: p.position_title || cand?.position_title || '',
+          case_manager_name: p.case_manager_name || cand?.case_manager_name || 'System',
+          total_claimed_bhd: p.candidate_id ? Number(claimedByCand[String(p.candidate_id)] || 0) : 0,
+          total_received_bhd: 0,
+          receipts_count: 0,
+          latest_payment_date: p.payment_date || '',
+          receipts: []
+        });
+      }
+      const entry = map.get(cid);
+      entry.total_received_bhd += Number(p.amount_paid_bhd || 0);
+      entry.receipts_count += 1;
+      if (p.payment_date && (!entry.latest_payment_date || p.payment_date > entry.latest_payment_date)) {
+        entry.latest_payment_date = p.payment_date;
+      }
+      entry.receipts.push(p);
+    });
+
+    return Array.from(map.values()).map(row => ({
+      ...row,
+      balance_bhd: Number((row.total_claimed_bhd - row.total_received_bhd).toFixed(3)),
+      datewise_text: row.receipts
+        .slice()
+        .sort((a, b) => String(a.payment_date || '').localeCompare(String(b.payment_date || '')))
+        .map(r => `${r.payment_date}: ${currency} ${Number(r.amount_paid_bhd || 0).toFixed(3)}`)
+        .join(' | ')
+    })).sort((a, b) => b.total_received_bhd - a.total_received_bhd);
+  }, [displayData, claims, candidateLookup, currency]);
+
+  const summaryColumns = [
+    {
+      key: 'candidate_ref',
+      label: 'Candidate / Ref No.',
+      sortable: true,
+      render: (val, row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>{row.candidate_name}</strong>
+          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+            Ref: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>{val}</span>
+            {' '}• CPR: <span style={{ fontFamily: 'var(--font-mono)' }}>{row.candidate_cpr}</span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'company_name',
+      label: 'Placement / Employer',
+      sortable: true,
+      render: (val, row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+          <strong style={{ fontSize: '0.84rem' }}>{val}</strong>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            {row.employer_cr ? `CR: ${row.employer_cr}` : ''}
+            {row.employer_cr && row.position_title ? ' • ' : ''}
+            {row.position_title || ''}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'case_manager_name',
+      label: 'Case Manager',
+      sortable: true,
+      render: (val) => <span className="badge badge-neutral">{val || 'System'}</span>
+    },
+    {
+      key: 'total_claimed_bhd',
+      label: `Total Claimed (${currency})`,
+      sortable: true,
+      render: (val) => <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{Number(val || 0).toFixed(3)}</span>
+    },
+    {
+      key: 'total_received_bhd',
+      label: `Amount Received (${currency})`,
+      sortable: true,
+      render: (val, row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+          <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--success)', fontSize: '0.92rem' }}>
+            {currency} {Number(val || 0).toFixed(3)}
+          </strong>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            {row.receipts_count} receipt{row.receipts_count === 1 ? '' : 's'} • Latest: {window.formatAppDate ? window.formatAppDate(row.latest_payment_date) : row.latest_payment_date}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'balance_bhd',
+      label: `Balance (${currency})`,
+      sortable: true,
+      render: (val) => (
+        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: Number(val) > 0.0001 ? 'var(--danger)' : 'var(--success)' }}>
+          {Number(val || 0).toFixed(3)}
+        </span>
+      )
+    },
+    {
+      key: 'datewise_text',
+      label: 'Datewise Receipts',
+      sortable: false,
+      render: (val, row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', maxWidth: '280px' }}>
+          {(row.receipts || []).map((r, idx) => (
+            <div key={r.id || idx} style={{ fontSize: '0.74rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+              {window.formatAppDate ? window.formatAppDate(r.payment_date) : r.payment_date}: <strong style={{ color: 'var(--success)' }}>{currency} {Number(r.amount_paid_bhd || 0).toFixed(3)}</strong> ({r.receipt_no})
+            </div>
+          ))}
+        </div>
+      )
+    }
+  ];
+
+  const handleExportExcel = () => {
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const periodText = (dateFrom || dateTo) ? `${dateFrom || 'Start'} to ${dateTo || 'Latest'}` : 'All Dates';
+
+    const ledgerRowsHtml = displayData.map(p => `
+      <tr>
+        <td>${esc(p.payment_date)}</td>
+        <td>${esc(p.receipt_no)}</td>
+        <td>${esc(p.candidate_ref)}</td>
+        <td>${esc(p.candidate_name)}</td>
+        <td>${esc(p.candidate_cpr)}</td>
+        <td>${esc(p.company_name)}</td>
+        <td>${esc(p.employer_cr)}</td>
+        <td>${esc(p.case_manager_name)}</td>
+        <td>${esc(p.claim_ref || 'Tamkeen Direct')}</td>
+        <td>${esc(p.payment_method)}</td>
+        <td>${esc(p.reference_doc_no)}</td>
+        <td style="text-align:right;mso-number-format:'0.000';">${Number(p.amount_paid_bhd || 0).toFixed(3)}</td>
+      </tr>
+    `).join('');
+
+    const summaryRowsHtml = candidatePlacementSummary.map(s => `
+      <tr>
+        <td>${esc(s.candidate_ref)}</td>
+        <td>${esc(s.candidate_name)}</td>
+        <td>${esc(s.candidate_cpr)}</td>
+        <td>${esc(s.company_name)}</td>
+        <td>${esc(s.employer_cr)}</td>
+        <td>${esc(s.position_title)}</td>
+        <td>${esc(s.case_manager_name)}</td>
+        <td>${s.receipts_count}</td>
+        <td>${esc(s.latest_payment_date)}</td>
+        <td style="text-align:right;mso-number-format:'0.000';">${Number(s.total_claimed_bhd || 0).toFixed(3)}</td>
+        <td style="text-align:right;mso-number-format:'0.000';">${Number(s.total_received_bhd || 0).toFixed(3)}</td>
+        <td style="text-align:right;mso-number-format:'0.000';">${Number(s.balance_bhd || 0).toFixed(3)}</td>
+        <td>${esc(s.datewise_text)}</td>
+      </tr>
+    `).join('');
+
+    const totalClaimedSum = candidatePlacementSummary.reduce((sum, s) => sum + Number(s.total_claimed_bhd || 0), 0);
+    const totalReceivedSum = displayData.reduce((sum, p) => sum + Number(p.amount_paid_bhd || 0), 0);
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <h2>Tamkeen Payment Receipts Report (${esc(periodText)})</h2>
+        <h3>1. Candidate &amp; Placement-Wise Summary</h3>
+        <table border="1" cellspacing="0" cellpadding="4">
+          <thead>
+            <tr style="background:#e2e8f0;font-weight:bold;">
+              <th>Candidate Ref</th><th>Candidate Name</th><th>CPR</th><th>Employer / Placement</th><th>Employer CR</th><th>Position</th><th>Case Manager</th><th>Receipts</th><th>Latest Date</th><th>Total Claimed (${esc(currency)})</th><th>Amount Received (${esc(currency)})</th><th>Balance (${esc(currency)})</th><th>Datewise Breakdown</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryRowsHtml}
+            <tr style="background:#f1f5f9;font-weight:bold;">
+              <td colspan="9" style="text-align:right;">GRAND TOTAL:</td>
+              <td style="text-align:right;mso-number-format:'0.000';">${totalClaimedSum.toFixed(3)}</td>
+              <td style="text-align:right;mso-number-format:'0.000';">${totalReceivedSum.toFixed(3)}</td>
+              <td style="text-align:right;mso-number-format:'0.000';">${(totalClaimedSum - totalReceivedSum).toFixed(3)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <br/>
+        <h3>2. Datewise Receipt Ledger</h3>
+        <table border="1" cellspacing="0" cellpadding="4">
+          <thead>
+            <tr style="background:#e2e8f0;font-weight:bold;">
+              <th>Payment Date</th><th>Receipt No</th><th>Candidate Ref</th><th>Candidate Name</th><th>CPR</th><th>Employer</th><th>Employer CR</th><th>Case Manager</th><th>Claim Ref</th><th>Method</th><th>Bank / Ref Doc</th><th>Amount Received (${esc(currency)})</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledgerRowsHtml}
+            <tr style="background:#f1f5f9;font-weight:bold;">
+              <td colspan="11" style="text-align:right;">TOTAL RECEIVED:</td>
+              <td style="text-align:right;mso-number-format:'0.000';">${totalReceivedSum.toFixed(3)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Tamkeen_Receipts_Report_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <div className="page-header">
         <div className="page-title-group">
           <h1>Financial Collections Ledger</h1>
           <p className="page-subtitle">
-            Tamkeen and Directorate disbursement receipt tracking with real-time balance reconciliation
+            Tamkeen and Directorate disbursement receipt tracking with datewise &amp; candidate-wise reconciliation
           </p>
+        </div>
+        <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleExportExcel}
+            title="Export Datewise & Candidate/Placement-wise Receipts Report to Excel"
+          >
+            📥 Export Excel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => window.AppStore.openModal('NEW_PAYMENT', {})}
+          >
+            ➕ Record Payment Receipt
+          </button>
         </div>
       </div>
 
@@ -1086,8 +1335,59 @@ function PaymentsView({ state }) {
         )}
       </div>
 
+      {/* View Mode Switcher: Datewise Receipt Ledger vs Candidate & Placement Summary */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.9rem' }}>
+        <div style={{
+          display: 'inline-flex',
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-light)',
+          borderRadius: '999px',
+          padding: '3px',
+          gap: '3px'
+        }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${viewMode === 'ledger' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem' }}
+            onClick={() => setViewMode('ledger')}
+          >
+            🧾 Datewise Receipt Ledger ({displayData.length})
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${viewMode === 'summary' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem' }}
+            onClick={() => setViewMode('summary')}
+          >
+            📊 Candidate &amp; Placement Summary ({candidatePlacementSummary.length})
+          </button>
+        </div>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          Total Received in View: <strong style={{ color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>{currency} {totalFilteredCollected.toFixed(3)}</strong>
+        </span>
+      </div>
+
       {/* DataTable */}
       <div className="card">
+        {viewMode === 'summary' ? (
+          <window.DataTable
+            columns={summaryColumns}
+            data={candidatePlacementSummary}
+            searchPlaceholder="🔍 Search Candidate Ref, Name, CPR, Employer, CR, Case Manager..."
+            searchKeys={[
+              'candidate_ref',
+              'candidate_name',
+              'candidate_cpr',
+              'company_name',
+              'employer_cr',
+              'position_title',
+              'case_manager_name',
+              'datewise_text'
+            ]}
+            exportFilename="Candidate_Placement_Receipts_Summary.csv"
+            emptyMessage="No candidate receipt summary records found matching your filters."
+          />
+        ) : (
         <window.DataTable
           columns={columns}
           data={displayData}
@@ -1112,6 +1412,7 @@ function PaymentsView({ state }) {
           exportFilename="Payment_Collections_SaNDS.csv"
           emptyMessage="No payment receipt records found matching your filters."
         />
+        )}
       </div>
     </div>
   );

@@ -5208,18 +5208,38 @@ function NewClaimModal({ state, initialProps = {} }) {
 
 // 7. New Payment Receipt Modal
 function NewPaymentModal({ state, initialProps = {} }) {
-  const { claims, settings } = state;
+  const { claims = [], candidates = [], settings = {} } = state;
   const currency = settings.currency || 'BHD';
-  const undisputedClaims = (claims || []).filter(c => c.status !== 'settled');
+  const SearchableSelect = window.SearchableSelect;
+
+  const selectableCandidates = useMemo(() => {
+    const placed = (candidates || []).filter(c => c.status === 'placed' || c.company_name || c.joining_date);
+    return placed.length > 0 ? placed : (candidates || []);
+  }, [candidates]);
+
+  const candidateOptions = useMemo(() => {
+    return selectableCandidates.map(c => ({
+      value: String(c.id),
+      label: `${c.ref_no || `CR-${c.id}`} — ${c.full_name}`,
+      subLabel: `CPR: ${c.cpr_no || 'N/A'} • ${c.company_name || 'No Company'}`,
+      searchKeywords: `${c.ref_no || ''} ${c.full_name || ''} ${c.cpr_no || ''} ${c.company_name || ''} ${c.employer_cr || ''}`
+    }));
+  }, [selectableCandidates]);
+
+  const undisputedClaims = (claims || []).filter(c => c.status !== 'settled' && c.status !== 'terminated');
   const availableClaims = [...undisputedClaims];
   if (initialProps.claim && !availableClaims.some(c => String(c.id) === String(initialProps.claim.id))) {
     availableClaims.unshift(initialProps.claim);
   }
 
-  const initialClaim = initialProps.claim || availableClaims.find(c => String(c.id) === String(initialProps.claim_id)) || availableClaims[0];
-  const initialAmount = (initialClaim?.balance_bhd !== undefined && initialClaim?.balance_bhd !== null)
-    ? initialClaim.balance_bhd
-    : (initialClaim?.claim_amount_bhd || '700.000');
+  const hasExplicitClaim = Boolean(initialProps.claim || initialProps.claim_id);
+  const initialClaim = hasExplicitClaim
+    ? (initialProps.claim || availableClaims.find(c => String(c.id) === String(initialProps.claim_id)) || null)
+    : null;
+  const initialCandId = initialProps.candidate_id || initialClaim?.candidate_id || selectableCandidates[0]?.id || '';
+  const initialAmount = initialClaim
+    ? ((initialClaim.balance_bhd !== undefined && initialClaim.balance_bhd !== null) ? initialClaim.balance_bhd : (initialClaim.claim_amount_bhd || '0.000'))
+    : (initialProps.amount_paid_bhd || '');
 
   // Sequential receipt generation: RCPT-YYYY-NNNN
   const computeNextReceipt = () => {
@@ -5239,14 +5259,22 @@ function NewPaymentModal({ state, initialProps = {} }) {
   };
 
   const [form, setForm] = useState({
-    claim_id: initialClaim?.id || '',
+    candidate_id: initialCandId ? String(initialCandId) : '',
+    claim_id: initialClaim?.id ? String(initialClaim.id) : '',
     amount_paid_bhd: initialAmount,
     receipt_reference: computeNextReceipt(),
     payment_method: 'bank_transfer',
     payment_date: new Date().toISOString().split('T')[0],
     reference_doc_no: '',
-    notes: 'Direct EFT Ministry/Tamkeen Settlement'
+    notes: 'Direct EFT Ministry/Tamkeen Fund Release'
   });
+
+  const candidateClaims = useMemo(() => {
+    if (!form.candidate_id) return availableClaims;
+    return availableClaims.filter(c => String(c.candidate_id) === String(form.candidate_id));
+  }, [availableClaims, form.candidate_id]);
+
+  const activeCand = candidates.find(c => String(c.id) === String(form.candidate_id));
   const [attachments, setAttachments] = useState([]);
   const [saving, setSaving] = useState(false);
 
@@ -5306,10 +5334,19 @@ function NewPaymentModal({ state, initialProps = {} }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.candidate_id && !form.claim_id) {
+      window.AppStore.showNotification('Please select a Candidate or Claim', 'error');
+      return;
+    }
+    if (!form.amount_paid_bhd || Number(form.amount_paid_bhd) <= 0) {
+      window.AppStore.showNotification('Please enter a valid Amount Received (BHD)', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await window.api.payments.create({
-        claim_id: parseInt(form.claim_id),
+        candidate_id: form.candidate_id ? parseInt(form.candidate_id) : null,
+        claim_id: form.claim_id ? parseInt(form.claim_id) : null,
         amount_paid_bhd: parseFloat(form.amount_paid_bhd),
         receipt_reference: form.receipt_reference,
         payment_method: form.payment_method,
@@ -5337,7 +5374,50 @@ function NewPaymentModal({ state, initialProps = {} }) {
       <form onSubmit={handleSubmit}>
         <div className="modal-body" style={{ maxHeight: '78vh', overflowY: 'auto' }}>
           <div className="form-group">
-            <label className="form-label">Link to Claim *</label>
+            <label className="form-label">Candidate (Ref No. &amp; Placement) *</label>
+            {SearchableSelect ? (
+              <SearchableSelect
+                options={candidateOptions}
+                value={String(form.candidate_id || '')}
+                onChange={val => setForm(prev => ({ ...prev, candidate_id: String(val), claim_id: '' }))}
+                placeholder="Search by Candidate Ref No., Name, CPR, or Employer..."
+                searchPlaceholder="Type Candidate Ref (CR-...), Name, CPR, or Employer..."
+              />
+            ) : (
+              <select
+                className="select-control"
+                value={form.candidate_id}
+                onChange={e => setForm(prev => ({ ...prev, candidate_id: e.target.value, claim_id: '' }))}
+                required
+              >
+                {selectableCandidates.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.ref_no || `CR-${c.id}`} — {c.full_name} ({c.company_name || 'No Company'})
+                  </option>
+                ))}
+              </select>
+            )}
+            {activeCand && (
+              <div style={{
+                marginTop: '0.45rem',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.45rem 0.65rem',
+                fontSize: '0.76rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.4rem'
+              }}>
+                <span>Ref: <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{activeCand.ref_no || `CR-${activeCand.id}`}</strong> • CPR: {activeCand.cpr_no || 'N/A'}</span>
+                <span>🏢 <strong>{activeCand.company_name || 'Employer'}</strong></span>
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Link to Claim <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional — leave blank for Tamkeen Candidate-Direct release)</span></label>
             <select
               className="select-control"
               value={form.claim_id}
@@ -5347,14 +5427,17 @@ function NewPaymentModal({ state, initialProps = {} }) {
                 setForm(prev => ({
                   ...prev,
                   claim_id: targetId,
-                  amount_paid_bhd: (found?.balance_bhd !== undefined && found?.balance_bhd !== null) ? found.balance_bhd : (found?.claim_amount_bhd ?? prev.amount_paid_bhd)
+                  candidate_id: found?.candidate_id ? String(found.candidate_id) : prev.candidate_id,
+                  amount_paid_bhd: found
+                    ? ((found.balance_bhd !== undefined && found.balance_bhd !== null) ? found.balance_bhd : (found.claim_amount_bhd ?? prev.amount_paid_bhd))
+                    : prev.amount_paid_bhd
                 }));
               }}
-              required
             >
-              {availableClaims.map(c => (
+              <option value="">— Candidate Direct (Tamkeen Fund Release — Not tied to a specific claim) —</option>
+              {candidateClaims.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.claim_ref} - {c.candidate_name || `Candidate #${c.candidate_id}`} ({currency} {Number(c.balance_bhd !== undefined ? c.balance_bhd : c.claim_amount_bhd).toFixed(3)} balance)
+                  {c.claim_ref} - {c.milestone_title || c.claim_type} ({currency} {Number(c.balance_bhd !== undefined ? c.balance_bhd : c.claim_amount_bhd).toFixed(3)})
                 </option>
               ))}
             </select>

@@ -36,15 +36,18 @@ class PaymentController {
     public function create(array $data): void {
         $user = Auth::getCurrentUser();
         $claimId = (int)($data['claim_id'] ?? 0);
+        $candidateId = (int)($data['candidate_id'] ?? 0);
         $amount = (float)($data['amount_paid_bhd'] ?? 0.0);
 
-        if ($claimId <= 0 || $amount <= 0.0) {
-            Response::error('Valid Claim ID and Payment Amount (BHD) are required', 400);
+        if (($claimId <= 0 && $candidateId <= 0) || $amount <= 0.0) {
+            Response::error('Valid Candidate or Claim ID and Payment Amount (BHD) are required', 400);
         }
 
-        $claim = Claim::find($claimId);
-        if (!$claim) {
-            Response::notFound("Claim record with ID {$claimId} not found");
+        if ($claimId > 0) {
+            $claim = Claim::find($claimId);
+            if (!$claim) {
+                Response::notFound("Claim record with ID {$claimId} not found");
+            }
         }
 
         $payment = Payment::recordPayment($data, $user);

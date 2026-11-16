@@ -17,23 +17,24 @@ class Payment {
 
         $result = [];
         foreach ($payments as $p) {
-            $claim = $claims[$p['claim_id']] ?? null;
-            if (!$claim) continue;
+            $claim = !empty($p['claim_id']) ? ($claims[$p['claim_id']] ?? null) : null;
+            $candId = !empty($p['candidate_id']) ? (int)$p['candidate_id'] : ($claim['candidate_id'] ?? null);
+            $cand = $candId ? ($candidates[$candId] ?? null) : null;
+            if (!$claim && !$cand) continue;
 
+            $ownerCm = $claim['case_manager_name'] ?? ($cand['case_manager_name'] ?? '');
             if ($caseManagerScope !== null && $caseManagerScope !== '') {
-                if (strcasecmp($claim['case_manager_name'] ?? '', $caseManagerScope) !== 0) {
+                if (strcasecmp($ownerCm, $caseManagerScope) !== 0) {
                     continue;
                 }
             }
 
-            $candId = $claim['candidate_id'] ?? null;
-            $cand = $candId ? ($candidates[$candId] ?? null) : null;
             $msId = $claim['milestone_id'] ?? null;
             $ms = $msId ? ($milestones[$msId] ?? null) : null;
 
-            $p['claim_ref'] = $claim['claim_ref'];
-            $p['claim_type'] = $claim['claim_type'];
-            $p['total_claim_amount_bhd'] = (float)$claim['claim_amount_bhd'];
+            $p['claim_ref'] = $claim['claim_ref'] ?? 'Tamkeen Direct';
+            $p['claim_type'] = $claim['claim_type'] ?? 'tamkeen_direct';
+            $p['total_claim_amount_bhd'] = $claim ? (float)$claim['claim_amount_bhd'] : null;
             $p['case_manager_name'] = $claim['case_manager_name'] ?? ($cand['case_manager_name'] ?? 'System');
             $p['candidate_id'] = $candId;
             $p['candidate_name'] = $cand['full_name'] ?? 'N/A';
@@ -41,8 +42,11 @@ class Payment {
             $p['candidate_ref'] = $cand['ref_no'] ?? ($candId ? ('CR-' . str_pad($candId, 4, '0', STR_PAD_LEFT)) : 'N/A');
             $p['company_name'] = $cand['company_name'] ?? 'N/A';
             $p['employer_cr'] = $cand['employer_cr'] ?? ($claim['employer_cr'] ?? '');
+            $p['position_title'] = $cand['position_title'] ?? '';
             $p['milestone_id'] = $msId;
-            $p['milestone_title'] = $ms['milestone_title'] ?? ($claim['milestone_title'] ?? 'Retention Gate');
+            $p['milestone_title'] = $claim
+                ? ($ms['milestone_title'] ?? ($claim['milestone_title'] ?? 'Retention Gate'))
+                : 'Tamkeen Fund Release (Candidate Direct)';
             $p['milestone_code'] = $ms['milestone_code'] ?? ($claim['milestone_code'] ?? '');
 
             $result[] = $p;
@@ -80,6 +84,15 @@ class Payment {
         $store = Database::getStore();
         $id = count($store['payments']) > 0 ? max(array_column($store['payments'], 'id')) + 1 : 1;
         $claimId = (int)($data['claim_id'] ?? 0);
+        $candId = (int)($data['candidate_id'] ?? 0);
+        if ($candId <= 0 && $claimId > 0) {
+            foreach ($store['claims'] ?? [] as $cl) {
+                if ((int)$cl['id'] === $claimId) {
+                    $candId = (int)($cl['candidate_id'] ?? 0);
+                    break;
+                }
+            }
+        }
 
         $receiptNo = !empty($data['receipt_no'])
             ? trim($data['receipt_no'])
@@ -149,12 +162,13 @@ class Payment {
         $newPayment = [
             'id'               => $id,
             'receipt_no'       => $receiptNo,
-            'claim_id'         => $claimId,
+            'claim_id'         => $claimId > 0 ? $claimId : null,
+            'candidate_id'     => $candId > 0 ? $candId : null,
             'payment_date'     => !empty($data['payment_date']) ? $data['payment_date'] : date('Y-m-d'),
             'amount_paid_bhd'  => $amountPaid,
             'payment_method'   => $paymentMethod,
             'reference_doc_no' => trim($data['reference_doc_no'] ?? ($data['receipt_reference'] ?? '')),
-            'cashier_notes'    => trim($data['cashier_notes'] ?? ($data['notes'] ?? 'Installment payment collected')),
+            'cashier_notes'    => trim($data['cashier_notes'] ?? ($data['notes'] ?? 'Tamkeen fund release received')),
             'attachments'      => $processedAttachments,
             'created_by'       => $currentUser['id'],
             'created_at'       => date('Y-m-d H:i:s')
@@ -162,20 +176,22 @@ class Payment {
 
         $store['payments'][] = $newPayment;
 
-        // Check if claim is now fully paid
-        $totalPaid = 0.0;
-        foreach ($store['payments'] as $p) {
-            if ((int)$p['claim_id'] === $claimId) {
-                $totalPaid += (float)$p['amount_paid_bhd'];
-            }
-        }
-
-        foreach ($store['claims'] as &$c) {
-            if ((int)$c['id'] === $claimId) {
-                if ($totalPaid >= (float)$c['claim_amount_bhd'] && $c['status'] === 'undisputed') {
-                    $c['status'] = 'settled';
+        // Check if claim is now fully paid (only when linked to a specific claim)
+        if ($claimId > 0) {
+            $totalPaid = 0.0;
+            foreach ($store['payments'] as $p) {
+                if ((int)($p['claim_id'] ?? 0) === $claimId) {
+                    $totalPaid += (float)$p['amount_paid_bhd'];
                 }
-                break;
+            }
+
+            foreach ($store['claims'] as &$c) {
+                if ((int)$c['id'] === $claimId) {
+                    if ($totalPaid >= (float)$c['claim_amount_bhd'] && $c['status'] === 'undisputed') {
+                        $c['status'] = 'settled';
+                    }
+                    break;
+                }
             }
         }
 
