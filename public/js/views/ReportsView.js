@@ -7,16 +7,30 @@ const { useState, useEffect, useMemo } = React;
 function ReportsView({ state }) {
   const now = new Date();
   const pad2 = (n) => String(n).padStart(2, '0');
-  const defaultMonthStart = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+  const defaultMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const defaultMonthStart = `${defaultMonth}-01`;
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const defaultMonthEnd = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(lastDay)}`;
+  const defaultMonthEnd = `${defaultMonth}-${pad2(lastDay)}`;
 
   const [reportType, setReportType] = useState('case_manager_audit_log');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedCaseManager, setSelectedCaseManager] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [dateFrom, setDateFrom] = useState(defaultMonthStart);
   const [dateTo, setDateTo] = useState(defaultMonthEnd);
+
+  const handleMonthChange = (ym) => {
+    setSelectedMonth(ym);
+    if (!ym) return;
+    const [yStr, mStr] = ym.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    if (!y || !m) return;
+    const endDay = new Date(y, m, 0).getDate();
+    setDateFrom(`${ym}-01`);
+    setDateTo(`${ym}-${pad2(endDay)}`);
+  };
 
   const { settings = {}, currentUser = {}, caseManagers = [], users = [] } = state;
   const currency = settings.currency || 'BHD';
@@ -81,6 +95,7 @@ function ReportsView({ state }) {
 
   const handleResetFilters = () => {
     setSelectedCaseManager('all');
+    setSelectedMonth(defaultMonth);
     setDateFrom(defaultMonthStart);
     setDateTo(defaultMonthEnd);
   };
@@ -302,6 +317,21 @@ function ReportsView({ state }) {
             </select>
           </div>
 
+          {/* Month & Year Selector */}
+          <div style={{ minWidth: '160px' }}>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '4px' }}>
+              Month &amp; Year:
+            </label>
+            <input
+              type="month"
+              className="input-control"
+              value={selectedMonth}
+              onChange={e => handleMonthChange(e.target.value)}
+              style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+              title="Select Month & Year to auto-fill Date From and Date To"
+            />
+          </div>
+
           {/* Date From */}
           <div style={{ minWidth: '140px' }}>
             <label className="form-label" style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '4px' }}>
@@ -311,7 +341,7 @@ function ReportsView({ state }) {
               type="date"
               className="input-control"
               value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
+              onChange={e => { setSelectedMonth(''); setDateFrom(e.target.value); }}
               style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
             />
           </div>
@@ -325,7 +355,7 @@ function ReportsView({ state }) {
               type="date"
               className="input-control"
               value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
+              onChange={e => { setSelectedMonth(''); setDateTo(e.target.value); }}
               style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
             />
           </div>
