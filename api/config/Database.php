@@ -13,6 +13,7 @@ class Database {
     private static ?PDO $pdo = null;
     private static bool $useMySQL = false;
     private static string $storeFile = __DIR__ . '/../data/store.json';
+    private static ?array $storeCache = null;
 
     public static function getConnection(): ?PDO {
         if (self::$pdo === null) {
@@ -393,9 +394,13 @@ class Database {
     }
 
     public static function getStore(): array {
+        if (self::$storeCache !== null) {
+            return self::$storeCache;
+        }
         if (self::isMySQL()) {
             try {
-                return self::loadStoreFromMySQL();
+                self::$storeCache = self::loadStoreFromMySQL();
+                return self::$storeCache;
             } catch (Exception $e) {
                 // Graceful fallback to store.json if query fails
             }
@@ -430,10 +435,12 @@ class Database {
             }
         }
 
+        self::$storeCache = $decoded;
         return $decoded;
     }
 
     public static function saveStore(array $data): bool {
+        self::$storeCache = null;
         // 1. If MySQL is connected, persist to MySQL relational tables
         if (self::isMySQL()) {
             try {

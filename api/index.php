@@ -234,6 +234,7 @@ $router->post('/document-categories/{id}', [DocumentCategoryController::class, '
 $router->delete('/document-categories/{id}', [DocumentCategoryController::class, 'delete']);
 
 // ==================== EXECUTIVE REPORTS & KPI MICRO ROUTES ====================
+$router->get('/bootstrap', [ReportController::class, 'bootstrap']);
 $router->get('/reports/kpis', [ReportController::class, 'kpis']);
 $router->get('/reports', [ReportController::class, 'generate']);
 

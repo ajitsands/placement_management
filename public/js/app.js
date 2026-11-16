@@ -54,7 +54,35 @@ function App() {
     }
   };
 
-  // 1. If not authenticated, render Portal Login Screen
+  // 1. If initial auth check is still loading, show centered loader instead of flashing LoginView
+  if (!state.isAuthenticated && state.loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '1rem',
+        background: 'var(--bg-primary, #f8fafc)',
+        color: 'var(--text-primary, #0f172a)'
+      }}>
+        <div style={{
+          width: '44px',
+          height: '44px',
+          border: '4px solid rgba(37, 99, 235, 0.18)',
+          borderTopColor: 'var(--primary, #2563eb)',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--primary, #2563eb)' }}>
+          Loading Portal &amp; Verifying Session...
+        </div>
+      </div>
+    );
+  }
+
+  // 2. If not authenticated, render Portal Login Screen
   if (!state.isAuthenticated) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -102,19 +130,68 @@ function App() {
       {/* Main Content Area (Full-Width Responsive) */}
       <main className="main-wrapper">
         {state.loading && (
-          <div style={{
-            position: 'fixed', top: '96px', right: '24px', zIndex: 1500,
-            background: 'var(--bg-card)', border: '1px solid var(--border-light)',
-            padding: '0.45rem 0.95rem', borderRadius: 'var(--radius-full)',
-            boxShadow: 'var(--shadow-md)', fontSize: '0.78rem', fontWeight: 700,
-            display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)'
-          }}>
-            <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
-            Syncing Micro-API...
-          </div>
+          <>
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '3px',
+              zIndex: 2000,
+              background: 'linear-gradient(90deg, var(--primary, #2563eb), #38bdf8, var(--primary, #2563eb))',
+              backgroundSize: '200% 100%',
+              animation: 'pulse 1.2s ease-in-out infinite'
+            }} />
+            <div style={{
+              position: 'fixed', top: '96px', right: '24px', zIndex: 1500,
+              background: 'var(--bg-card)', border: '1px solid var(--border-light)',
+              padding: '0.45rem 0.95rem', borderRadius: 'var(--radius-full)',
+              boxShadow: 'var(--shadow-md)', fontSize: '0.78rem', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)'
+            }}>
+              <span style={{
+                width: '14px',
+                height: '14px',
+                border: '2px solid rgba(37, 99, 235, 0.2)',
+                borderTopColor: 'var(--primary, #2563eb)',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.75s linear infinite'
+              }} />
+              Loading Data...
+            </div>
+          </>
         )}
 
-        {renderActiveView()}
+        {(state.loading && (state.candidates || []).length === 0 && (state.claims || []).length === 0 && (state.milestones || []).length === 0) ? (
+          <div className="card" style={{
+            padding: '3rem 1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.85rem',
+            textAlign: 'center',
+            marginTop: '1rem'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '4px solid rgba(37, 99, 235, 0.18)',
+              borderTopColor: 'var(--primary, #2563eb)',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+              Loading Placements, Milestones &amp; Claims...
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Please wait while data is synchronized.
+            </div>
+          </div>
+        ) : (
+          renderActiveView()
+        )}
       </main>
 
       {/* Modals Container */}

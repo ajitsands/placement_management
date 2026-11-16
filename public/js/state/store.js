@@ -472,7 +472,35 @@ class AppStoreClass {
   }
 
   async refreshData() {
+    this.setState({ loading: true });
     try {
+      // Fast single-request bootstrap sync (1 HTTP call instead of 12+)
+      if (window.api?.bootstrap) {
+        try {
+          const boot = await window.api.bootstrap();
+          if (boot && boot.candidates !== undefined) {
+            this.setState({
+              kpis: boot.kpis || {},
+              candidates: boot.candidates || [],
+              jobs: boot.jobs || [],
+              events: boot.events || [],
+              interviews: Array.isArray(boot.interviews) ? boot.interviews : [],
+              checklistMasters: boot.checklist_masters || [],
+              documentCategories: boot.document_categories || [],
+              milestones: boot.milestones || [],
+              claims: boot.claims || [],
+              disputes: boot.disputes || [],
+              payments: boot.payments || [],
+              users: Array.isArray(boot.users) && boot.users.length > 0 ? boot.users : (this.state.users || []),
+              caseManagerActivities: boot.activities || []
+            });
+            return;
+          }
+        } catch (bootErr) {
+          console.warn('Bootstrap sync fallback to parallel calls:', bootErr);
+        }
+      }
+
       const activeUser = this.state.currentUser;
       const targetCM = activeUser?.role === 'case_manager'
         ? (activeUser.case_manager_code || activeUser.full_name)
@@ -515,6 +543,8 @@ class AppStoreClass {
       });
     } catch (err) {
       console.error('Data refresh error:', err);
+    } finally {
+      this.setState({ loading: false });
     }
   }
 

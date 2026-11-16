@@ -269,6 +269,8 @@ class ApiService {
     updateCandidateOutcome: (interviewId, candidateId, data) => this.request(`/interviews/${interviewId}/candidates/${candidateId}`, { method: 'PUT', body: data }),
     placeCandidate: (interviewId, candidateId, data = {}) => this.request(`/interviews/${interviewId}/candidates/${candidateId}/place`, { method: 'POST', body: data })
   };
+
+  bootstrap = () => this.request('/bootstrap');
 }
 
 window.api = new ApiService();
