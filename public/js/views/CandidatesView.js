@@ -1524,100 +1524,22 @@ function CandidatesView({ state }) {
           </div>
         </div>
 
-        {/* Row 2: Quick Presets, Match Counter & Clear All Button */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-light)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Presets:</span>
-            <button
-              type="button"
-              className={`btn btn-sm ${selectedTamkeenFilter === 'pending' ? 'btn-warning' : 'btn-outline'}`}
-              style={{
-                fontSize: '0.72rem',
-                padding: '0.15rem 0.55rem',
-                borderRadius: 'var(--radius-full)',
-                fontWeight: 700,
-                borderColor: selectedTamkeenFilter === 'pending' ? undefined : 'var(--warning, #d97706)',
-                color: selectedTamkeenFilter === 'pending' ? undefined : 'var(--warning, #d97706)'
-              }}
-              onClick={() => handleTamkeenFilterChange(selectedTamkeenFilter === 'pending' ? 'all' : 'pending')}
-              title="Show candidates needing manual Tamkeen approval"
-            >
-              ⏳ Pending Tamkeen ({pendingTamkeenCount})
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${selectedTamkeenFilter === 'approved' ? 'btn-success' : 'btn-outline'}`}
-              style={{
-                fontSize: '0.72rem',
-                padding: '0.15rem 0.55rem',
-                borderRadius: 'var(--radius-full)',
-                fontWeight: 700,
-                borderColor: selectedTamkeenFilter === 'approved' ? undefined : 'var(--success, #059669)',
-                color: selectedTamkeenFilter === 'approved' ? undefined : 'var(--success, #059669)'
-              }}
-              onClick={() => handleTamkeenFilterChange(selectedTamkeenFilter === 'approved' ? 'all' : 'approved')}
-              title="Show candidates approved by Tamkeen"
-            >
-              ✓ Tamkeen Approved ({approvedTamkeenCount})
-            </button>
+        {/* Row 2: Match Counter & Clear All Button */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            Showing <strong style={{ color: 'var(--primary)' }}>{displayData.length}</strong> of {candidates.length} candidates
+          </span>
+          {activeFilterCount > 0 && (
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)' }}
-              onClick={() => handleApplyYearPreset('2025')}
+              style={{ fontSize: '0.75rem', padding: '0.2rem 0.65rem', borderRadius: 'var(--radius-full)', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+              onClick={handleClearAllFilters}
+              title="Reset all filters to default"
             >
-              📅 Reg 2025
+              ✕ Clear All Filters ({activeFilterCount})
             </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)' }}
-              onClick={() => handleApplyYearPreset('2026')}
-            >
-              📅 Reg 2026
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)' }}
-              onClick={() => { handleGenderChange('Male'); }}
-            >
-              👨 Male
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)' }}
-              onClick={() => { handleGenderChange('Female'); }}
-            >
-              👩 Female
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)' }}
-              onClick={() => { handleEducationChange('Bachelor Degree'); }}
-            >
-              🎓 Bachelor
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Showing <strong style={{ color: 'var(--primary)' }}>{displayData.length}</strong> of {candidates.length} candidates
-            </span>
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: '0.75rem', padding: '0.2rem 0.65rem', borderRadius: 'var(--radius-full)', borderColor: 'var(--danger)', color: 'var(--danger)' }}
-                onClick={handleClearAllFilters}
-                title="Reset all filters to default"
-              >
-                ✕ Clear All Filters ({activeFilterCount})
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
