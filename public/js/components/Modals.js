@@ -131,6 +131,8 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
     gender: 'Male',
     education: 'Bachelor Degree',
     registration_date: new Date().toISOString().split('T')[0],
+    approved_by_job_center: 'Yes',
+    approved_by_tamkeen: 'No',
     tamkeen_approval_date: '',
     hot_lists: [],
     assigned_case_managers: initialAssignedCms,
@@ -374,7 +376,9 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
         center: form.center || initialCenter || 'Enma Mall',
         event_id: eventId || null,
         ref_no: trimmedRef,
-        tamkeen_approval_date: form.tamkeen_approval_date || null,
+        approved_by_job_center: form.approved_by_job_center || 'Yes',
+        approved_by_tamkeen: form.approved_by_tamkeen || 'No',
+        tamkeen_approval_date: form.approved_by_tamkeen === 'Yes' ? (form.tamkeen_approval_date || null) : null,
         hot_lists: form.hot_lists || [],
         assigned_case_managers: form.assigned_case_managers || [],
         case_manager_id: primaryCm?.id || form.case_manager_id || undefined,
@@ -535,8 +539,20 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
               </div>
             </div>
 
-            {/* Row 4: Job Center Reg Date, Tamkeen Approval Date & Center */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            {/* Row 4: Job Center Approval & Reg Date, Tamkeen Approval & Date, Center */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Job Center Approved *</label>
+                <select
+                  className="select-control"
+                  value={form.approved_by_job_center}
+                  onChange={e => setForm({ ...form, approved_by_job_center: e.target.value })}
+                >
+                  <option value="Yes">Yes (Approved)</option>
+                  <option value="No">No (Pending)</option>
+                </select>
+              </div>
+
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Job Center Reg Date *</label>
                 <input
@@ -549,12 +565,38 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Tamkeen Approved *</label>
+                <select
+                  className="select-control"
+                  value={form.approved_by_tamkeen}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setForm(prev => ({
+                      ...prev,
+                      approved_by_tamkeen: val,
+                      tamkeen_approval_date: val === 'No' ? '' : (prev.tamkeen_approval_date || new Date().toISOString().split('T')[0])
+                    }));
+                  }}
+                >
+                  <option value="No">No (Pending)</option>
+                  <option value="Yes">Yes (Approved)</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Tamkeen Approval Date</label>
                 <input
                   type="date"
                   className="input-control"
                   value={form.tamkeen_approval_date}
-                  onChange={e => setForm({ ...form, tamkeen_approval_date: e.target.value })}
+                  onChange={e => {
+                    const dt = e.target.value;
+                    setForm(prev => ({
+                      ...prev,
+                      tamkeen_approval_date: dt,
+                      approved_by_tamkeen: dt ? 'Yes' : prev.approved_by_tamkeen
+                    }));
+                  }}
                 />
               </div>
 

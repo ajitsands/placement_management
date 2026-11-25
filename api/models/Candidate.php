@@ -195,7 +195,12 @@ class Candidate {
         }
 
         $tamkeenDate = !empty($data['tamkeen_approval_date']) ? trim((string)$data['tamkeen_approval_date']) : null;
-        $hasTamkeen = $tamkeenDate !== null && $tamkeenDate !== '';
+        $hasTamkeenDate = $tamkeenDate !== null && $tamkeenDate !== '';
+        $jcApproved = (isset($data['approved_by_job_center']) && strtolower(trim((string)$data['approved_by_job_center'])) === 'no') ? 'No' : 'Yes';
+        $tmkApproved = ((isset($data['approved_by_tamkeen']) && strtolower(trim((string)$data['approved_by_tamkeen'])) === 'yes') || $hasTamkeenDate) ? 'Yes' : 'No';
+        if ($tmkApproved === 'No') {
+            $tamkeenDate = null;
+        }
 
         $newCandidate = [
             'id'                       => $id,
@@ -230,14 +235,14 @@ class Candidate {
             'job_code'                 => !empty($data['job_code']) ? trim($data['job_code']) : null,
             'checklist_completion_pct' => $checklistEval['percentage'],
             'checklist_items'          => $checklistEval['item_breakdown'],
-            'approved_by_job_center'   => 'Yes',
-            'job_center_approved_at'   => date('Y-m-d H:i:s'),
-            'job_center_approved_by'   => $caseManagerName,
-            'approved_by_tamkeen'      => $hasTamkeen ? 'Yes' : 'No',
+            'approved_by_job_center'   => $jcApproved,
+            'job_center_approved_at'   => $jcApproved === 'Yes' ? date('Y-m-d H:i:s') : null,
+            'job_center_approved_by'   => $jcApproved === 'Yes' ? $caseManagerName : null,
+            'approved_by_tamkeen'      => $tmkApproved,
             'tamkeen_approval_date'    => $tamkeenDate,
             'tamkeen_approval_notes'   => null,
-            'tamkeen_approved_by'      => $hasTamkeen ? $caseManagerName : null,
-            'tamkeen_approved_at'      => $hasTamkeen ? date('Y-m-d H:i:s') : null,
+            'tamkeen_approved_by'      => $tmkApproved === 'Yes' ? $caseManagerName : null,
+            'tamkeen_approved_at'      => $tmkApproved === 'Yes' ? date('Y-m-d H:i:s') : null,
             'created_at'               => date('Y-m-d H:i:s')
         ];
 
