@@ -8694,11 +8694,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
 
   const [exitType, setExitType] = useState('resigned');
   const [exitDate, setExitDate] = useState(new Date().toISOString().split('T')[0]);
-  const [exitReason, setExitReason] = useState(
-    wasPlaced 
-      ? `Candidate exited placement with ${liveCandidate.company_name || 'employer'}. Renewed registration and returned to Available in Pool.`
-      : ''
-  );
+  const [exitReason, setExitReason] = useState('');
   const [clearPlacement, setClearPlacement] = useState(true);
 
   const [phone, setPhone] = useState(liveCandidate.phone || '');
@@ -8706,11 +8702,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
   const [education, setEducation] = useState(liveCandidate.education || 'Bachelor Degree');
   const [caseManager, setCaseManager] = useState(liveCandidate.case_manager_name || (caseManagers[0]?.case_manager_code || 'Husain'));
   const [renewalDate, setRenewalDate] = useState(new Date().toISOString().split('T')[0]);
-  const [remarks, setRemarks] = useState(
-    wasPlaced
-      ? `Placement with ${liveCandidate.company_name || 'employer'} ended (Exit/Resigned). Registration renewed and candidate moved back to Available in Pool.`
-      : `12-month registration cycle renewal. Candidate profile active in national talent pool.`
-  );
+  const [remarks, setRemarks] = useState('');
   const [newDocuments, setNewDocuments] = useState([]);
   const initialRenewalDoc = wasPlaced ? 'Resignation Letter / Exit Settlement' : (activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploadDocType, setUploadDocType] = useState(initialRenewalDoc);
@@ -8812,17 +8804,10 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
 
   return (
     <div className="modal-content" style={{ maxWidth: '960px', width: '94vw', maxHeight: '92vh', overflowY: 'auto' }}>
-      <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
-        <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            <span>🔄</span> {wasPlaced ? 'Record Placement Exit & Renew to Pool' : 'Renew Candidate Registration'}
-          </h2>
-          <p className="page-subtitle" style={{ margin: '0.25rem 0 0' }}>
-            {wasPlaced
-              ? 'Archive employer placement, preserve candidate reference number, and renew talent pool validity for 12 months.'
-              : 'Preserve candidate reference number and extend national talent pool placement validity for 12 months.'}
-          </p>
-        </div>
+      <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>
+          <span>🔄</span> {wasPlaced ? 'Placement Exit & Renewal' : 'Renew Candidate Registration'}
+        </h2>
         <button
           type="button"
           className="modal-close"
@@ -8834,7 +8819,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', padding: '1.25rem' }}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', padding: '1rem 1.25rem' }}>
 
           {/* Placement Exit Banner if candidate was placed */}
           {wasPlaced && (
@@ -8843,42 +8828,38 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 background: 'rgba(14, 165, 233, 0.08)',
                 border: '1px solid rgba(14, 165, 233, 0.35)',
                 borderRadius: 'var(--radius-md, 8px)',
-                padding: '1rem',
+                padding: '0.85rem 1rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.65rem'
+                gap: '0.55rem'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span>💼</span> Placement Exit & Return to Talent Pool
+                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>💼</span> Placement Exit ({liveCandidate.company_name || 'Employer'})
                 </div>
-                <span className="badge badge-warning" style={{ fontSize: '0.74rem' }}>
+                <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>
                   Currently Placed
                 </span>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                Candidate is currently linked to <strong>{liveCandidate.company_name || 'Employer'}</strong> as <strong>{liveCandidate.position_title || 'Placed Specialist'}</strong>.
-                Completing this renewal will archive their placement and exit details in candidate logs, reset the 12-month registration validity, and move the candidate back to <strong>Available in Pool</strong>.
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
                 <div>
-                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit / Resignation Type *</label>
+                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Type *</label>
                   <select
                     className="select-control"
                     value={exitType}
                     onChange={e => setExitType(e.target.value)}
                     style={{ fontSize: '0.82rem' }}
                   >
-                    <option value="resigned">⚠️ Voluntary Resignation (Candidate Resigned)</option>
-                    <option value="terminated">⚠️ Employer Contract Ended / Terminated</option>
-                    <option value="probation_exit">⚠️ Probation Period Exit</option>
-                    <option value="completed_365">🎓 365-Day Program Completed (Re-enrolling in Pool)</option>
-                    <option value="general_renewal">🔄 Cycle Renewal</option>
+                    <option value="resigned">Voluntary Resignation</option>
+                    <option value="terminated">Contract Ended / Terminated</option>
+                    <option value="probation_exit">Probation Period Exit</option>
+                    <option value="completed_365">365-Day Program Completed</option>
+                    <option value="general_renewal">Cycle Renewal</option>
                   </select>
                 </div>
                 <div>
-                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Effective Date *</label>
+                  <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Date *</label>
                   <input
                     type="date"
                     className="input-control"
@@ -8889,11 +8870,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 </div>
               </div>
               <div>
-                <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Reason / Clearance Note</label>
+                <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 700 }}>Exit Reason</label>
                 <input
                   type="text"
                   className="input-control"
-                  placeholder="e.g. Candidate tendered resignation / contract completed / mutually separated"
+                  placeholder="Exit reason..."
                   value={exitReason}
                   onChange={e => setExitReason(e.target.value)}
                   style={{ fontSize: '0.82rem' }}
@@ -8974,10 +8955,10 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
           </div>
 
           {/* Section 1: Renewal Effective Date & Assigned Case Manager */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                Renewal Effective Date *
+                Renewal Date *
               </label>
               <input
                 type="date"
@@ -8986,14 +8967,11 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 onChange={e => setRenewalDate(e.target.value)}
                 required
               />
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Resets the 12-month validity timer starting from this date.
-              </div>
             </div>
 
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                Assigned Case Manager *
+                Case Manager *
               </label>
               <select
                 className="input-control"
@@ -9007,49 +8985,40 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                   </option>
                 ))}
               </select>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Case Manager overseeing placement matching & retention gates.
-              </div>
             </div>
           </div>
 
           {/* Section 2: Editable Contact Info & Education Upgrade */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                Contact Phone Number
+                Phone
               </label>
               <input
                 type="text"
                 className="input-control"
                 value={phone}
-                placeholder="e.g. 39991234 or +973 39991234"
+                placeholder="Phone number"
                 onChange={e => setPhone(e.target.value)}
               />
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Update if candidate changed their contact telephone.
-              </div>
             </div>
 
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                Contact Email Address
+                Email
               </label>
               <input
                 type="email"
                 className="input-control"
                 value={email}
-                placeholder="candidate@example.bh"
+                placeholder="Email address"
                 onChange={e => setEmail(e.target.value)}
               />
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Primary email for job notifications and interviews.
-              </div>
             </div>
 
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                Education Level (Qualification Upgrade)
+                Education Level
               </label>
               <select
                 className="input-control"
@@ -9064,26 +9033,23 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                 <option value="Doctorate / PhD">Doctorate / PhD</option>
                 <option value="Professional Certification">Professional Certification</option>
               </select>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Update if candidate achieved a higher educational degree.
-              </div>
             </div>
           </div>
 
           {/* Section 3: Renewal Supporting Attachments */}
-          <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', background: 'var(--bg-subtle, #f8fafc)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>📎</span> Attach Renewal Documents (Optional)
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', background: 'var(--bg-subtle, #f8fafc)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.55rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>📎</span> Attachments (Optional)
               </div>
               <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
-                {newDocuments.length} New File(s)
+                {newDocuments.length} File(s)
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', marginBottom: '0.65rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', marginBottom: '0.45rem' }}>
               <div>
-                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Document Category</label>
+                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category</label>
                 <select
                   className="input-control"
                   style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
@@ -9103,12 +9069,12 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
               </div>
 
               <div>
-                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Custom Title / Label</label>
+                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Title</label>
                 <input
                   type="text"
                   className="input-control"
                   style={{ fontSize: '0.78rem', padding: '0.35rem 0.55rem' }}
-                  placeholder="e.g. CPR Valid 2028, Updated CV 2026"
+                  placeholder="Document title"
                   value={uploadDocName}
                   onChange={e => setUploadDocName(e.target.value)}
                 />
@@ -9128,7 +9094,7 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
                     background: 'var(--bg-card)'
                   }}
                 >
-                  <span>📁</span> Select & Attach File
+                  <span>📁</span> Select File
                   <input
                     type="file"
                     style={{ display: 'none' }}
@@ -9139,31 +9105,8 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
               </div>
             </div>
 
-            {selectedDocCategory?.description && (
-              <div style={{
-                marginBottom: '0.75rem',
-                fontSize: '0.74rem',
-                color: 'var(--text-secondary, #475569)',
-                background: 'rgba(59, 130, 246, 0.07)',
-                borderLeft: '3px solid #3b82f6',
-                padding: '0.4rem 0.65rem',
-                borderRadius: '0 4px 4px 0',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.45rem',
-                lineHeight: 1.4
-              }}>
-                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>💡</span>
-                <div>
-                  <strong style={{ color: 'var(--text-primary)' }}>{selectedDocCategory.name}: </strong>
-                  <span>{selectedDocCategory.description}</span>
-                </div>
-              </div>
-            )}
-
-            {/* List of New Attachments Added */}
             {newDocuments.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.45rem' }}>
                 {newDocuments.map((doc, idx) => (
                   <div
                     key={doc.id || idx}
@@ -9204,31 +9147,25 @@ function RenewCandidateModal({ state, candidate: initialCandidate, fromPlaced: i
             )}
           </div>
 
-          {/* Section 4: Renewal Remarks / Justification */}
+          {/* Section 4: Renewal Notes */}
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label" style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-              Renewal Remarks & Notes *
+              Notes *
             </label>
             <textarea
               className="input-control"
-              rows="3"
+              rows="2"
               style={{ fontSize: '0.85rem' }}
               value={remarks}
               onChange={e => setRemarks(e.target.value)}
-              placeholder="Enter remarks for audit and history tracking..."
+              placeholder="Short renewal / exit note..."
               required
             />
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Recorded in candidate renewal history and permanent audit ledger.
-            </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.85rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-            Ref <strong>{liveCandidate.ref_no}</strong> will be preserved. Candidate status resets to <strong>Available</strong>.
-          </div>
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               type="button"
