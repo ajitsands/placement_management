@@ -238,7 +238,11 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated, 
   }, [documentCategories]);
 
   // Multiple Document Upload Area State
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] = useState(() => (
+    isEdit && Array.isArray(editCandidate.documents)
+      ? editCandidate.documents.map((d, idx) => ({ ...d, id: d.id || `doc-existing-${idx}` }))
+      : []
+  ));
   const [uploadDocType, setUploadDocType] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploadDocName, setUploadDocName] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [saving, setSaving] = useState(false);
@@ -249,7 +253,16 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated, 
     String(c.name).trim().toLowerCase() === String(uploadDocType).trim().toLowerCase()
   ) || activeDocCategories[0] || null;
 
-  const [checkedItems, setCheckedItems] = useState(() => new Set());
+  const [checkedItems, setCheckedItems] = useState(() => {
+    const s = new Set();
+    if (isEdit && Array.isArray(editCandidate.checklist_items)) {
+      editCandidate.checklist_items.forEach(ci => {
+        if (typeof ci === 'string') s.add(ci);
+        else if (ci && (ci.completed || ci.is_checked)) s.add(ci.code || String(ci.id));
+      });
+    }
+    return s;
+  });
 
   const activeChecklistMasters = useMemo(() => {
     if (Array.isArray(checklistMasters) && checklistMasters.length > 0) {
@@ -398,14 +411,19 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated, 
         case_manager_name: primaryCm ? (primaryCm.code || primaryCm.name || primaryCm.username) : form.case_manager_name,
         phone: form.phone.trim(),
         email: form.email.trim(),
-        status: isEdit ? (editCandidate.status || form.status || 'registered') : (isIncomplete ? 'registration_incomplete' : (form.status || 'registered')),
+        status: (isEdit && editCandidate.status && !['registered', 'registration_incomplete'].includes(String(editCandidate.status).toLowerCase()))
+          ? editCandidate.status
+          : (isIncomplete ? 'registration_incomplete' : 'registered'),
         checklist_items: Array.from(checkedItems),
         documents: documents.map(d => ({
+          ...(d.id && !String(d.id).startsWith('doc-') ? { id: d.id } : {}),
           name: d.name,
           type: d.type,
           file_name: d.file_name,
           file_size: d.file_size,
-          file_data: d.file_data
+          ...(d.file_url ? { file_url: d.file_url } : {}),
+          ...(d.uploaded_at ? { uploaded_at: d.uploaded_at } : {}),
+          ...(d.file_data ? { file_data: d.file_data } : {})
         }))
       };
 

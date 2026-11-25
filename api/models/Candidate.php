@@ -525,8 +525,34 @@ class Candidate {
                     $c['remarks'] = trim($data['remarks']);
                     $c['notes'] = trim($data['remarks']);
                 }
+                if (array_key_exists('checklist_items', $data)) {
+                    $checkedIdentifiers = [];
+                    $rawItems = $data['checklist_items'];
+                    if (is_string($rawItems)) {
+                        $decodedItems = json_decode($rawItems, true);
+                        $rawItems = is_array($decodedItems) ? $decodedItems : [];
+                    }
+                    if (is_array($rawItems)) {
+                        foreach ($rawItems as $chk) {
+                            if (is_string($chk) || is_numeric($chk)) {
+                                $checkedIdentifiers[] = $chk;
+                            } elseif (is_array($chk) && (!empty($chk['completed']) || !empty($chk['is_checked']))) {
+                                $checkedIdentifiers[] = $chk['code'] ?? ($chk['id'] ?? null);
+                            }
+                        }
+                    }
+                    $checklistEval = ChecklistMaster::evaluateProgress($checkedIdentifiers);
+                    $c['checklist_completion_pct'] = $checklistEval['percentage'];
+                    $c['checklist_items'] = $checklistEval['item_breakdown'];
+                }
                 if (isset($data['documents']) && is_array($data['documents'])) {
-                    $c['documents'] = $data['documents'];
+                    $processedDocs = [];
+                    foreach ($data['documents'] as $docItem) {
+                        if (is_array($docItem)) {
+                            $processedDocs[] = self::processDocumentFile($docItem);
+                        }
+                    }
+                    $c['documents'] = $processedDocs;
                 }
 
                 Database::saveStore($store);
