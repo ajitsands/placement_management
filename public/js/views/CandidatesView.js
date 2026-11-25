@@ -21,20 +21,11 @@ function CandidatesView({ state }) {
     const saved = sessionStorage.getItem('sands_claims_cand_status_v2');
     return saved || 'registered';
   });
-  const [selectedGender, setSelectedGender] = useState(() => {
-    return sessionStorage.getItem('sands_claims_cand_gender') || 'all';
-  });
-  const [selectedEducation, setSelectedEducation] = useState(() => {
-    return sessionStorage.getItem('sands_claims_cand_education') || 'all';
+  const [selectedHotList, setSelectedHotList] = useState(() => {
+    return sessionStorage.getItem('sands_claims_cand_hot_list') || 'all';
   });
   const [selectedCenter, setSelectedCenter] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_center') || 'all';
-  });
-  const [regDateFrom, setRegDateFrom] = useState(() => {
-    return sessionStorage.getItem('sands_claims_cand_reg_from') || '';
-  });
-  const [regDateTo, setRegDateTo] = useState(() => {
-    return sessionStorage.getItem('sands_claims_cand_reg_to') || '';
   });
   const [selectedTamkeenFilter, setSelectedTamkeenFilter] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_tamkeen') || 'all';
@@ -46,11 +37,8 @@ function CandidatesView({ state }) {
     sessionStorage.setItem('sands_claims_cand_scope', 'mine');
     setSelectedCaseManager('');
     setStatusFilter('registered');
-    setSelectedGender('all');
-    setSelectedEducation('all');
+    setSelectedHotList('all');
     setSelectedCenter('all');
-    setRegDateFrom('');
-    setRegDateTo('');
     setSelectedTamkeenFilter('all');
   }, [currentUser?.id, currentUser?.role]);
 
@@ -88,14 +76,9 @@ function CandidatesView({ state }) {
     sessionStorage.setItem('sands_claims_cand_cm', cm);
   };
 
-  const handleGenderChange = (gender) => {
-    setSelectedGender(gender);
-    sessionStorage.setItem('sands_claims_cand_gender', gender);
-  };
-
-  const handleEducationChange = (edu) => {
-    setSelectedEducation(edu);
-    sessionStorage.setItem('sands_claims_cand_education', edu);
+  const handleHotListChange = (val) => {
+    setSelectedHotList(val);
+    sessionStorage.setItem('sands_claims_cand_hot_list', val);
   };
 
   const handleCenterChange = (center) => {
@@ -103,15 +86,32 @@ function CandidatesView({ state }) {
     sessionStorage.setItem('sands_claims_cand_center', center);
   };
 
-  const handleRegDateFrom = (val) => {
-    setRegDateFrom(val);
-    sessionStorage.setItem('sands_claims_cand_reg_from', val);
-  };
-
-  const handleRegDateTo = (val) => {
-    setRegDateTo(val);
-    sessionStorage.setItem('sands_claims_cand_reg_to', val);
-  };
+  const hotListFilterOptions = useMemo(() => {
+    const defaults = ['Priority Placement', 'VIP / Executive', 'Immediate Joiner', 'High Demand Skill', 'Tamkeen Priority'];
+    let configured = [];
+    const raw = settings?.hot_list_options;
+    if (Array.isArray(raw)) {
+      configured = raw;
+    } else if (typeof raw === 'string' && raw.trim() !== '') {
+      try {
+        const parsed = JSON.parse(raw);
+        configured = Array.isArray(parsed) ? parsed : raw.split(',').map(s => s.trim()).filter(Boolean);
+      } catch (e) {
+        configured = raw.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+    const base = configured.length > 0 ? configured : defaults;
+    const set = new Set(base.map(t => String(t).trim()).filter(Boolean));
+    (candidates || []).forEach(c => {
+      if (Array.isArray(c.hot_lists)) {
+        c.hot_lists.forEach(t => {
+          const clean = String(t || '').trim();
+          if (clean) set.add(clean);
+        });
+      }
+    });
+    return Array.from(set);
+  }, [settings?.hot_list_options, candidates]);
 
   const parseDateStr = (raw) => {
     if (!raw) return '';
@@ -134,40 +134,18 @@ function CandidatesView({ state }) {
     return str;
   };
 
-  const handleClearRegDate = () => {
-    setRegDateFrom('');
-    setRegDateTo('');
-    sessionStorage.removeItem('sands_claims_cand_reg_from');
-    sessionStorage.removeItem('sands_claims_cand_reg_to');
-  };
-
-  const handleApplyYearPreset = (year) => {
-    const from = `${year}-01-01`;
-    const to = `${year}-12-31`;
-    setRegDateFrom(from);
-    setRegDateTo(to);
-    sessionStorage.setItem('sands_claims_cand_reg_from', from);
-    sessionStorage.setItem('sands_claims_cand_reg_to', to);
-  };
-
   const handleClearAllFilters = () => {
     setSelectedCaseManager('');
     setStatusFilter('registered');
-    setSelectedGender('all');
-    setSelectedEducation('all');
+    setSelectedHotList('all');
     setSelectedCenter('all');
     setSelectedTamkeenFilter('all');
-    setRegDateFrom('');
-    setRegDateTo('');
     sessionStorage.removeItem('sands_claims_cand_cm');
     sessionStorage.setItem('sands_claims_cand_status_v2', 'registered');
     sessionStorage.setItem('sands_claims_cand_status', 'registered');
-    sessionStorage.removeItem('sands_claims_cand_gender');
-    sessionStorage.removeItem('sands_claims_cand_education');
+    sessionStorage.removeItem('sands_claims_cand_hot_list');
     sessionStorage.removeItem('sands_claims_cand_center');
     sessionStorage.removeItem('sands_claims_cand_tamkeen');
-    sessionStorage.removeItem('sands_claims_cand_reg_from');
-    sessionStorage.removeItem('sands_claims_cand_reg_to');
   };
 
   // Count active non-default filters
@@ -175,13 +153,11 @@ function CandidatesView({ state }) {
     let count = 0;
     if (selectedCaseManager) count++;
     if (statusFilter && statusFilter !== 'registered') count++;
-    if (selectedGender && selectedGender !== 'all') count++;
-    if (selectedEducation && selectedEducation !== 'all') count++;
+    if (selectedHotList && selectedHotList !== 'all') count++;
     if (selectedCenter && selectedCenter !== 'all') count++;
     if (selectedTamkeenFilter && selectedTamkeenFilter !== 'all') count++;
-    if (regDateFrom || regDateTo) count++;
     return count;
-  }, [selectedCaseManager, statusFilter, selectedGender, selectedEducation, selectedCenter, selectedTamkeenFilter, regDateFrom, regDateTo]);
+  }, [selectedCaseManager, statusFilter, selectedHotList, selectedCenter, selectedTamkeenFilter]);
 
   // Tamkeen Approval summary counters
   const pendingTamkeenCount = useMemo(() => {
@@ -355,35 +331,16 @@ function CandidatesView({ state }) {
         return true;
       });
     }
-    if (selectedGender && selectedGender !== 'all') {
+    if (selectedHotList && selectedHotList !== 'all') {
       result = result.filter(c => {
-        const g = String(c.gender || '').trim().toLowerCase();
-        return g === selectedGender.toLowerCase();
-      });
-    }
-    if (selectedEducation && selectedEducation !== 'all') {
-      result = result.filter(c => {
-        const edu = String(c.education || '').trim().toLowerCase();
-        const target = selectedEducation.toLowerCase();
-        return edu === target || edu.includes(target) || target.includes(edu);
+        const list = Array.isArray(c.hot_lists) ? c.hot_lists : [];
+        return list.some(t => String(t || '').trim().toLowerCase() === selectedHotList.toLowerCase());
       });
     }
     if (selectedCenter && selectedCenter !== 'all') {
       result = result.filter(c => {
         const center = String(c.center || 'Enma Mall').trim().toLowerCase();
         return center === selectedCenter.toLowerCase();
-      });
-    }
-    if (regDateFrom) {
-      result = result.filter(c => {
-        const d = parseDateStr(c.registration_date || c.created_at);
-        return d && d >= regDateFrom;
-      });
-    }
-    if (regDateTo) {
-      result = result.filter(c => {
-        const d = parseDateStr(c.registration_date || c.created_at);
-        return d && d <= regDateTo;
       });
     }
     if (selectedTamkeenFilter !== 'all') {
@@ -393,7 +350,7 @@ function CandidatesView({ state }) {
       });
     }
     return result;
-  }, [candidates, selectedCaseManager, statusFilter, selectedGender, selectedEducation, selectedCenter, selectedTamkeenFilter, regDateFrom, regDateTo]);
+  }, [candidates, selectedCaseManager, statusFilter, selectedHotList, selectedCenter, selectedTamkeenFilter]);
 
   // Status badge styling helper strictly mapped to core lifecycle logic
   const renderStatusBadge = (status, candidate) => {
@@ -1414,76 +1371,21 @@ function CandidatesView({ state }) {
             </div>
           )}
 
-          {/* 2. Job Center Reg Date Range */}
+          {/* 2. Hot List Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              📅 Job Center Reg Date:
-            </span>
-            <input
-              type="date"
-              className="input-control"
-              style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', width: '130px' }}
-              value={regDateFrom}
-              onChange={e => handleRegDateFrom(e.target.value)}
-              title="Job Center Reg Date From"
-            />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>to</span>
-            <input
-              type="date"
-              className="input-control"
-              style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', width: '130px' }}
-              value={regDateTo}
-              onChange={e => handleRegDateTo(e.target.value)}
-              title="Job Center Reg Date To"
-            />
-            {(regDateFrom || regDateTo) && (
-              <button
-                type="button"
-                onClick={handleClearRegDate}
-                title="Clear date filter"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.85rem', padding: '0 0.2rem' }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* 3. Sex / Gender Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              🚻 Gender:
+              🔥 Hot List:
             </span>
             <select
               className="select-control"
-              style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem', minWidth: '110px', width: 'auto' }}
-              value={selectedGender}
-              onChange={e => handleGenderChange(e.target.value)}
+              style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem', minWidth: '165px', width: 'auto' }}
+              value={selectedHotList}
+              onChange={e => handleHotListChange(e.target.value)}
             >
-              <option value="all">All Genders</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Unspecified">Unspecified</option>
-            </select>
-          </div>
-
-          {/* 4. Education Level Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              🎓 Education:
-            </span>
-            <select
-              className="select-control"
-              style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem', minWidth: '140px', width: 'auto' }}
-              value={selectedEducation}
-              onChange={e => handleEducationChange(e.target.value)}
-            >
-              <option value="all">All Education Levels</option>
-              <option value="High School">High School (Thaniwya)</option>
-              <option value="Diploma">Diploma / Associate</option>
-              <option value="Bachelor Degree">Bachelor Degree</option>
-              <option value="Master Degree">Master Degree</option>
-              <option value="Doctorate">Doctorate / PhD</option>
-              <option value="Vocational">Vocational / Technical</option>
+              <option value="all">All Hot Lists</option>
+              {hotListFilterOptions.map(tag => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
             </select>
           </div>
 
