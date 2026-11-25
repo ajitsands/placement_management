@@ -27,9 +27,6 @@ function CandidatesView({ state }) {
   const [selectedCenter, setSelectedCenter] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_center') || 'all';
   });
-  const [selectedTamkeenFilter, setSelectedTamkeenFilter] = useState(() => {
-    return sessionStorage.getItem('sands_claims_cand_tamkeen') || 'all';
-  });
 
   // Reset all candidate filters to default on user switch or login
   useEffect(() => {
@@ -39,17 +36,11 @@ function CandidatesView({ state }) {
     setStatusFilter('registered');
     setSelectedHotList('all');
     setSelectedCenter('all');
-    setSelectedTamkeenFilter('all');
   }, [currentUser?.id, currentUser?.role]);
 
   const handleScopeChange = (val) => {
     setScopeFilter(val);
     sessionStorage.setItem('sands_claims_cand_scope', val);
-  };
-
-  const handleTamkeenFilterChange = (val) => {
-    setSelectedTamkeenFilter(val);
-    sessionStorage.setItem('sands_claims_cand_tamkeen', val);
   };
 
   const handleStatusFilterChange = (key) => {
@@ -139,13 +130,11 @@ function CandidatesView({ state }) {
     setStatusFilter('registered');
     setSelectedHotList('all');
     setSelectedCenter('all');
-    setSelectedTamkeenFilter('all');
     sessionStorage.removeItem('sands_claims_cand_cm');
     sessionStorage.setItem('sands_claims_cand_status_v2', 'registered');
     sessionStorage.setItem('sands_claims_cand_status', 'registered');
     sessionStorage.removeItem('sands_claims_cand_hot_list');
     sessionStorage.removeItem('sands_claims_cand_center');
-    sessionStorage.removeItem('sands_claims_cand_tamkeen');
   };
 
   // Count active non-default filters
@@ -155,9 +144,8 @@ function CandidatesView({ state }) {
     if (statusFilter && statusFilter !== 'registered') count++;
     if (selectedHotList && selectedHotList !== 'all') count++;
     if (selectedCenter && selectedCenter !== 'all') count++;
-    if (selectedTamkeenFilter && selectedTamkeenFilter !== 'all') count++;
     return count;
-  }, [selectedCaseManager, statusFilter, selectedHotList, selectedCenter, selectedTamkeenFilter]);
+  }, [selectedCaseManager, statusFilter, selectedHotList, selectedCenter]);
 
   // Tamkeen Approval summary counters
   const pendingTamkeenCount = useMemo(() => {
@@ -352,14 +340,8 @@ function CandidatesView({ state }) {
         return center === selectedCenter.toLowerCase();
       });
     }
-    if (selectedTamkeenFilter !== 'all') {
-      result = result.filter(c => {
-        const isApproved = c.approved_by_tamkeen === true || String(c.approved_by_tamkeen || '').toLowerCase() === 'yes';
-        return selectedTamkeenFilter === 'approved' ? isApproved : !isApproved;
-      });
-    }
     return result;
-  }, [candidates, selectedCaseManager, statusFilter, selectedHotList, selectedCenter, selectedTamkeenFilter]);
+  }, [candidates, selectedCaseManager, statusFilter, selectedHotList, selectedCenter]);
 
   // Status badge styling helper strictly mapped to core lifecycle logic
   const renderStatusBadge = (status, candidate) => {
@@ -1414,23 +1396,6 @@ function CandidatesView({ state }) {
               <option value="Career Fair">Career Fair</option>
               <option value="Training">Training</option>
               <option value="Other Job Center">Other Job Center</option>
-            </select>
-          </div>
-
-          {/* 6. Tamkeen Scheme Approval Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              🏛️ Tamkeen:
-            </span>
-            <select
-              className="select-control"
-              style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem', minWidth: '165px', width: 'auto' }}
-              value={selectedTamkeenFilter}
-              onChange={e => handleTamkeenFilterChange(e.target.value)}
-            >
-              <option value="all">All Tamkeen Statuses</option>
-              <option value="pending">⏳ Pending Tamkeen Approval</option>
-              <option value="approved">✓ Approved by Tamkeen</option>
             </select>
           </div>
         </div>
