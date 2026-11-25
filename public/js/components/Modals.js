@@ -4476,15 +4476,6 @@ function CandidateDetailModal({ state, candidate }) {
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
               🏢 Linked Employer Placement
             </h3>
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={() => {
-                window.AppStore.closeModal();
-                window.AppStore.openModal('LINK_PLACEMENT', { candidate });
-              }}
-            >
-              ✏️ Edit / Re-link Placement
-            </button>
           </div>
 
           {candidate.company_name ? (
@@ -4523,17 +4514,8 @@ function CandidateDetailModal({ state, candidate }) {
               )}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>
-              <p style={{ margin: '0 0 0.5rem' }}>No employer placement currently linked to this candidate.</p>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  window.AppStore.closeModal();
-                  window.AppStore.openModal('LINK_PLACEMENT', { candidate });
-                }}
-              >
-                🔗 Link Placement Now
-              </button>
+            <div style={{ textAlign: 'center', padding: '0.65rem', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+              No employer placement currently linked to this candidate.
             </div>
           )}
         </div>
@@ -4546,30 +4528,18 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
         ) : null}
 
-        {/* Registration Compliance Checklist Box */}
+        {/* Registration Compliance Checklist Box (Read-Only At-a-Glance) */}
         <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
             <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span>📋</span> Registration Compliance Checklist
             </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className={`badge ${(candidate.checklist_completion_pct || 0) >= 100 ? 'badge-success' : ((candidate.checklist_completion_pct || 0) >= 70 ? 'badge-info' : 'badge-warning')}`} style={{ fontSize: '0.78rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-                {candidate.checklist_completion_pct || 0}% Compliant
-              </span>
-              <button
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
-                onClick={() => {
-                  window.AppStore.closeModal();
-                  window.AppStore.openModal('CANDIDATE_CHECKLIST', { candidate });
-                }}
-              >
-                ✏️ Manage Checklist &rarr;
-              </button>
-            </div>
+            <span className={`badge ${(candidate.checklist_completion_pct || 0) >= 100 ? 'badge-success' : ((candidate.checklist_completion_pct || 0) >= 70 ? 'badge-info' : 'badge-warning')}`} style={{ fontSize: '0.78rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+              {candidate.checklist_completion_pct || 0}% Compliant
+            </span>
           </div>
           {/* Micro Progress Bar */}
-          <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary, #e2e8f0)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.5rem' }}>
+          <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary, #e2e8f0)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.75rem' }}>
             <div style={{
               width: `${candidate.checklist_completion_pct || 0}%`,
               height: '100%',
@@ -4577,26 +4547,126 @@ function CandidateDetailModal({ state, candidate }) {
               transition: 'width 0.3s ease'
             }} />
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {(candidate.checklist_completion_pct || 0) >= 100 
-              ? '✓ All mandatory identity, educational, banking, and retainment compliance criteria verified.'
-              : 'Criteria verification in progress. Click Manage Checklist to update verified criteria and certificates.'}
+          {Array.isArray(candidate.checklist_items) && candidate.checklist_items.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.45rem' }}>
+              {candidate.checklist_items.map((ci, idx) => {
+                const isDone = ci.completed === true || ci.completed === 1 || ci.is_checked === true || ci.is_checked === 1;
+                const isMand = ci.is_mandatory === 1 || ci.is_mandatory === true || ci.is_mandatory === '1';
+                return (
+                  <div
+                    key={ci.code || ci.id || idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.5rem',
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: '6px',
+                      border: `1px solid ${isDone ? 'rgba(16, 185, 129, 0.35)' : 'var(--border-light)'}`,
+                      background: isDone ? 'rgba(16, 185, 129, 0.07)' : 'var(--bg-tertiary)',
+                      fontSize: '0.78rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span style={{ fontWeight: 800, color: isDone ? '#059669' : 'var(--text-muted)' }}>
+                        {isDone ? '✓' : '○'}
+                      </span>
+                      <span style={{ fontWeight: isDone ? 600 : 500, color: 'var(--text-primary)' }}>
+                        {ci.title || ci.name || ci.code}
+                      </span>
+                    </div>
+                    {isMand && (
+                      <span style={{ fontSize: '0.66rem', fontWeight: 700, color: isDone ? '#059669' : '#d97706' }}>
+                        {isDone ? 'Verified' : 'Required'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              No checklist items recorded yet.
+            </div>
+          )}
+        </div>
+
+        {/* Attached Documents Box (View / Download At-a-Glance) */}
+        <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>📎</span> Attached Documents ({docs.length})
+            </h3>
           </div>
+          {docs.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {docs.map((doc, idx) => {
+                const docHref = doc.file_url
+                  ? (doc.file_url.startsWith('http') || doc.file_url.startsWith('/') ? doc.file_url : '/' + doc.file_url)
+                  : null;
+                return (
+                  <div
+                    key={doc.id || idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      padding: '0.55rem 0.8rem',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-tertiary)',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span className="badge badge-info" style={{ fontSize: '0.68rem' }}>{doc.type || 'DOC'}</span>
+                        <strong style={{ fontSize: '0.84rem' }}>{doc.name || doc.file_name}</strong>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        {doc.file_name}{doc.file_size ? ` • ${(doc.file_size / 1024).toFixed(1)} KB` : ''}{doc.uploaded_at ? ` • Uploaded: ${window.formatAppDate(doc.uploaded_at)}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      {docHref ? (
+                        <>
+                          <a
+                            href={docHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-outline btn-sm"
+                            style={{ textDecoration: 'none', fontSize: '0.74rem' }}
+                          >
+                            👁️ View
+                          </a>
+                          <a
+                            href={docHref}
+                            download={doc.file_name || true}
+                            className="btn btn-outline btn-sm"
+                            style={{ textDecoration: 'none', fontSize: '0.74rem' }}
+                          >
+                            ⬇️ Download
+                          </a>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No file link</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '0.65rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+              No documents attached for this candidate.
+            </div>
+          )}
         </div>
 
       </div>
 
-      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={() => {
-            window.AppStore.closeModal();
-            window.AppStore.openModal('CANDIDATE_DOCUMENTS', { candidate });
-          }}
-        >
-          📁 View / Manage Documents ({docs.length})
-        </button>
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={() => window.AppStore.closeModal()}>Close</button>
       </div>
     </div>
