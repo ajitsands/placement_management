@@ -1129,27 +1129,27 @@ function CandidatesView({ state }) {
         display: 'inline-flex',
         alignItems: 'center',
         background: 'var(--bg-card)',
-        padding: '4px',
+        padding: '3px',
         borderRadius: 'var(--radius-md)',
         border: '1px solid var(--border-light)',
-        marginBottom: '1rem',
+        marginBottom: '0.5rem',
         gap: '4px',
         boxShadow: 'var(--shadow-sm)'
       }}>
         <button
           type="button"
           style={{
-            padding: '0.4rem 0.85rem',
+            padding: '0.3rem 0.7rem',
             borderRadius: 'var(--radius-sm)',
             border: 'none',
             background: 'var(--primary)',
             color: '#ffffff',
             fontWeight: 700,
-            fontSize: '0.82rem',
+            fontSize: '0.8rem',
             cursor: 'default',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.45rem'
+            gap: '0.4rem'
           }}
         >
           <span>👥</span>
@@ -1160,17 +1160,17 @@ function CandidatesView({ state }) {
           type="button"
           onClick={() => window.AppStore.setActiveTab('training')}
           style={{
-            padding: '0.4rem 0.85rem',
+            padding: '0.3rem 0.7rem',
             borderRadius: 'var(--radius-sm)',
             border: 'none',
             background: 'transparent',
             color: 'var(--text-secondary)',
             fontWeight: 700,
-            fontSize: '0.82rem',
+            fontSize: '0.8rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.45rem',
+            gap: '0.4rem',
             transition: 'var(--transition)'
           }}
           title="Go to Training Module"
@@ -1183,17 +1183,17 @@ function CandidatesView({ state }) {
           type="button"
           onClick={() => window.AppStore.setActiveTab('career_fair')}
           style={{
-            padding: '0.4rem 0.85rem',
+            padding: '0.3rem 0.7rem',
             borderRadius: 'var(--radius-sm)',
             border: 'none',
             background: 'transparent',
             color: 'var(--text-secondary)',
             fontWeight: 700,
-            fontSize: '0.82rem',
+            fontSize: '0.8rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.45rem',
+            gap: '0.4rem',
             transition: 'var(--transition)'
           }}
           title="Go to Career Fair Module"
@@ -1203,12 +1203,12 @@ function CandidatesView({ state }) {
         </button>
       </div>
 
-      <div className="page-header" style={{ marginBottom: '1.25rem' }}>
+      <div className="page-header" style={{ marginBottom: '0.65rem', gap: '0.65rem' }}>
         <div className="page-title-group">
-          <h1 className="view-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 className="view-title" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: 0 }}>
             <span>👥</span> Candidate Registry & Talent Pool
           </h1>
-          <p className="page-subtitle">
+          <p className="page-subtitle" style={{ marginTop: '0.1rem', marginBottom: 0 }}>
             National candidate registry, CPR verification records, CV document vault, and employer placement matching.
           </p>
         </div>
@@ -1232,13 +1232,13 @@ function CandidatesView({ state }) {
         <div
           className="card"
           style={{
-            padding: '0.65rem 1rem',
-            marginBottom: '1rem',
+            padding: '0.45rem 0.75rem',
+            marginBottom: '0.6rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '0.75rem',
+            gap: '0.5rem',
             background: 'var(--bg-secondary)'
           }}
         >
@@ -1301,7 +1301,7 @@ function CandidatesView({ state }) {
       )}
 
       {/* Lifecycle Status Filter Navigation Tabs - Strictly required lifecycle stages based on business logic */}
-      <div className="candidate-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
+      <div className="candidate-status-tabs" style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.65rem', overflowX: 'auto', paddingBottom: '2px' }}>
         {[
           { key: 'registered', label: '📋 Available in Pool', count: statusCounts.registered },
           { key: 'registration_incomplete', label: '⚠️ Incomplete Profile', count: statusCounts.registration_incomplete, isDanger: true },
@@ -1375,15 +1375,15 @@ function CandidatesView({ state }) {
           background: 'var(--bg-card)',
           border: '1px solid var(--border-light)',
           borderRadius: 'var(--radius-md)',
-          padding: '0.85rem 1rem',
-          marginBottom: '1rem',
+          padding: '0.6rem 0.85rem',
+          marginBottom: '0.65rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.75rem'
+          gap: '0.5rem'
         }}
       >
         {/* Row 1: Filter Selectors (Case Manager, Reg Dates, Gender, Education) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           
           {/* 1. Case Manager Selector */}
           {isAdminOrSuper ? (
@@ -1525,7 +1525,7 @@ function CandidatesView({ state }) {
         </div>
 
         {/* Row 2: Quick Presets, Match Counter & Clear All Button */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-light)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Presets:</span>
             <button
