@@ -4338,45 +4338,34 @@ function CandidateChecklistModal({ state, candidate: initialCandidate }) {
   );
 }
 
-// 5. Candidate Comprehensive Dossier & Milestones Timeline Modal
+// 5. Candidate Profile Modal (All Candidate Details, No Activity Logs)
 function CandidateDetailModal({ state, candidate }) {
   if (!candidate) return null;
-  const { milestones = [], settings = {}, interviews = [] } = state;
-  const candMilestones = milestones.filter(m => m.candidate_id === candidate.id);
+  const { settings = {} } = state;
   const currency = settings.currency || 'BHD';
   const docs = candidate.documents || [];
-
-  // Match all interviews scheduled or attended by this candidate
-  const candInterviews = useMemo(() => {
-    const list = [];
-    (interviews || []).forEach(int => {
-      const roster = int.candidates || [];
-      const match = roster.find(c => Number(c.candidate_id || c.id) === Number(candidate.id));
-      if (match) {
-        list.push({
-          ...int,
-          candidateRecord: match
-        });
-      }
-    });
-    return list;
-  }, [interviews, candidate.id]);
+  const hotLists = Array.isArray(candidate.hot_lists) ? candidate.hot_lists : [];
+  const assignedCms = Array.isArray(candidate.assigned_case_managers) ? candidate.assigned_case_managers : [];
+  const jcApproved = candidate.approved_by_job_center === true || String(candidate.approved_by_job_center || '').toLowerCase() === 'yes';
+  const tmkApproved = candidate.approved_by_tamkeen === true || String(candidate.approved_by_tamkeen || '').toLowerCase() === 'yes';
 
   return (
-    <div className="modal-content" style={{ maxWidth: '1040px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}>
+    <div className="modal-content" style={{ maxWidth: '980px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">{candidate.full_name}</h2>
+          <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span>👤</span> {candidate.full_name}
+          </h2>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no}{candidate.phone ? ` | 📞 ${candidate.phone}` : ''}{candidate.email ? ` | ✉️ ${candidate.email}` : ''} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'placed'}</strong>
+            Ref: {candidate.ref_no} | CPR: {candidate.cpr_no}{candidate.phone ? ` | 📞 ${candidate.phone}` : ''}{candidate.email ? ` | ✉️ ${candidate.email}` : ''} | Status: <strong style={{ textTransform: 'uppercase', color: 'var(--primary)' }}>{candidate.status || 'registered'}</strong>
           </span>
         </div>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
       </div>
 
-      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Candidate Profile Details */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.85rem', background: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>GENDER & EDUCATION</div>
             <strong style={{ fontSize: '0.85rem' }}>{candidate.gender} • {candidate.education}</strong>
@@ -4402,12 +4391,16 @@ function CandidateDetailModal({ state, candidate }) {
             </strong>
           </div>
           <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>REGISTRATION DATE</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>JOB CENTER REG DATE</div>
             <strong style={{ fontSize: '0.85rem' }}>{window.formatAppDate(candidate.registration_date || candidate.created_at)}</strong>
           </div>
           <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CASE MANAGER</div>
-            <strong style={{ fontSize: '0.85rem' }}>{candidate.case_manager_name}</strong>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ASSIGNED CASE MANAGER(S)</div>
+            <strong style={{ fontSize: '0.85rem' }}>
+              {assignedCms.length > 0
+                ? assignedCms.map(cm => cm.code || cm.name || cm.username).join(', ')
+                : (candidate.case_manager_name || 'Unassigned')}
+            </strong>
           </div>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>REGISTRATION CENTER</div>
@@ -4417,6 +4410,18 @@ function CandidateDetailModal({ state, candidate }) {
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ATTACHED DOCUMENTS</div>
             <strong style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>📎 {docs.length} Files</strong>
           </div>
+          {hotLists.length > 0 && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>HOT LIST TAGS</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {hotLists.map(tag => (
+                  <span key={tag} className="badge badge-info" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                    🔥 {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Government & Tamkeen Approvals Status */}
@@ -4426,12 +4431,20 @@ function CandidateDetailModal({ state, candidate }) {
               🏬 Ministry Job Center Approval
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span className="badge badge-success" style={{ fontSize: '0.74rem', fontWeight: 700 }}>
-                ✓ Approved (Yes)
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {window.formatAppDate(candidate.job_center_approved_at || candidate.registration_date || candidate.created_at)}
-              </span>
+              {jcApproved ? (
+                <span className="badge badge-success" style={{ fontSize: '0.74rem', fontWeight: 700 }}>
+                  ✓ Approved (Yes)
+                </span>
+              ) : (
+                <span className="badge badge-warning" style={{ fontSize: '0.74rem', fontWeight: 700 }}>
+                  ⏳ Pending (No)
+                </span>
+              )}
+              {jcApproved && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  {window.formatAppDate(candidate.job_center_approved_at || candidate.registration_date || candidate.created_at)}
+                </span>
+              )}
             </div>
           </div>
           <div>
@@ -4439,7 +4452,7 @@ function CandidateDetailModal({ state, candidate }) {
               🏛️ Tamkeen Scheme Approval
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              {(candidate.approved_by_tamkeen === true || String(candidate.approved_by_tamkeen || '').toLowerCase() === 'yes') ? (
+              {tmkApproved ? (
                 <span className="badge badge-success" style={{ fontSize: '0.74rem', fontWeight: 800, background: 'rgba(16, 185, 129, 0.18)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
                   ✓ Approved (Yes) {candidate.tamkeen_approval_date ? `• ${window.formatAppDate(candidate.tamkeen_approval_date)}` : ''}
                 </span>
@@ -4525,112 +4538,6 @@ function CandidateDetailModal({ state, candidate }) {
           )}
         </div>
 
-        {/* Candidate Interview Sessions & Evaluation History */}
-        <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem', background: 'var(--bg-card)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>🤝</span> Job Interviews & Evaluation History ({candInterviews.length})
-            </h3>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
-              onClick={() => {
-                window.AppStore.closeModal();
-                window.AppStore.openModal('CANDIDATE_ACTIVITY_LOG', { candidateId: candidate.id });
-              }}
-            >
-              📜 View Full Activity Log &rarr;
-            </button>
-          </div>
-
-          {candInterviews.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {candInterviews.map((int, i) => {
-                const rec = int.candidateRecord || {};
-                const st = (rec.status || 'scheduled').toLowerCase();
-                const isPassed = st === 'passed' || st === 'selected';
-                const isAttended = st === 'attended';
-                const isRejected = st === 'rejected';
-                const isAbsent = st === 'absent';
-
-                let badgeStyle = { background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' };
-                let stText = 'Scheduled';
-
-                if (isPassed) {
-                  badgeStyle = { background: 'rgba(16, 185, 129, 0.15)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)' };
-                  stText = '⭐ Passed (Selected)';
-                } else if (isAttended) {
-                  badgeStyle = { background: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', border: '1px solid rgba(2, 132, 199, 0.3)' };
-                  stText = '✓ Attended';
-                } else if (isRejected) {
-                  badgeStyle = { background: 'rgba(239, 68, 68, 0.15)', color: '#dc2626', border: '1px solid rgba(239, 68, 68, 0.3)' };
-                  stText = '✕ Rejected';
-                } else if (isAbsent) {
-                  badgeStyle = { background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.3)' };
-                  stText = '⚠️ Absent / No-Show';
-                }
-
-                return (
-                  <div
-                    key={int.id || i}
-                    style={{
-                      border: '1px solid var(--border-light)',
-                      borderRadius: '8px',
-                      padding: '0.75rem 0.9rem',
-                      background: 'var(--bg-tertiary)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.76rem', color: 'var(--primary)', background: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
-                          {int.interview_code || `INT-${int.id}`}
-                        </span>
-                        <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>
-                          {int.job_title}
-                        </strong>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          at <strong>{int.company_name}</strong>
-                        </span>
-                        {int.job_code && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({int.job_code})</span>
-                        )}
-                      </div>
-                      <span className="badge" style={{ ...badgeStyle, fontSize: '0.72rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '4px' }}>
-                        {stText}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.76rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                      <span>📅 <strong>{window.formatAppDate(int.interview_date)}</strong>{int.interview_time ? ` at ${int.interview_time}` : ''}</span>
-                      {int.location && <span>📍 {int.location}</span>}
-                      {rec.attended_at && <span>🕒 Attended: {window.formatAppDate(rec.attended_at)}</span>}
-                      {rec.updated_by_name && <span>👤 Evaluator: {rec.updated_by_name}</span>}
-                    </div>
-
-                    {rec.remarks ? (
-                      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        <strong>Evaluation Remarks / Feedback:</strong> {rec.remarks}
-                      </div>
-                    ) : int.remarks ? (
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Instructions/Notes: {int.remarks}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
-              No interview sessions recorded for this candidate yet.
-            </div>
-          )}
-        </div>
-
         {/* Remarks / Notes */}
         {candidate.remarks || candidate.notes ? (
           <div style={{ background: 'var(--bg-tertiary)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)' }}>
@@ -4677,51 +4584,6 @@ function CandidateDetailModal({ state, candidate }) {
           </div>
         </div>
 
-        {/* Retention Milestones Timeline */}
-        <div>
-          <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
-            ⏱️ Retention Milestones Timeline (Day 0, Day 180, Day 365)
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            {candMilestones.map(m => (
-              <div
-                key={m.id}
-                style={{
-                  border: '1px solid var(--border-light)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0.85rem 1rem',
-                  background: 'var(--bg-card)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="badge badge-info">{m.milestone_title}</span>
-                    <strong style={{ fontSize: '0.85rem' }}>{m.milestone_type}</strong>
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    Target Due Date: <strong>{window.formatAppDate(m.due_date)}</strong>
-                  </div>
-                </div>
-                <div>
-                  <span className={`badge ${
-                    m.status === 'claimed' ? 'badge-success' : 
-                    (m.status === 'due' ? 'badge-warning' : 'badge-neutral')
-                  }`}>
-                    {m.status.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {candMilestones.length === 0 && (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                Milestones will be generated automatically once an employer placement is linked.
-              </p>
-            )}
-          </div>
-        </div>
       </div>
 
       <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>

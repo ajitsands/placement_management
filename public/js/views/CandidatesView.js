@@ -1066,7 +1066,7 @@ function CandidatesView({ state }) {
 
               <button
                 className="btn btn-outline btn-sm"
-                title="Candidate Dossier & Timeline"
+                title="Candidate Profile & Details"
                 style={{
                   flex: 1,
                   fontSize: '0.72rem',
@@ -1079,7 +1079,7 @@ function CandidatesView({ state }) {
                 }}
                 onClick={() => window.AppStore.openModal('CANDIDATE_DETAIL', { candidate: row })}
               >
-                <span>👁️</span> Dossier
+                <span>👤</span> Profile
               </button>
             </div>
           </div>
