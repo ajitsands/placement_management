@@ -3756,6 +3756,7 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
   const [uploadDocType, setUploadDocType] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploadDocName, setUploadDocName] = useState(() => activeDocCategories[0]?.name || 'CPR / Smart Card Copy');
   const [uploading, setUploading] = useState(false);
+  const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
 
   const selectedDocCategory = activeDocCategories.find(c => 
     c.name === uploadDocType || 
@@ -3796,18 +3797,8 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
             }
           }
 
-          if (window.Swal) {
-            window.Swal.fire({
-              toast: true,
-              position: 'top-end',
-              icon: 'success',
-              title: `Document '${file.name}' attached!`,
-              showConfirmButton: false,
-              timer: 2500
-            });
-          } else {
-            window.AppStore.showNotification(`Document '${file.name}' uploaded successfully!`, 'success');
-          }
+          setUploadSuccessMsg(`Document "${file.name}" uploaded successfully!`);
+          window.AppStore.showNotification(`Document "${file.name}" uploaded successfully!`, 'success');
           setUploadDocName(uploadDocType);
           await window.AppStore.refreshData();
         } catch (err) {
@@ -3977,6 +3968,50 @@ function CandidateDocumentsModal({ state, candidate: initialCandidate }) {
             </div>
           )}
         </div>
+
+        {uploadSuccessMsg && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.65rem',
+              padding: '0.6rem 0.9rem',
+              marginBottom: '0.85rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              color: '#065f46',
+              fontSize: '0.84rem',
+              fontWeight: 600
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+              <span style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#10b981',
+                color: '#ffffff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                flexShrink: 0
+              }}>✓</span>
+              <span>{uploadSuccessMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUploadSuccessMsg('')}
+              style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.25rem' }}
+              aria-label="Dismiss"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Existing Documents List */}
         <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.65rem' }}>
