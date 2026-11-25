@@ -7,7 +7,7 @@
 (function (window, document) {
   'use strict';
 
-  var DB_NAME = 'sands_jsx_cache_v1';
+  var DB_NAME = 'sands_jsx_cache_v2';
   var STORE_NAME = 'scripts';
   var BABEL_CDN = 'https://unpkg.com/@babel/standalone/babel.min.js';
 
@@ -118,7 +118,7 @@
       for (var i = 0; i < fetchedFiles.length; i++) {
         var item = fetchedFiles[i];
         var compiled = Babel.transform(item.source, {
-          presets: ['react'],
+          presets: [['react', { runtime: 'classic' }]],
           filename: item.url
         }).code;
         cachedMap[item.url] = compiled;
