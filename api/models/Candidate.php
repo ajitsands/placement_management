@@ -169,6 +169,34 @@ class Candidate {
             $status = 'registration_incomplete';
         }
 
+        // Normalize hot_lists
+        $rawHotLists = $data['hot_lists'] ?? [];
+        if (is_string($rawHotLists)) {
+            $decoded = json_decode($rawHotLists, true);
+            $rawHotLists = is_array($decoded) ? $decoded : array_filter(array_map('trim', explode(',', $rawHotLists)));
+        }
+        $hotLists = is_array($rawHotLists) ? array_values(array_unique(array_filter(array_map('trim', $rawHotLists)))) : [];
+
+        // Normalize assigned_case_managers
+        $rawAssignedCms = $data['assigned_case_managers'] ?? [];
+        if (is_string($rawAssignedCms)) {
+            $decodedCms = json_decode($rawAssignedCms, true);
+            $rawAssignedCms = is_array($decodedCms) ? $decodedCms : [];
+        }
+        $assignedCms = is_array($rawAssignedCms) ? array_values(array_filter($rawAssignedCms, 'is_array')) : [];
+        if (!empty($assignedCms)) {
+            $firstCm = $assignedCms[0];
+            if (empty($data['case_manager_name'])) {
+                $caseManagerName = !empty($firstCm['code']) ? $firstCm['code'] : ($firstCm['name'] ?? ($firstCm['username'] ?? $caseManagerName));
+            }
+            if (empty($caseManagerId) && !empty($firstCm['id'])) {
+                $caseManagerId = (int)$firstCm['id'];
+            }
+        }
+
+        $tamkeenDate = !empty($data['tamkeen_approval_date']) ? trim((string)$data['tamkeen_approval_date']) : null;
+        $hasTamkeen = $tamkeenDate !== null && $tamkeenDate !== '';
+
         $newCandidate = [
             'id'                       => $id,
             'ref_no'                   => $refNo,
@@ -191,6 +219,8 @@ class Candidate {
             'joining_date'             => $hasPlacement ? $data['joining_date'] : null,
             'case_manager_id'          => $caseManagerId,
             'case_manager_name'        => $caseManagerName,
+            'assigned_case_managers'   => $assignedCms,
+            'hot_lists'                => $hotLists,
             'center'                   => !empty($data['center']) ? trim($data['center']) : 'Enma Mall',
             'notes'                    => $remarks,
             'comments'                 => trim($data['comments'] ?? ''),
@@ -203,11 +233,11 @@ class Candidate {
             'approved_by_job_center'   => 'Yes',
             'job_center_approved_at'   => date('Y-m-d H:i:s'),
             'job_center_approved_by'   => $caseManagerName,
-            'approved_by_tamkeen'      => 'No',
-            'tamkeen_approval_date'    => null,
+            'approved_by_tamkeen'      => $hasTamkeen ? 'Yes' : 'No',
+            'tamkeen_approval_date'    => $tamkeenDate,
             'tamkeen_approval_notes'   => null,
-            'tamkeen_approved_by'      => null,
-            'tamkeen_approved_at'      => null,
+            'tamkeen_approved_by'      => $hasTamkeen ? $caseManagerName : null,
+            'tamkeen_approved_at'      => $hasTamkeen ? date('Y-m-d H:i:s') : null,
             'created_at'               => date('Y-m-d H:i:s')
         ];
 
@@ -430,6 +460,7 @@ class Candidate {
                     return null;
                 }
 
+                if (isset($data['ref_no']) && trim($data['ref_no']) !== '') $c['ref_no'] = trim($data['ref_no']);
                 if (isset($data['full_name'])) $c['full_name'] = strtoupper(trim($data['full_name']));
                 if (isset($data['cpr_no'])) $c['cpr_no'] = trim($data['cpr_no']);
                 if (isset($data['phone'])) $c['phone'] = !empty($data['phone']) ? trim($data['phone']) : null;
@@ -438,6 +469,27 @@ class Candidate {
                 if (isset($data['education'])) $c['education'] = $data['education'];
                 if (isset($data['date_of_birth'])) $c['date_of_birth'] = !empty($data['date_of_birth']) ? trim($data['date_of_birth']) : null;
                 if (isset($data['registration_date'])) $c['registration_date'] = $data['registration_date'];
+                if (array_key_exists('tamkeen_approval_date', $data)) {
+                    $tDate = !empty($data['tamkeen_approval_date']) ? trim((string)$data['tamkeen_approval_date']) : null;
+                    $c['tamkeen_approval_date'] = $tDate;
+                    $c['approved_by_tamkeen'] = $tDate ? 'Yes' : 'No';
+                }
+                if (array_key_exists('hot_lists', $data)) {
+                    $hl = $data['hot_lists'];
+                    if (is_string($hl)) {
+                        $decodedHl = json_decode($hl, true);
+                        $hl = is_array($decodedHl) ? $decodedHl : [];
+                    }
+                    $c['hot_lists'] = is_array($hl) ? array_values(array_unique(array_filter(array_map('trim', $hl)))) : [];
+                }
+                if (array_key_exists('assigned_case_managers', $data)) {
+                    $acm = $data['assigned_case_managers'];
+                    if (is_string($acm)) {
+                        $decodedAcm = json_decode($acm, true);
+                        $acm = is_array($decodedAcm) ? $decodedAcm : [];
+                    }
+                    $c['assigned_case_managers'] = is_array($acm) ? array_values(array_filter($acm, 'is_array')) : [];
+                }
                 if (isset($data['status'])) $c['status'] = $data['status'];
                 if (isset($data['salary_bhd'])) $c['salary_bhd'] = (float)$data['salary_bhd'];
                 if (isset($data['position_title'])) $c['position_title'] = trim($data['position_title']);

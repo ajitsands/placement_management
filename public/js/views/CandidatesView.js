@@ -10,6 +10,10 @@ function CandidatesView({ state }) {
   const isAdminOrSuper = currentUser?.role === 'superadmin' || currentUser?.role === 'admin';
   const currency = settings.currency || 'BHD';
 
+  const [scopeFilter, setScopeFilter] = useState(() => {
+    const saved = sessionStorage.getItem('sands_claims_cand_scope');
+    return saved === 'global' ? 'global' : 'mine';
+  });
   const [selectedCaseManager, setSelectedCaseManager] = useState(() => {
     return sessionStorage.getItem('sands_claims_cand_cm') || '';
   });
@@ -38,6 +42,8 @@ function CandidatesView({ state }) {
 
   // Reset all candidate filters to default on user switch or login
   useEffect(() => {
+    setScopeFilter('mine');
+    sessionStorage.setItem('sands_claims_cand_scope', 'mine');
     setSelectedCaseManager('');
     setStatusFilter('registered');
     setSelectedGender('all');
@@ -47,6 +53,11 @@ function CandidatesView({ state }) {
     setRegDateTo('');
     setSelectedTamkeenFilter('all');
   }, [currentUser?.id, currentUser?.role]);
+
+  const handleScopeChange = (val) => {
+    setScopeFilter(val);
+    sessionStorage.setItem('sands_claims_cand_scope', val);
+  };
 
   const handleTamkeenFilterChange = (val) => {
     setSelectedTamkeenFilter(val);
@@ -232,16 +243,60 @@ function CandidatesView({ state }) {
     };
   };
 
+  const isUserMatch = (cm) => {
+    if (!cm || !currentUser) return false;
+    if (cm.id && currentUser.id && Number(cm.id) === Number(currentUser.id)) return true;
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    const cmName = String(cm.name || cm.full_name || '').trim().toLowerCase();
+    const cmUser = String(cm.username || '').trim().toLowerCase();
+    const cmCode = String(cm.code || cm.case_manager_code || '').trim().toLowerCase();
+    if (myUser && (cmUser === myUser || cmName === myUser)) return true;
+    if (myFull && (cmName === myFull || cmUser === myFull)) return true;
+    if (myCode && (cmCode === myCode || cmName === myCode)) return true;
+    return false;
+  };
+
+  const isMine = (c) => {
+    if (!currentUser) return false;
+    const assigned = Array.isArray(c.assigned_case_managers) ? c.assigned_case_managers : [];
+    if (assigned.length > 0) {
+      return assigned.some(isUserMatch);
+    }
+    if (c.case_manager_id && currentUser.id && Number(c.case_manager_id) === Number(currentUser.id)) return true;
+    const cmName = String(c.case_manager_name || '').trim().toLowerCase();
+    const myCode = String(currentUser.case_manager_code || '').trim().toLowerCase();
+    const myFull = String(currentUser.full_name || '').trim().toLowerCase();
+    const myUser = String(currentUser.username || '').trim().toLowerCase();
+    if (myCode && cmName === myCode) return true;
+    if (myFull && cmName === myFull) return true;
+    if (myUser && cmName === myUser) return true;
+    return false;
+  };
+
+  const myCandidatesCount = useMemo(() => {
+    if (isAdminOrSuper) return (candidates || []).length;
+    return (candidates || []).filter(isMine).length;
+  }, [candidates, isAdminOrSuper, currentUser]);
+
+  const scopedCandidates = useMemo(() => {
+    if (!isAdminOrSuper && scopeFilter === 'mine') {
+      return (candidates || []).filter(isMine);
+    }
+    return candidates || [];
+  }, [candidates, isAdminOrSuper, scopeFilter, currentUser]);
+
   // Compute status counts for filter tabs strictly based on core lifecycle logic
   const statusCounts = useMemo(() => {
     const counts = {
-      all: candidates.length,
+      all: scopedCandidates.length,
       registered: 0,
       awaiting_renewal: 0,
       registration_incomplete: 0,
       placed: 0
     };
-    candidates.forEach(c => {
+    scopedCandidates.forEach(c => {
       const incomplete = isCandidateIncomplete(c);
       const ren = getCandidateRenewalInfo(c);
       let st = (c.status || 'registered').toLowerCase();
@@ -261,11 +316,11 @@ function CandidatesView({ state }) {
       }
     });
     return counts;
-  }, [candidates]);
+  }, [scopedCandidates]);
 
   // Filter candidates by case manager, status filter, gender, education level & registration dates
   const displayData = useMemo(() => {
-    let result = candidates;
+    let result = scopedCandidates;
     if (selectedCaseManager) {
       result = result.filter(c => c.case_manager_name === selectedCaseManager);
     }
@@ -891,11 +946,37 @@ function CandidatesView({ state }) {
     },
     {
       key: 'case_manager_name',
-      label: 'Case Manager',
+      label: 'Case Manager(s)',
       sortable: true,
-      render: (val) => (
-        <span className="badge badge-neutral" style={{ fontWeight: 600, fontSize: '0.74rem' }}>{val || 'System'}</span>
-      )
+      render: (val, row) => {
+        const assigned = Array.isArray(row.assigned_case_managers) ? row.assigned_case_managers : [];
+        if (assigned.length > 0) {
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxWidth: '210px' }}>
+              {assigned.map((cm, idx) => {
+                const mine = !isAdminOrSuper && isUserMatch(cm);
+                return (
+                  <span
+                    key={cm.id || cm.username || idx}
+                    className={`badge ${mine ? 'badge-primary' : 'badge-neutral'}`}
+                    style={{ fontWeight: mine ? 800 : 600, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                  >
+                    {mine && <span>★</span>}
+                    {cm.name || cm.username || cm.code}
+                    {mine && <span style={{ opacity: 0.85, fontSize: '0.66rem' }}>(You)</span>}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        }
+        const mine = !isAdminOrSuper && isMine(row);
+        return (
+          <span className={`badge ${mine ? 'badge-primary' : 'badge-neutral'}`} style={{ fontWeight: mine ? 800 : 600, fontSize: '0.74rem' }}>
+            {mine ? '★ ' : ''}{val || 'System'}{mine ? ' (You)' : ''}
+          </span>
+        );
+      }
     },
     {
       key: 'actions',
@@ -1153,6 +1234,79 @@ function CandidatesView({ state }) {
         </div>
       </div>
 
+      {/* Case Manager Scope Switcher: My Candidates vs Global View */}
+      {!isAdminOrSuper && (
+        <div
+          className="card"
+          style={{
+            padding: '0.65rem 1rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            background: 'var(--bg-secondary)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              View Scope:
+            </span>
+            <div style={{
+              display: 'inline-flex',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '999px',
+              padding: '3px',
+              gap: '3px'
+            }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${scopeFilter === 'mine' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={() => handleScopeChange('mine')}
+              >
+                <span>👤 My Candidates</span>
+                <span style={{
+                  background: scopeFilter === 'mine' ? 'rgba(255,255,255,0.22)' : 'var(--bg-primary)',
+                  color: scopeFilter === 'mine' ? '#fff' : 'var(--text-primary)',
+                  borderRadius: '999px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}>
+                  {myCandidatesCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${scopeFilter === 'global' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={() => handleScopeChange('global')}
+              >
+                <span>🌐 Global View</span>
+                <span style={{
+                  background: scopeFilter === 'global' ? 'rgba(255,255,255,0.22)' : 'var(--bg-primary)',
+                  color: scopeFilter === 'global' ? '#fff' : 'var(--text-primary)',
+                  borderRadius: '999px',
+                  padding: '0.05rem 0.45rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}>
+                  {(candidates || []).length}
+                </span>
+              </button>
+            </div>
+          </div>
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            {scopeFilter === 'mine'
+              ? 'Showing candidates assigned to you'
+              : 'Showing all candidates (your assigned candidates are highlighted)'}
+          </span>
+        </div>
+      )}
+
       {/* Lifecycle Status Filter Navigation Tabs - Strictly required lifecycle stages based on business logic */}
       <div className="candidate-status-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
@@ -1267,10 +1421,10 @@ function CandidatesView({ state }) {
             </div>
           )}
 
-          {/* 2. Registration Date Range */}
+          {/* 2. Job Center Reg Date Range */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              📅 Reg Date:
+              📅 Job Center Reg Date:
             </span>
             <input
               type="date"
@@ -1278,7 +1432,7 @@ function CandidatesView({ state }) {
               style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', width: '130px' }}
               value={regDateFrom}
               onChange={e => handleRegDateFrom(e.target.value)}
-              title="Registration Date From"
+              title="Job Center Reg Date From"
             />
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>to</span>
             <input
@@ -1287,7 +1441,7 @@ function CandidatesView({ state }) {
               style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', width: '130px' }}
               value={regDateTo}
               onChange={e => handleRegDateTo(e.target.value)}
-              title="Registration Date To"
+              title="Job Center Reg Date To"
             />
             {(regDateFrom || regDateTo) && (
               <button
@@ -1480,7 +1634,16 @@ function CandidatesView({ state }) {
           data={displayData}
           expandable={true}
           renderChildRow={renderCandidateChildRow}
-          searchPlaceholder="🔍 Search CPR, Name, Ref No, Status, Phone, or Placement..."
+          rowStyle={row => {
+            if (!isAdminOrSuper && isMine(row) && scopeFilter === 'global') {
+              return {
+                backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                borderLeft: '4px solid var(--primary)'
+              };
+            }
+            return undefined;
+          }}
+          searchPlaceholder="🔍 Search CPR, Name, Ref No, Status, Phone, Hot List, or Placement..."
           exportFilename="Candidate_Registry_SaNDS.csv"
           emptyMessage="No candidate records match your selected criteria."
         />

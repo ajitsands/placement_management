@@ -76,13 +76,53 @@ function Modals({ state }) {
 
 // 1. New Candidate Registration Modal with Multiple Document Upload & Optional Placement Linker
 function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }) {
-  const { currentUser, caseManagers, settings } = state;
+  const { currentUser, caseManagers = [], users = [], candidates = [], settings = {} } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
   const currency = settings.currency || 'BHD';
 
+  const currentYearShort = String(new Date().getFullYear()).slice(-2);
+  const defaultRefPrefix = `JCP/${currentYearShort}/`;
+
+  const availableCaseManagers = useMemo(() => {
+    const list = (caseManagers && caseManagers.length > 0)
+      ? caseManagers
+      : (users || []).filter(u => u.role === 'case_manager');
+    const map = new Map();
+    list.forEach(cm => {
+      const key = cm.id || cm.username || cm.full_name;
+      if (key && !map.has(key)) map.set(key, cm);
+    });
+    return Array.from(map.values()).sort((a, b) => (a.full_name || a.username || '').localeCompare(b.full_name || b.username || ''));
+  }, [caseManagers, users]);
+
+  const hotListMasterOptions = useMemo(() => {
+    const defaults = ['Priority Placement', 'VIP / Executive', 'Immediate Joiner', 'High Demand Skill', 'Tamkeen Priority'];
+    const raw = settings?.hot_list_options;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        const split = raw.split(',').map(s => s.trim()).filter(Boolean);
+        if (split.length > 0) return split;
+      }
+    }
+    return defaults;
+  }, [settings?.hot_list_options]);
+
+  const initialAssignedCms = currentUser.role === 'case_manager'
+    ? [{
+        id: currentUser.id || null,
+        name: currentUser.full_name || currentUser.username || 'Case Manager',
+        username: currentUser.username || '',
+        code: currentUser.case_manager_code || ''
+      }]
+    : [];
+
   // Candidate Registration Parameters
   const [form, setForm] = useState({
-    ref_no: '',
+    ref_no: defaultRefPrefix,
     full_name: '',
     cpr_no: '',
     phone: '',
@@ -91,6 +131,9 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
     gender: 'Male',
     education: 'Bachelor Degree',
     registration_date: new Date().toISOString().split('T')[0],
+    tamkeen_approval_date: '',
+    hot_lists: [],
+    assigned_case_managers: initialAssignedCms,
     remarks: '',
     status: 'registered',
     center: initialCenter || 'Enma Mall',
@@ -99,7 +142,51 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
       : (caseManagers[0]?.case_manager_code || 'Husain')
   });
 
-  const [autoRefHint, setAutoRefHint] = useState('');
+  const [hotListSearch, setHotListSearch] = useState('');
+  const [hotListOpen, setHotListOpen] = useState(false);
+
+  const trimmedRef = (form.ref_no || '').trim();
+  const isRefIncomplete = !trimmedRef || /^JCP\/\d{2}\/?$/i.test(trimmedRef);
+  const duplicateCandidate = useMemo(() => {
+    if (!trimmedRef || isRefIncomplete) return null;
+    return (candidates || []).find(c => String(c.ref_no || '').trim().toLowerCase() === trimmedRef.toLowerCase()) || null;
+  }, [candidates, trimmedRef, isRefIncomplete]);
+
+  const toggleCandidateCaseManager = (cm) => {
+    setForm(prev => {
+      const current = prev.assigned_case_managers || [];
+      const idx = current.findIndex(a =>
+        (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+        (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+        (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+      );
+      if (idx >= 0) {
+        const next = [...current];
+        next.splice(idx, 1);
+        return { ...prev, assigned_case_managers: next };
+      }
+      return {
+        ...prev,
+        assigned_case_managers: [...current, {
+          id: cm.id || null,
+          name: cm.full_name || cm.username || 'Case Manager',
+          username: cm.username || '',
+          code: cm.case_manager_code || ''
+        }]
+      };
+    });
+  };
+
+  const toggleHotList = (tag) => {
+    setForm(prev => {
+      const current = prev.hot_lists || [];
+      const exists = current.includes(tag);
+      return {
+        ...prev,
+        hot_lists: exists ? current.filter(t => t !== tag) : [...current, tag]
+      };
+    });
+  };
 
   // Auto-derive Date of Birth from Bahrain CPR (YYMMDD format)
   const handleCprChange = (val) => {
@@ -118,21 +205,6 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
     }
     setForm(next);
   };
-
-  // Fetch next available reference preview on load
-  useEffect(() => {
-    let active = true;
-    window.api.candidates.getNextRef()
-      .then(res => {
-        if (active && res?.next_ref) {
-          setAutoRefHint(res.next_ref);
-        }
-      })
-      .catch(() => {
-        if (active) setAutoRefHint('JCP/26/268525');
-      });
-    return () => { active = false; };
-  }, []);
 
   // Candidate Registration Checklist Master & Real-Time Percentage
   const checklistMasters = state?.checklistMasters || [];
@@ -281,16 +353,32 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
       return;
     }
 
+    if (isRefIncomplete) {
+      window.AppStore.showNotification(`Candidate Reference Number is mandatory (please enter the number after ${defaultRefPrefix})`, 'error');
+      return;
+    }
+
+    if (duplicateCandidate) {
+      window.AppStore.showNotification(`Duplicate Reference Number "${trimmedRef}" is already assigned to ${duplicateCandidate.full_name}`, 'error');
+      return;
+    }
+
     // If mandatory criteria are missing, classify as registration_incomplete (allow saving)
     const isIncomplete = !checklistEval.canProceed;
 
     setSaving(true);
     try {
+      const primaryCm = (form.assigned_case_managers || [])[0];
       const payload = {
         ...form,
         center: form.center || initialCenter || 'Enma Mall',
         event_id: eventId || null,
-        ref_no: form.ref_no.trim(), // Custom ref if provided, otherwise empty string allows backend to auto-generate
+        ref_no: trimmedRef,
+        tamkeen_approval_date: form.tamkeen_approval_date || null,
+        hot_lists: form.hot_lists || [],
+        assigned_case_managers: form.assigned_case_managers || [],
+        case_manager_id: primaryCm?.id || form.case_manager_id || undefined,
+        case_manager_name: primaryCm ? (primaryCm.code || primaryCm.name || primaryCm.username) : form.case_manager_name,
         phone: form.phone.trim(),
         email: form.email.trim(),
         status: isIncomplete ? 'registration_incomplete' : (form.status || 'registered'),
@@ -335,7 +423,7 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
   };
 
   return (
-    <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div className="modal-content" style={{ maxWidth: '1040px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div>
           <h2 className="modal-title">➕ Candidate Registration Module</h2>
@@ -406,8 +494,8 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
               </div>
             </div>
 
-            {/* Row 3: Date of Birth & Gender */}
-            <div className="form-row" style={{ marginBottom: '1rem' }}>
+            {/* Row 3: Date of Birth, Gender & Education Level (3-column balanced grid) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>Date of Birth</label>
@@ -433,10 +521,7 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
                   <option value="Unspecified">Unspecified</option>
                 </select>
               </div>
-            </div>
 
-            {/* Row 3: Education Level & Registration Date */}
-            <div className="form-row" style={{ marginBottom: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Education Level *</label>
                 <select className="select-control" value={form.education} onChange={e => setForm({ ...form, education: e.target.value })}>
@@ -448,9 +533,12 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
                   <option value="Vocational / Technical">Vocational / Technical Certification</option>
                 </select>
               </div>
+            </div>
 
+            {/* Row 4: Job Center Reg Date, Tamkeen Approval Date & Center */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Registration Date *</label>
+                <label className="form-label">Job Center Reg Date *</label>
                 <input
                   type="date"
                   className="input-control"
@@ -459,23 +547,64 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
                   required
                 />
               </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Tamkeen Approval Date</label>
+                <input
+                  type="date"
+                  className="input-control"
+                  value={form.tamkeen_approval_date}
+                  onChange={e => setForm({ ...form, tamkeen_approval_date: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Center *</label>
+                <select
+                  className="select-control"
+                  value={form.center}
+                  onChange={e => setForm({ ...form, center: e.target.value })}
+                  required
+                >
+                  <option value="Enma Mall">Enma Mall</option>
+                  <option value="Career Fair">Career Fair</option>
+                  <option value="Training">Training</option>
+                  <option value="Other Job Center">Other Job Center</option>
+                </select>
+              </div>
             </div>
 
-            {/* Row 4: Candidate Reference Number & Status */}
+            {/* Row 5: Candidate Reference Number (Mandatory + Duplicate Check) & Status */}
             <div className="form-row" style={{ marginBottom: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Candidate Reference No.</label>
-                  <span style={{ fontSize: '0.7rem', color: form.ref_no ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
-                    {form.ref_no.trim() ? 'Custom Ref' : (autoRefHint ? `Auto: ${autoRefHint}` : 'Auto-generating...')}
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', gap: '0.5rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Candidate Reference No. *</label>
+                  {duplicateCandidate ? (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--danger, #dc2626)', fontWeight: 700 }}>
+                      ❌ Duplicate ({duplicateCandidate.full_name})
+                    </span>
+                  ) : isRefIncomplete ? (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--warning, #d97706)', fontWeight: 600 }}>
+                      ⚠️ Complete number after {defaultRefPrefix}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--success, #16a34a)', fontWeight: 700 }}>
+                      ✓ Unique Ref No.
+                    </span>
+                  )}
                 </div>
                 <input
                   type="text"
                   className="input-control"
-                  placeholder={autoRefHint ? `Leave blank to auto-generate (${autoRefHint})` : 'Leave blank to auto-generate'}
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    borderColor: duplicateCandidate ? 'var(--danger, #dc2626)' : (!isRefIncomplete ? 'var(--success, #16a34a)' : undefined)
+                  }}
+                  placeholder={`e.g. ${defaultRefPrefix}268525`}
                   value={form.ref_no}
                   onChange={e => setForm({ ...form, ref_no: e.target.value })}
+                  required
                 />
               </div>
 
@@ -514,49 +643,197 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
               </div>
             </div>
 
-            {/* Row 5: Registration Center & Assigned Case Manager */}
-            <div className="form-row" style={{ marginBottom: '1rem' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Center *</label>
-                <select
-                  className="select-control"
-                  value={form.center}
-                  onChange={e => setForm({ ...form, center: e.target.value })}
-                  required
-                >
-                  <option value="Enma Mall">Enma Mall</option>
-                  <option value="Career Fair">Career Fair</option>
-                  <option value="Training">Training</option>
-                  <option value="Other Job Center">Other Job Center</option>
-                </select>
+            {/* Row 6: Hot List (Searchable Multi-Select Dropdown) */}
+            <div className="form-group" style={{ marginBottom: '1rem', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>
+                  🔥 Hot List <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.78rem' }}>(Searchable, multiple choices — configurable in Settings)</span>
+                </label>
+                {(form.hot_lists || []).length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    style={{ fontSize: '0.7rem', padding: '0.12rem 0.45rem' }}
+                    onClick={() => setForm(prev => ({ ...prev, hot_lists: [] }))}
+                  >
+                    ✕ Clear Hot List ({form.hot_lists.length})
+                  </button>
+                )}
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Assigned Case Manager</label>
-                {isAdminOrSuper ? (
-                  <select
-                    className="select-control"
-                    value={form.case_manager_name}
-                    onChange={e => setForm({ ...form, case_manager_name: e.target.value })}
+              {(form.hot_lists || []).length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                  {form.hot_lists.map(tag => (
+                    <span key={tag} className="badge badge-warning" style={{ fontSize: '0.76rem', padding: '0.25rem 0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}>
+                      🔥 {tag}
+                      <button
+                        type="button"
+                        onClick={() => toggleHotList(tag)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontWeight: 800, padding: 0, lineHeight: 1 }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  className="input-control"
+                  placeholder="🔍 Search & select Hot List tags..."
+                  value={hotListSearch}
+                  onFocus={() => setHotListOpen(true)}
+                  onChange={e => { setHotListSearch(e.target.value); setHotListOpen(true); }}
+                />
+                {hotListOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      maxHeight: '190px',
+                      overflowY: 'auto',
+                      background: 'var(--bg-card, #ffffff)',
+                      border: '1px solid var(--border-light, #e2e8f0)',
+                      borderRadius: '8px',
+                      boxShadow: '0 8px 20px rgba(15, 23, 42, 0.14)',
+                      zIndex: 50,
+                      padding: '0.35rem'
+                    }}
                   >
-                    {caseManagers.map(cm => (
-                      <option key={cm.id} value={cm.case_manager_code || cm.full_name}>
-                        {cm.full_name} ({cm.case_manager_code || 'CM'})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={form.case_manager_name}
-                    disabled
-                  />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.25rem', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      <span>Select one or more Hot List tags</span>
+                      <button type="button" onClick={() => setHotListOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                    </div>
+                    {hotListMasterOptions
+                      .filter(opt => !hotListSearch.trim() || opt.toLowerCase().includes(hotListSearch.trim().toLowerCase()))
+                      .map(opt => {
+                        const checked = (form.hot_lists || []).includes(opt);
+                        return (
+                          <label
+                            key={opt}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.4rem 0.55rem',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              background: checked ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                              fontSize: '0.82rem',
+                              fontWeight: checked ? 700 : 500
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleHotList(opt)}
+                              style={{ accentColor: 'var(--primary)' }}
+                            />
+                            <span>🔥 {opt}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Row 5: Remarks */}
+            {/* Row 7: Assign to Case Manager(s) (Multi-Select like Jobs) */}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <label className="form-label" style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span>👤 Assign to Case Manager(s)</span>
+                  {(form.assigned_case_managers || []).length > 0 && (
+                    <span className="badge badge-primary" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}>
+                      {form.assigned_case_managers.length} Assigned
+                    </span>
+                  )}
+                </label>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem' }}
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      assigned_case_managers: availableCaseManagers.map(cm => ({
+                        id: cm.id || null,
+                        name: cm.full_name || cm.username || 'Case Manager',
+                        username: cm.username || '',
+                        code: cm.case_manager_code || ''
+                      }))
+                    }))}
+                  >
+                    ✓ Select All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem' }}
+                    onClick={() => setForm(prev => ({ ...prev, assigned_case_managers: [] }))}
+                  >
+                    ✕ Clear All
+                  </button>
+                </div>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '0.5rem',
+                maxHeight: '145px',
+                overflowY: 'auto',
+                padding: '0.65rem',
+                background: 'var(--bg-card, #ffffff)',
+                border: '1px solid var(--border-light, #e2e8f0)',
+                borderRadius: '8px'
+              }}>
+                {availableCaseManagers.map(cm => {
+                  const isSelected = (form.assigned_case_managers || []).some(a =>
+                    (a.id !== undefined && a.id !== null && cm.id !== undefined && cm.id !== null && String(a.id) === String(cm.id)) ||
+                    (a.username && cm.username && String(a.username).toLowerCase() === String(cm.username).toLowerCase()) ||
+                    (a.name && cm.full_name && String(a.name).toLowerCase() === String(cm.full_name).toLowerCase())
+                  );
+                  return (
+                    <label
+                      key={cm.id || cm.username || cm.full_name}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '6px',
+                        background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'var(--bg-tertiary, #f8fafc)',
+                        border: isSelected ? '1.5px solid var(--primary, #2563eb)' : '1px solid var(--border-light, #e2e8f0)',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCandidateCaseManager(cm)}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary, #2563eb)' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <strong style={{ fontSize: '0.82rem', color: isSelected ? 'var(--primary)' : 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {cm.full_name || cm.username}
+                        </strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {cm.case_manager_code ? `${cm.case_manager_code} • ` : ''}{cm.center || 'Job Center'}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Row 8: Remarks */}
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Remarks</label>
               <textarea
@@ -3966,7 +4243,7 @@ function CandidateDetailModal({ state, candidate }) {
   }, [interviews, candidate.id]);
 
   return (
-    <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div className="modal-content" style={{ maxWidth: '1040px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div>
           <h2 className="modal-title">{candidate.full_name}</h2>

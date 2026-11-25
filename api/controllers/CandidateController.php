@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Candidate Controller - Registration, Placement Linking, Status Management & Document Uploads
  * Scoped to Case Manager when role is case_manager; Global for Admin/Superadmin.
@@ -70,13 +71,14 @@ class CandidateController {
             Response::error("Candidate with CPR {$cprNo} is already registered under Ref {$existing['ref_no']} ({$existing['full_name']})", 409);
         }
 
-        // Validate custom reference if supplied
+        // Validate mandatory Candidate Reference Number (must include suffix after JCP/YY/)
         $customRef = trim($data['ref_no'] ?? '');
-        if (!empty($customRef)) {
-            $existingRef = Candidate::findByRef($customRef);
-            if ($existingRef) {
-                Response::error("Reference number '{$customRef}' is already taken by candidate {$existingRef['full_name']} (CPR: {$existingRef['cpr_no']})", 409);
-            }
+        if (empty($customRef) || preg_match('#^JCP/\d{2}/?$#i', $customRef)) {
+            Response::error('Candidate Reference Number is mandatory (please complete the number after JCP/YY/)', 400);
+        }
+        $existingRef = Candidate::findByRef($customRef);
+        if ($existingRef) {
+            Response::error("Reference number '{$customRef}' is already taken by candidate {$existingRef['full_name']} (CPR: {$existingRef['cpr_no']})", 409);
         }
 
         // Scope to Case Manager if creator is case_manager

@@ -33,7 +33,8 @@ class SettingController {
             'auto_calc_enabled',
             'theme_mode',
             'notification_email',
-            'standard_tier_amount_bhd'
+            'standard_tier_amount_bhd',
+            'hot_list_options'
         ];
 
         $toUpdate = [];

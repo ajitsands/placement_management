@@ -48,6 +48,7 @@ class Database {
                         self::ensureAuditLogsTable(self::$pdo);
                         self::ensureEventsTables(self::$pdo);
                         self::ensureCandidateApprovalColumns(self::$pdo);
+                        self::ensureCandidateExtraColumns(self::$pdo);
                         self::ensureInterviewTables(self::$pdo);
                         self::ensureClaimColumns(self::$pdo);
                     } catch (Exception $migrationError) {
@@ -310,6 +311,24 @@ class Database {
         }
     }
 
+    /**
+     * Ensure candidates table has hot_lists and assigned_case_managers columns.
+     */
+    private static function ensureCandidateExtraColumns(PDO $pdo): void {
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM candidates");
+            $existing = array_map('strtolower', array_column($stmt->fetchAll(), 'Field'));
+            if (empty($existing)) return;
+            if (!in_array('hot_lists', $existing, true)) {
+                $pdo->exec("ALTER TABLE candidates ADD COLUMN hot_lists LONGTEXT NULL");
+            }
+            if (!in_array('assigned_case_managers', $existing, true)) {
+                $pdo->exec("ALTER TABLE candidates ADD COLUMN assigned_case_managers LONGTEXT NULL");
+            }
+        } catch (Exception $e) {
+        }
+    }
+
     private static function ensureEventsTables(PDO $pdo): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS `events` (
@@ -524,6 +543,18 @@ class Database {
             $c['tamkeen_approval_notes'] = $c['tamkeen_approval_notes'] ?? null;
             $c['tamkeen_approved_by'] = $c['tamkeen_approved_by'] ?? null;
             $c['tamkeen_approved_at'] = $c['tamkeen_approved_at'] ?? null;
+            if (isset($c['hot_lists']) && is_string($c['hot_lists'])) {
+                $decodedHot = json_decode($c['hot_lists'], true);
+                $c['hot_lists'] = is_array($decodedHot) ? $decodedHot : [];
+            } else {
+                $c['hot_lists'] = is_array($c['hot_lists'] ?? null) ? $c['hot_lists'] : [];
+            }
+            if (isset($c['assigned_case_managers']) && is_string($c['assigned_case_managers'])) {
+                $decodedCms = json_decode($c['assigned_case_managers'], true);
+                $c['assigned_case_managers'] = is_array($decodedCms) ? $decodedCms : [];
+            } else {
+                $c['assigned_case_managers'] = is_array($c['assigned_case_managers'] ?? null) ? $c['assigned_case_managers'] : [];
+            }
             return $c;
         }, $pdo->query("SELECT * FROM candidates ORDER BY id ASC")->fetchAll());
 
@@ -1112,9 +1143,10 @@ class Database {
 
             // 3. Candidates
             if (!empty($data['candidates']) && is_array($data['candidates'])) {
-                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, center, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, approved_by_job_center, job_center_approved_at, job_center_approved_by, approved_by_tamkeen, tamkeen_approval_date, tamkeen_approval_notes, tamkeen_approved_by, tamkeen_approved_at, created_at)
-                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :center, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :approved_by_job_center, :job_center_approved_at, :job_center_approved_by, :approved_by_tamkeen, :tamkeen_approval_date, :tamkeen_approval_notes, :tamkeen_approved_by, :tamkeen_approved_at, :created_at)
+                $stmt = $pdo->prepare("INSERT INTO candidates (id, ref_no, full_name, cpr_no, phone, email, gender, education, date_of_birth, registration_date, last_renewal_date, renewals_count, renewal_history, status, salary_bhd, position_title, employee_type, company_name, employer_cr, mol_certified, long_mol, joining_date, case_manager_id, case_manager_name, assigned_case_managers, hot_lists, center, notes, comments, remarks, documents, job_id, job_code, checklist_completion_pct, checklist_items, approved_by_job_center, job_center_approved_at, job_center_approved_by, approved_by_tamkeen, tamkeen_approval_date, tamkeen_approval_notes, tamkeen_approved_by, tamkeen_approved_at, created_at)
+                    VALUES (:id, :ref_no, :full_name, :cpr_no, :phone, :email, :gender, :education, :date_of_birth, :registration_date, :last_renewal_date, :renewals_count, :renewal_history, :status, :salary_bhd, :position_title, :employee_type, :company_name, :employer_cr, :mol_certified, :long_mol, :joining_date, :case_manager_id, :case_manager_name, :assigned_case_managers, :hot_lists, :center, :notes, :comments, :remarks, :documents, :job_id, :job_code, :checklist_completion_pct, :checklist_items, :approved_by_job_center, :job_center_approved_at, :job_center_approved_by, :approved_by_tamkeen, :tamkeen_approval_date, :tamkeen_approval_notes, :tamkeen_approved_by, :tamkeen_approved_at, :created_at)
                     ON DUPLICATE KEY UPDATE
+                        ref_no = VALUES(ref_no),
                         full_name = VALUES(full_name),
                         cpr_no = VALUES(cpr_no),
                         phone = VALUES(phone),
@@ -1135,7 +1167,10 @@ class Database {
                         mol_certified = VALUES(mol_certified),
                         long_mol = VALUES(long_mol),
                         joining_date = VALUES(joining_date),
+                        case_manager_id = VALUES(case_manager_id),
                         case_manager_name = VALUES(case_manager_name),
+                        assigned_case_managers = VALUES(assigned_case_managers),
+                        hot_lists = VALUES(hot_lists),
                         center = VALUES(center),
                         notes = VALUES(notes),
                         comments = VALUES(comments),
@@ -1182,6 +1217,8 @@ class Database {
                         ':joining_date' => $c['joining_date'] ?? null,
                         ':case_manager_id' => !empty($c['case_manager_id']) ? (int)$c['case_manager_id'] : null,
                         ':case_manager_name' => $c['case_manager_name'] ?? 'Husain',
+                        ':assigned_case_managers' => !empty($c['assigned_case_managers']) ? (is_string($c['assigned_case_managers']) ? $c['assigned_case_managers'] : json_encode($c['assigned_case_managers'], JSON_UNESCAPED_UNICODE)) : '[]',
+                        ':hot_lists' => !empty($c['hot_lists']) ? (is_string($c['hot_lists']) ? $c['hot_lists'] : json_encode($c['hot_lists'], JSON_UNESCAPED_UNICODE)) : '[]',
                         ':center' => !empty($c['center']) ? $c['center'] : 'Enma Mall',
                         ':notes' => $c['notes'] ?? null,
                         ':comments' => $c['comments'] ?? null,

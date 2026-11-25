@@ -26,6 +26,66 @@ function SettingsView({ state }) {
   const [editingDocCategory, setEditingDocCategory] = useState(null);
   const [docCategorySaving, setDocCategorySaving] = useState(false);
 
+  // Hot List Master Management State
+  const DEFAULT_HOT_LISTS = ['Priority Placement', 'VIP / Executive', 'Immediate Joiner', 'High Demand Skill', 'Tamkeen Priority'];
+  const parsedHotLists = useMemo(() => {
+    const raw = settings?.hot_list_options;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        return raw.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+    return DEFAULT_HOT_LISTS;
+  }, [settings?.hot_list_options]);
+
+  const [hotListItems, setHotListItems] = useState(parsedHotLists);
+  const [newHotListName, setNewHotListName] = useState('');
+  const [savingHotList, setSavingHotList] = useState(false);
+
+  useEffect(() => {
+    setHotListItems(parsedHotLists);
+  }, [parsedHotLists]);
+
+  const persistHotLists = async (updatedList, successMsg) => {
+    if (!isAdminOrSuper) {
+      window.AppStore.showNotification('Only Administrators can modify Hot List Master options', 'error');
+      return;
+    }
+    setSavingHotList(true);
+    try {
+      await window.api.settings.update({ hot_list_options: JSON.stringify(updatedList) });
+      setHotListItems(updatedList);
+      await window.AppStore.refreshData();
+      window.AppStore.showNotification(successMsg, 'success');
+    } catch (err) {
+      window.AppStore.showNotification('Failed to update Hot List Master: ' + err.message, 'error');
+    } finally {
+      setSavingHotList(false);
+    }
+  };
+
+  const handleAddHotListItem = async (e) => {
+    if (e) e.preventDefault();
+    const trimmed = newHotListName.trim();
+    if (!trimmed) return;
+    if (hotListItems.some(item => item.toLowerCase() === trimmed.toLowerCase())) {
+      window.AppStore.showNotification(`"${trimmed}" already exists in Hot List Master`, 'warning');
+      return;
+    }
+    const updated = [...hotListItems, trimmed];
+    setNewHotListName('');
+    await persistHotLists(updated, `Added "${trimmed}" to Hot List Master`);
+  };
+
+  const handleRemoveHotListItem = async (itemToRemove) => {
+    const updated = hotListItems.filter(item => item !== itemToRemove);
+    await persistHotLists(updated, `Removed "${itemToRemove}" from Hot List Master`);
+  };
+
   // Compute Total Checklist Weight & Status Summary
   const { totalActiveWeight, activeCriteriaCount, mandatoryCriteriaCount } = useMemo(() => {
     let totWeight = 0;
@@ -681,6 +741,87 @@ function SettingsView({ state }) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION: CANDIDATE HOT LIST MASTER */}
+      <div className="card" style={{ marginTop: '1.75rem' }}>
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>🔥</span>
+              <span className="card-title" style={{ fontSize: '1.05rem', fontWeight: 800 }}>Candidate Hot List Master</span>
+              <span className="badge badge-primary" style={{ fontSize: '0.72rem' }}>{hotListItems.length} Tags</span>
+            </div>
+            <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              Configure selectable Hot List tags available in the Candidate Registration searchable multi-select dropdown.
+            </p>
+          </div>
+        </div>
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {isAdminOrSuper && (
+            <form onSubmit={handleAddHotListItem} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="input-control"
+                style={{ flex: '1 1 260px', fontSize: '0.85rem' }}
+                placeholder="Enter new Hot List tag (e.g. Fast Track, Bilingual, Hospitality)..."
+                value={newHotListName}
+                onChange={e => setNewHotListName(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={savingHotList || !newHotListName.trim()}
+                style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem' }}
+              >
+                {savingHotList ? 'Saving...' : '➕ Add Hot List Tag'}
+              </button>
+            </form>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {hotListItems.length === 0 ? (
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                No Hot List tags configured yet.
+              </span>
+            ) : (
+              hotListItems.map(item => (
+                <span
+                  key={item}
+                  className="badge badge-warning"
+                  style={{
+                    fontSize: '0.8rem',
+                    padding: '0.35rem 0.65rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontWeight: 700
+                  }}
+                >
+                  <span>🔥 {item}</span>
+                  {isAdminOrSuper && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHotListItem(item)}
+                      disabled={savingHotList}
+                      title={`Remove "${item}"`}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--danger, #dc2626)',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        padding: 0,
+                        lineHeight: 1
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))
+            )}
           </div>
         </div>
       </div>
