@@ -109,6 +109,7 @@ class CandidateController {
             }
         }
 
+        $data['_actor_name'] = $user['full_name'] ?? ($user['username'] ?? 'System Registrar');
         $newCandidate = Candidate::create($data, $defaultCaseManager);
         $hasPlacement = !empty($newCandidate['company_name']);
 
@@ -125,9 +126,43 @@ class CandidateController {
             'candidate',
             (int)$newCandidate['id'],
             $newCandidate['ref_no'],
-            "Candidate {$newCandidate['full_name']} (CPR: {$newCandidate['cpr_no']}) registered in talent pool with education {$newCandidate['education']} at Center {$newCandidate['center']}.",
+            "Candidate {$newCandidate['full_name']} (CPR: {$newCandidate['cpr_no']}) registered by {$data['_actor_name']} at Center {$newCandidate['center']}. Status: " . ($newCandidate['status'] ?? 'registered') . ".",
             $user
         );
+
+        if (($newCandidate['checklist_completion_pct'] ?? 0) > 0) {
+            \App\Models\AuditLog::log(
+                'CANDIDATE_CHECKLIST_UPDATED',
+                'candidate',
+                (int)$newCandidate['id'],
+                $newCandidate['ref_no'],
+                "Initial checklist recorded by {$data['_actor_name']} ({$newCandidate['checklist_completion_pct']}% complete).",
+                $user
+            );
+        }
+
+        if (strtolower((string)($newCandidate['approved_by_job_center'] ?? '')) === 'yes') {
+            \App\Models\AuditLog::log(
+                'CANDIDATE_JOB_CENTER_APPROVED',
+                'candidate',
+                (int)$newCandidate['id'],
+                $newCandidate['ref_no'],
+                "Job Center approved by {$data['_actor_name']} during registration.",
+                $user
+            );
+        }
+
+        if (strtolower((string)($newCandidate['approved_by_tamkeen'] ?? '')) === 'yes') {
+            $tmkDate = $newCandidate['tamkeen_approval_date'] ?? date('Y-m-d');
+            \App\Models\AuditLog::log(
+                'CANDIDATE_TAMKEEN_APPROVED',
+                'candidate',
+                (int)$newCandidate['id'],
+                $newCandidate['ref_no'],
+                "Tamkeen approved by {$data['_actor_name']} (Approval Date: {$tmkDate}).",
+                $user
+            );
+        }
 
         if ($hasPlacement) {
             \App\Models\AuditLog::log(
@@ -159,6 +194,8 @@ class CandidateController {
 
     public function update(array $data, array $params): void {
         $id = (int)($params['id'] ?? 0);
+        $user = Auth::getCurrentUser();
+        $actorName = $user['full_name'] ?? ($user['username'] ?? 'System User');
         $scope = Auth::getScopedCaseManagerName();
         $existing = Candidate::find($id, $scope);
 
@@ -177,7 +214,60 @@ class CandidateController {
             }
         }
 
+        $data['_actor_name'] = $actorName;
         $updated = Candidate::update($id, $data, $scope);
+
+        $prevJc = strtolower((string)($existing['approved_by_job_center'] ?? 'No'));
+        $newJc = strtolower((string)($updated['approved_by_job_center'] ?? 'No'));
+        if ($newJc === 'yes' && $prevJc !== 'yes') {
+            \App\Models\AuditLog::log(
+                'CANDIDATE_JOB_CENTER_APPROVED',
+                'candidate',
+                $id,
+                $updated['ref_no'] ?? '',
+                "Job Center approved by {$actorName}.",
+                $user
+            );
+        }
+
+        $prevTmk = strtolower((string)($existing['approved_by_tamkeen'] ?? 'No'));
+        $newTmk = strtolower((string)($updated['approved_by_tamkeen'] ?? 'No'));
+        if ($newTmk === 'yes' && $prevTmk !== 'yes') {
+            $tmkDate = $updated['tamkeen_approval_date'] ?? date('Y-m-d');
+            \App\Models\AuditLog::log(
+                'CANDIDATE_TAMKEEN_APPROVED',
+                'candidate',
+                $id,
+                $updated['ref_no'] ?? '',
+                "Tamkeen approved by {$actorName} (Approval Date: {$tmkDate}).",
+                $user
+            );
+        }
+
+        if (array_key_exists('checklist_items', $data)) {
+            $prevPct = (int)($existing['checklist_completion_pct'] ?? 0);
+            $newPct = (int)($updated['checklist_completion_pct'] ?? 0);
+            if ($newPct !== $prevPct || json_encode($existing['checklist_items'] ?? []) !== json_encode($updated['checklist_items'] ?? [])) {
+                \App\Models\AuditLog::log(
+                    'CANDIDATE_CHECKLIST_UPDATED',
+                    'candidate',
+                    $id,
+                    $updated['ref_no'] ?? '',
+                    "Checklist updated by {$actorName} ({$newPct}% complete).",
+                    $user
+                );
+            }
+        }
+
+        \App\Models\AuditLog::log(
+            'CANDIDATE_UPDATED',
+            'candidate',
+            $id,
+            $updated['ref_no'] ?? '',
+            "Candidate {$updated['full_name']} profile updated by {$actorName}. Status: " . ($updated['status'] ?? 'registered') . ".",
+            $user
+        );
+
         Response::json($updated, 200, 'Candidate profile updated successfully');
     }
 
@@ -447,6 +537,8 @@ class CandidateController {
 
     public function updateChecklist(array $data, array $params): void {
         $id = (int)($params['id'] ?? 0);
+        $user = Auth::getCurrentUser();
+        $actorName = $user['full_name'] ?? ($user['username'] ?? 'System User');
         $scope = Auth::getScopedCaseManagerName();
         $candidate = Candidate::find($id, $scope);
 
@@ -458,7 +550,17 @@ class CandidateController {
             ? $data['checked'] 
             : (is_array($data['checklist_items'] ?? null) ? $data['checklist_items'] : []);
 
-        $updated = Candidate::updateChecklist($id, $checked, $scope);
+        $updated = Candidate::updateChecklist($id, $checked, $scope, $actorName);
+
+        \App\Models\AuditLog::log(
+            'CANDIDATE_CHECKLIST_UPDATED',
+            'candidate',
+            $id,
+            $updated['ref_no'] ?? '',
+            "Registration checklist updated by {$actorName} ({$updated['checklist_completion_pct']}% complete).",
+            $user
+        );
+
         Response::json($updated, 200, "Candidate registration checklist updated ({$updated['checklist_completion_pct']}% complete)");
     }
 

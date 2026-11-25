@@ -391,8 +391,9 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated, 
       return;
     }
 
-    // If mandatory criteria are missing, classify as registration_incomplete (allow saving)
-    const isIncomplete = !checklistEval.canProceed;
+    // If mandatory criteria OR Job Center / Tamkeen approval are missing, classify as registration_incomplete (allow saving)
+    const bothApproved = form.approved_by_job_center === 'Yes' && form.approved_by_tamkeen === 'Yes';
+    const isIncomplete = !checklistEval.canProceed || !bothApproved;
 
     setSaving(true);
     try {

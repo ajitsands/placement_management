@@ -169,9 +169,18 @@ function CandidatesView({ state }) {
   }, [candidates]);
 
   // Helper to determine if a candidate belongs to the Incomplete Profile category
+  // A candidate only moves to Available in Pool when mandatory checklist is 100% complete AND both Job Center & Tamkeen are approved
   const isCandidateIncomplete = (c) => {
     if (!c) return false;
     const st = String(c.status || '').toLowerCase().trim();
+    if (st === 'placed' || st === 'active' || st === 'completed' || st === 'resigned') {
+      return false;
+    }
+    const jcApproved = c.approved_by_job_center === true || String(c.approved_by_job_center || '').toLowerCase() === 'yes';
+    const tmkApproved = c.approved_by_tamkeen === true || String(c.approved_by_tamkeen || '').toLowerCase() === 'yes';
+    if (!jcApproved || !tmkApproved) {
+      return true;
+    }
     if (st === 'registration_incomplete' || st === 'registration_not_completed' || st === 'incomplete' || st === 'pending_registration') {
       return true;
     }
@@ -184,7 +193,7 @@ function CandidatesView({ state }) {
       });
       if (hasMissingMandatory) return true;
     } else if (c.checklist_completion_pct !== undefined && c.checklist_completion_pct !== null) {
-      if (Number(c.checklist_completion_pct) < 100 && st !== 'placed' && st !== 'completed' && st !== 'resigned') {
+      if (Number(c.checklist_completion_pct) < 100) {
         return true;
       }
     }

@@ -201,6 +201,12 @@ class Candidate {
         if ($tmkApproved === 'No') {
             $tamkeenDate = null;
         }
+        $actorName = !empty($data['_actor_name']) ? trim((string)$data['_actor_name']) : $caseManagerName;
+
+        // If mandatory checklist criteria are pending OR either Job Center / Tamkeen approval is missing, classify as registration_incomplete (unless placed)
+        if (!$hasPlacement && (!empty($checklistEval['missing_mandatory']) || $jcApproved !== 'Yes' || $tmkApproved !== 'Yes')) {
+            $status = 'registration_incomplete';
+        }
 
         $newCandidate = [
             'id'                       => $id,
@@ -235,14 +241,17 @@ class Candidate {
             'job_code'                 => !empty($data['job_code']) ? trim($data['job_code']) : null,
             'checklist_completion_pct' => $checklistEval['percentage'],
             'checklist_items'          => $checklistEval['item_breakdown'],
+            'checklist_updated_by'     => $actorName,
+            'checklist_updated_at'     => date('Y-m-d H:i:s'),
             'approved_by_job_center'   => $jcApproved,
             'job_center_approved_at'   => $jcApproved === 'Yes' ? date('Y-m-d H:i:s') : null,
-            'job_center_approved_by'   => $jcApproved === 'Yes' ? $caseManagerName : null,
+            'job_center_approved_by'   => $jcApproved === 'Yes' ? $actorName : null,
             'approved_by_tamkeen'      => $tmkApproved,
             'tamkeen_approval_date'    => $tamkeenDate,
             'tamkeen_approval_notes'   => null,
-            'tamkeen_approved_by'      => $tmkApproved === 'Yes' ? $caseManagerName : null,
+            'tamkeen_approved_by'      => $tmkApproved === 'Yes' ? $actorName : null,
             'tamkeen_approved_at'      => $tmkApproved === 'Yes' ? date('Y-m-d H:i:s') : null,
+            'registered_by'            => $actorName,
             'created_at'               => date('Y-m-d H:i:s')
         ];
 
@@ -389,7 +398,7 @@ class Candidate {
         return null;
     }
 
-    public static function updateChecklist(int $id, array $checkedIdentifiers, ?string $caseManagerScope = null): ?array {
+    public static function updateChecklist(int $id, array $checkedIdentifiers, ?string $caseManagerScope = null, ?string $updatedBy = null): ?array {
         $store = Database::getStore();
         foreach ($store['candidates'] as &$c) {
             if ((int)$c['id'] === $id) {
@@ -400,11 +409,18 @@ class Candidate {
                 $eval = ChecklistMaster::evaluateProgress($checkedIdentifiers);
                 $c['checklist_completion_pct'] = $eval['percentage'];
                 $c['checklist_items'] = $eval['item_breakdown'];
+                $c['checklist_updated_by'] = $updatedBy ?: ($c['checklist_updated_by'] ?? ($c['case_manager_name'] ?? 'System User'));
+                $c['checklist_updated_at'] = date('Y-m-d H:i:s');
 
-                // If mandatory checklist criteria are missing, categorize as registration_incomplete
-                if (!empty($eval['missing_mandatory'])) {
-                    $c['status'] = 'registration_incomplete';
-                } elseif (empty($eval['missing_mandatory']) && in_array($c['status'] ?? '', ['registration_incomplete', 'incomplete', 'pending_registration', 'registration_not_completed'])) {
+                $jcOk = strtolower((string)($c['approved_by_job_center'] ?? 'Yes')) === 'yes';
+                $tmkOk = strtolower((string)($c['approved_by_tamkeen'] ?? 'No')) === 'yes';
+
+                // Move to Available in Pool (registered) only when mandatory checklist is complete AND both Job Center & Tamkeen are approved
+                if (!empty($eval['missing_mandatory']) || !$jcOk || !$tmkOk) {
+                    if (!in_array(strtolower((string)($c['status'] ?? '')), ['placed', 'active', 'completed', 'resigned'], true)) {
+                        $c['status'] = 'registration_incomplete';
+                    }
+                } elseif (in_array($c['status'] ?? '', ['registration_incomplete', 'incomplete', 'pending_registration', 'registration_not_completed'])) {
                     $hasPlacement = !empty($c['company_name']) && !empty($c['joining_date']);
                     $c['status'] = $hasPlacement ? 'placed' : 'registered';
                 }
@@ -474,16 +490,35 @@ class Candidate {
                 if (isset($data['education'])) $c['education'] = $data['education'];
                 if (isset($data['date_of_birth'])) $c['date_of_birth'] = !empty($data['date_of_birth']) ? trim($data['date_of_birth']) : null;
                 if (isset($data['registration_date'])) $c['registration_date'] = $data['registration_date'];
+                $actorName = !empty($data['_actor_name']) ? trim((string)$data['_actor_name']) : ($c['case_manager_name'] ?? 'System User');
+
                 if (array_key_exists('approved_by_job_center', $data)) {
+                    $prevJc = strtolower((string)($c['approved_by_job_center'] ?? 'No'));
                     $jc = (strtolower(trim((string)$data['approved_by_job_center'])) === 'no') ? 'No' : 'Yes';
                     $c['approved_by_job_center'] = $jc;
-                    $c['job_center_approved_at'] = $jc === 'Yes' ? ($c['job_center_approved_at'] ?? date('Y-m-d H:i:s')) : null;
+                    if ($jc === 'Yes') {
+                        if ($prevJc !== 'yes' || empty($c['job_center_approved_at'])) {
+                            $c['job_center_approved_at'] = date('Y-m-d H:i:s');
+                            $c['job_center_approved_by'] = $actorName;
+                        }
+                    } else {
+                        $c['job_center_approved_at'] = null;
+                        $c['job_center_approved_by'] = null;
+                    }
                 }
                 if (array_key_exists('approved_by_tamkeen', $data)) {
+                    $prevTmk = strtolower((string)($c['approved_by_tamkeen'] ?? 'No'));
                     $tmk = (strtolower(trim((string)$data['approved_by_tamkeen'])) === 'yes') ? 'Yes' : 'No';
                     $c['approved_by_tamkeen'] = $tmk;
-                    if ($tmk === 'No') {
+                    if ($tmk === 'Yes') {
+                        if ($prevTmk !== 'yes' || empty($c['tamkeen_approved_at'])) {
+                            $c['tamkeen_approved_at'] = date('Y-m-d H:i:s');
+                            $c['tamkeen_approved_by'] = $actorName;
+                        }
+                    } else {
                         $c['tamkeen_approval_date'] = null;
+                        $c['tamkeen_approved_at'] = null;
+                        $c['tamkeen_approved_by'] = null;
                     }
                 }
                 if (array_key_exists('tamkeen_approval_date', $data)) {
@@ -491,8 +526,14 @@ class Candidate {
                     $c['tamkeen_approval_date'] = $tDate;
                     if ($tDate) {
                         $c['approved_by_tamkeen'] = 'Yes';
+                        if (empty($c['tamkeen_approved_at'])) {
+                            $c['tamkeen_approved_at'] = date('Y-m-d H:i:s');
+                            $c['tamkeen_approved_by'] = $actorName;
+                        }
                     } elseif (!array_key_exists('approved_by_tamkeen', $data)) {
                         $c['approved_by_tamkeen'] = 'No';
+                        $c['tamkeen_approved_at'] = null;
+                        $c['tamkeen_approved_by'] = null;
                     }
                 }
                 if (array_key_exists('hot_lists', $data)) {
@@ -544,6 +585,8 @@ class Candidate {
                     $checklistEval = ChecklistMaster::evaluateProgress($checkedIdentifiers);
                     $c['checklist_completion_pct'] = $checklistEval['percentage'];
                     $c['checklist_items'] = $checklistEval['item_breakdown'];
+                    $c['checklist_updated_by'] = $actorName;
+                    $c['checklist_updated_at'] = date('Y-m-d H:i:s');
                 }
                 if (isset($data['documents']) && is_array($data['documents'])) {
                     $processedDocs = [];
@@ -553,6 +596,23 @@ class Candidate {
                         }
                     }
                     $c['documents'] = $processedDocs;
+                }
+
+                // Auto-sync Available in Pool (registered) vs Incomplete Profile based on mandatory checklist + Job Center & Tamkeen approvals
+                $curStatus = strtolower((string)($c['status'] ?? 'registered'));
+                if (!in_array($curStatus, ['placed', 'active', 'completed', 'resigned', 'awaiting_renewal'], true)) {
+                    $jcOk = strtolower((string)($c['approved_by_job_center'] ?? 'No')) === 'yes';
+                    $tmkOk = strtolower((string)($c['approved_by_tamkeen'] ?? 'No')) === 'yes';
+                    $hasMissingMandatory = false;
+                    foreach (($c['checklist_items'] ?? []) as $chkItem) {
+                        $isMand = !empty($chkItem['is_mandatory']);
+                        $isDone = !empty($chkItem['completed']) || !empty($chkItem['is_checked']);
+                        if ($isMand && !$isDone) {
+                            $hasMissingMandatory = true;
+                            break;
+                        }
+                    }
+                    $c['status'] = ($jcOk && $tmkOk && !$hasMissingMandatory) ? 'registered' : 'registration_incomplete';
                 }
 
                 Database::saveStore($store);
@@ -775,17 +835,19 @@ class Candidate {
 
         // 1. Initial Registration
         $regDate = $candidate['registration_date'] ?? $candidate['created_at'] ?? date('Y-m-d');
+        $regTime = $candidate['created_at'] ?? ($regDate . ' 08:30:00');
+        $regActor = $candidate['registered_by'] ?? ($candidate['case_manager_name'] ?: 'System Registrar');
         $activities[] = [
             'id'        => 'act_reg_' . $candidateId,
-            'timestamp' => $regDate . ' 08:30:00',
-            'date'      => $regDate,
+            'timestamp' => $regTime,
+            'date'      => substr((string)$regDate, 0, 10),
             'category'  => 'registration',
             'title'     => 'Candidate Registered in National Talent Pool',
             'ref'       => $candidate['ref_no'],
             'amount'    => null,
             'status'    => 'registered',
             'details'   => "Initial registration created with CPR {$candidate['cpr_no']}. Education level: {$candidate['education']}. Assigned Case Manager: {$candidate['case_manager_name']}.",
-            'actor'     => $candidate['case_manager_name'] ?: 'System Registrar'
+            'actor'     => $regActor
         ];
 
         // 1.1 Job Center Approval
@@ -861,21 +923,29 @@ class Candidate {
         $checklistPct = (int)($candidate['checklist_completion_pct'] ?? 0);
         $chkItems = is_array($candidate['checklist_items'] ?? null) ? $candidate['checklist_items'] : [];
         $completedCount = 0;
+        $completedNames = [];
         foreach ($chkItems as $item) {
-            if (!empty($item['completed']) || !empty($item['is_checked'])) $completedCount++;
+            if (!empty($item['completed']) || !empty($item['is_checked'])) {
+                $completedCount++;
+                $completedNames[] = $item['title'] ?? ($item['code'] ?? 'Item');
+            }
         }
-        if ($completedCount > 0 || $checklistPct > 0) {
+        if ($completedCount > 0 || $checklistPct > 0 || !empty($candidate['checklist_updated_at'])) {
+            $chkTime = $candidate['checklist_updated_at'] ?? ($regDate . ' 08:45:00');
+            $chkDate = substr((string)$chkTime, 0, 10);
+            $chkActor = $candidate['checklist_updated_by'] ?? ($candidate['case_manager_name'] ?: 'Case Manager');
+            $itemsSummary = !empty($completedNames) ? (' Completed items: ' . implode(', ', $completedNames) . '.') : '';
             $activities[] = [
                 'id'        => 'act_chk_' . $candidateId,
-                'timestamp' => $regDate . ' 08:45:00',
-                'date'      => $regDate,
+                'timestamp' => $chkTime,
+                'date'      => $chkDate,
                 'category'  => 'checklist',
                 'title'     => "Compliance Checklist Verified ({$checklistPct}% Complete)",
                 'ref'       => "CHK-{$candidate['ref_no']}",
                 'amount'    => null,
                 'status'    => $checklistPct >= 100 ? 'verified' : 'pending',
-                'details'   => "{$completedCount} verification criteria completed. Compliance score: {$checklistPct}%. Status: " . ($checklistPct >= 100 ? 'Compliant' : 'Checklist Incomplete'),
-                'actor'     => $candidate['case_manager_name'] ?: 'Case Manager'
+                'details'   => "{$completedCount} verification criteria completed. Compliance score: {$checklistPct}%. Status: " . ($checklistPct >= 100 ? 'Compliant' : 'Checklist Incomplete') . ".{$itemsSummary}",
+                'actor'     => $chkActor
             ];
         }
 
