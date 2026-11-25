@@ -404,11 +404,13 @@ class AppStoreClass {
         cachedUser = null;
       }
 
-      // 1. Fetch current profile, settings & case managers in parallel for fastest boot time
-      const [authData, settingsData, cms] = await Promise.all([
+      // 1. Fetch current profile, settings, case managers (and speculative bootstrap if cached session exists) in parallel
+      const hasCachedSession = Boolean(cachedUser && savedAuth === 'true');
+      const [authData, settingsData, cms, preloadedBoot] = await Promise.all([
         window.api.auth.me().catch(() => null),
         window.api.settings.get().catch(() => null),
-        window.api.users.getCaseManagers().catch(() => [])
+        window.api.users.getCaseManagers().catch(() => []),
+        (hasCachedSession && window.api?.bootstrap) ? window.api.bootstrap().catch(() => null) : Promise.resolve(null)
       ]);
 
       if (authData && authData.user) {
@@ -460,7 +462,25 @@ class AppStoreClass {
           window.location.hash = '#' + targetTab;
         }
 
-        await this.refreshData();
+        if (preloadedBoot && preloadedBoot.candidates !== undefined) {
+          this.setState({
+            kpis: preloadedBoot.kpis || {},
+            candidates: preloadedBoot.candidates || [],
+            jobs: preloadedBoot.jobs || [],
+            events: preloadedBoot.events || [],
+            interviews: Array.isArray(preloadedBoot.interviews) ? preloadedBoot.interviews : [],
+            checklistMasters: preloadedBoot.checklist_masters || [],
+            documentCategories: preloadedBoot.document_categories || [],
+            milestones: preloadedBoot.milestones || [],
+            claims: preloadedBoot.claims || [],
+            disputes: preloadedBoot.disputes || [],
+            payments: preloadedBoot.payments || [],
+            users: Array.isArray(preloadedBoot.users) && preloadedBoot.users.length > 0 ? preloadedBoot.users : (this.state.users || []),
+            caseManagerActivities: preloadedBoot.activities || []
+          });
+        } else {
+          await this.refreshData();
+        }
       } else {
         this.notify();
       }
