@@ -89,7 +89,7 @@
   function execCompiledScript(code, url) {
     var s = document.createElement('script');
     s.type = 'text/javascript';
-    s.text = code + '\n//# sourceURL=' + url;
+    s.text = '(function(){\n' + code + '\n})();\n//# sourceURL=' + url;
     document.head.appendChild(s);
   }
 
