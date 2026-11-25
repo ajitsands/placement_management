@@ -38,6 +38,7 @@ function Modals({ state }) {
   return (
     <div className="modal-overlay">
       {type === 'NEW_CANDIDATE' && <NewCandidateModal state={state} initialCenter={props?.initialCenter || props?.center} eventId={props?.eventId} onCandidateCreated={props?.onCandidateCreated} />}
+      {type === 'EDIT_CANDIDATE' && <NewCandidateModal state={state} candidate={props?.candidate} />}
       {type === 'LINK_PLACEMENT' && <LinkPlacementModal state={state} candidate={props?.candidate} job={props?.job} />}
       {type === 'BATCH_PLACEMENT' && (
         <BatchPlacementModal
@@ -75,10 +76,11 @@ function Modals({ state }) {
 }
 
 // 1. New Candidate Registration Modal with Multiple Document Upload & Optional Placement Linker
-function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }) {
+function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated, candidate: editCandidate = null }) {
   const { currentUser, caseManagers = [], users = [], candidates = [], settings = {} } = state;
   const isAdminOrSuper = currentUser.role === 'superadmin' || currentUser.role === 'admin';
   const currency = settings.currency || 'BHD';
+  const isEdit = Boolean(editCandidate && editCandidate.id);
 
   const currentYearShort = String(new Date().getFullYear()).slice(-2);
   const defaultRefPrefix = `JCP/${currentYearShort}/`;
@@ -111,37 +113,45 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
     return defaults;
   }, [settings?.hot_list_options]);
 
-  const initialAssignedCms = currentUser.role === 'case_manager'
-    ? [{
-        id: currentUser.id || null,
-        name: currentUser.full_name || currentUser.username || 'Case Manager',
-        username: currentUser.username || '',
-        code: currentUser.case_manager_code || ''
-      }]
-    : [];
+  const initialAssignedCms = isEdit
+    ? (Array.isArray(editCandidate.assigned_case_managers) && editCandidate.assigned_case_managers.length > 0
+        ? editCandidate.assigned_case_managers
+        : (editCandidate.case_manager_name
+            ? [{ id: editCandidate.case_manager_id || null, name: editCandidate.case_manager_name, username: '', code: editCandidate.case_manager_name }]
+            : []))
+    : (currentUser.role === 'case_manager'
+        ? [{
+            id: currentUser.id || null,
+            name: currentUser.full_name || currentUser.username || 'Case Manager',
+            username: currentUser.username || '',
+            code: currentUser.case_manager_code || ''
+          }]
+        : []);
 
-  // Candidate Registration Parameters
+  // Candidate Registration / Edit Parameters
   const [form, setForm] = useState({
-    ref_no: defaultRefPrefix,
-    full_name: '',
-    cpr_no: '',
-    phone: '',
-    email: '',
-    date_of_birth: '',
-    gender: 'Male',
-    education: 'Bachelor Degree',
-    registration_date: new Date().toISOString().split('T')[0],
-    approved_by_job_center: 'Yes',
-    approved_by_tamkeen: 'No',
-    tamkeen_approval_date: '',
-    hot_lists: [],
+    ref_no: isEdit ? (editCandidate.ref_no || defaultRefPrefix) : defaultRefPrefix,
+    full_name: isEdit ? (editCandidate.full_name || '') : '',
+    cpr_no: isEdit ? (editCandidate.cpr_no || '') : '',
+    phone: isEdit ? (editCandidate.phone || '') : '',
+    email: isEdit ? (editCandidate.email || '') : '',
+    date_of_birth: isEdit ? (editCandidate.date_of_birth || '') : '',
+    gender: isEdit ? (editCandidate.gender || 'Male') : 'Male',
+    education: isEdit ? (editCandidate.education || 'Bachelor Degree') : 'Bachelor Degree',
+    registration_date: isEdit ? (editCandidate.registration_date || new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+    approved_by_job_center: isEdit ? (String(editCandidate.approved_by_job_center || 'Yes').toLowerCase() === 'no' ? 'No' : 'Yes') : 'Yes',
+    approved_by_tamkeen: isEdit ? (String(editCandidate.approved_by_tamkeen || 'No').toLowerCase() === 'yes' ? 'Yes' : 'No') : 'No',
+    tamkeen_approval_date: isEdit ? (editCandidate.tamkeen_approval_date || '') : '',
+    hot_lists: isEdit && Array.isArray(editCandidate.hot_lists) ? editCandidate.hot_lists : [],
     assigned_case_managers: initialAssignedCms,
-    remarks: '',
-    status: 'registered',
-    center: initialCenter || 'Enma Mall',
-    case_manager_name: currentUser.role === 'case_manager' 
-      ? (currentUser.case_manager_code || currentUser.full_name) 
-      : (caseManagers[0]?.case_manager_code || 'Husain')
+    remarks: isEdit ? (editCandidate.remarks || editCandidate.notes || '') : '',
+    status: isEdit ? (editCandidate.status || 'registered') : 'registered',
+    center: isEdit ? (editCandidate.center || 'Enma Mall') : (initialCenter || 'Enma Mall'),
+    case_manager_name: isEdit
+      ? (editCandidate.case_manager_name || 'Husain')
+      : (currentUser.role === 'case_manager'
+          ? (currentUser.case_manager_code || currentUser.full_name)
+          : (caseManagers[0]?.case_manager_code || 'Husain'))
   });
 
   const [hotListSearch, setHotListSearch] = useState('');
@@ -151,8 +161,11 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
   const isRefIncomplete = !trimmedRef || /^JCP\/\d{2}\/?$/i.test(trimmedRef);
   const duplicateCandidate = useMemo(() => {
     if (!trimmedRef || isRefIncomplete) return null;
-    return (candidates || []).find(c => String(c.ref_no || '').trim().toLowerCase() === trimmedRef.toLowerCase()) || null;
-  }, [candidates, trimmedRef, isRefIncomplete]);
+    return (candidates || []).find(c =>
+      (!isEdit || Number(c.id) !== Number(editCandidate.id)) &&
+      String(c.ref_no || '').trim().toLowerCase() === trimmedRef.toLowerCase()
+    ) || null;
+  }, [candidates, trimmedRef, isRefIncomplete, isEdit, editCandidate?.id]);
 
   const toggleCandidateCaseManager = (cm) => {
     setForm(prev => {
@@ -385,7 +398,7 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
         case_manager_name: primaryCm ? (primaryCm.code || primaryCm.name || primaryCm.username) : form.case_manager_name,
         phone: form.phone.trim(),
         email: form.email.trim(),
-        status: isIncomplete ? 'registration_incomplete' : (form.status || 'registered'),
+        status: isEdit ? (editCandidate.status || form.status || 'registered') : (isIncomplete ? 'registration_incomplete' : (form.status || 'registered')),
         checklist_items: Array.from(checkedItems),
         documents: documents.map(d => ({
           name: d.name,
@@ -396,31 +409,36 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
         }))
       };
 
-      const created = await window.api.candidates.create(payload);
-      if (typeof onCandidateCreated === 'function') {
-        try { onCandidateCreated(created); } catch (e) {}
-      }
-      if (isIncomplete) {
-        sessionStorage.setItem('sands_claims_cand_status_v2', 'registration_incomplete');
-        sessionStorage.setItem('sands_claims_cand_status', 'registration_incomplete');
-        window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registration_incomplete' }));
-        window.AppStore.showNotification(
-          `Candidate saved in 'Incomplete Profile' list (${checklistEval.percentage}% complete) with Ref ${created.ref_no}`,
-          'warning'
-        );
+      if (isEdit) {
+        await window.api.candidates.update(editCandidate.id, payload);
+        window.AppStore.showNotification(`Candidate "${form.full_name}" (${trimmedRef}) updated successfully!`, 'success');
       } else {
-        sessionStorage.setItem('sands_claims_cand_status_v2', 'registered');
-        sessionStorage.setItem('sands_claims_cand_status', 'registered');
-        window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registered' }));
-        window.AppStore.showNotification(
-          `Candidate registered successfully with Ref ${created.ref_no}!`, 
-          'success'
-        );
+        const created = await window.api.candidates.create(payload);
+        if (typeof onCandidateCreated === 'function') {
+          try { onCandidateCreated(created); } catch (e) {}
+        }
+        if (isIncomplete) {
+          sessionStorage.setItem('sands_claims_cand_status_v2', 'registration_incomplete');
+          sessionStorage.setItem('sands_claims_cand_status', 'registration_incomplete');
+          window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registration_incomplete' }));
+          window.AppStore.showNotification(
+            `Candidate saved in 'Incomplete Profile' list (${checklistEval.percentage}% complete) with Ref ${created.ref_no}`,
+            'warning'
+          );
+        } else {
+          sessionStorage.setItem('sands_claims_cand_status_v2', 'registered');
+          sessionStorage.setItem('sands_claims_cand_status', 'registered');
+          window.dispatchEvent(new CustomEvent('cand_filter_status_change', { detail: 'registered' }));
+          window.AppStore.showNotification(
+            `Candidate registered successfully with Ref ${created.ref_no}!`, 
+            'success'
+          );
+        }
       }
       window.AppStore.closeModal();
       await window.AppStore.refreshData();
     } catch (err) {
-      window.AppStore.showNotification('Error registering candidate: ' + err.message, 'error');
+      window.AppStore.showNotification(`Error ${isEdit ? 'updating' : 'registering'} candidate: ` + err.message, 'error');
     } finally {
       setSaving(false);
     }
@@ -430,9 +448,11 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
     <div className="modal-content" style={{ maxWidth: '1040px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}>
       <div className="modal-header">
         <div>
-          <h2 className="modal-title">➕ Candidate Registration Module</h2>
+          <h2 className="modal-title">{isEdit ? `✏️ Edit Candidate: ${editCandidate.full_name}` : '➕ Candidate Registration Module'}</h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Register candidate personal profile, attach verification documents & verify compliance checklist
+            {isEdit
+              ? `Update candidate personal details, approvals, Hot List tags, and Case Manager assignments (${editCandidate.ref_no})`
+              : 'Register candidate personal profile, attach verification documents & verify compliance checklist'}
           </span>
         </div>
         <button className="modal-close-btn" onClick={() => window.AppStore.closeModal()}>✕</button>
@@ -1143,7 +1163,11 @@ function NewCandidateModal({ state, initialCenter, eventId, onCandidateCreated }
         <div className="modal-footer">
           <button type="button" className="btn btn-outline" onClick={() => window.AppStore.closeModal()}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving Candidate...' : (checklistEval.canProceed ? 'Complete Candidate Registration' : `💾 Save to Incomplete Profile (${checklistEval.percentage}%)`)}
+            {saving
+              ? (isEdit ? 'Saving Changes...' : 'Saving Candidate...')
+              : (isEdit
+                  ? '💾 Save Candidate Changes'
+                  : (checklistEval.canProceed ? 'Complete Candidate Registration' : `💾 Save to Incomplete Profile (${checklistEval.percentage}%)`))}
           </button>
         </div>
       </form>

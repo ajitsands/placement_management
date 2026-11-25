@@ -166,6 +166,17 @@ class CandidateController {
             Response::notFound("Candidate not found or access unauthorized for this Case Manager");
         }
 
+        if (isset($data['ref_no'])) {
+            $customRef = trim((string)$data['ref_no']);
+            if ($customRef === '' || preg_match('#^JCP/\d{2}/?$#i', $customRef)) {
+                Response::error('Candidate Reference Number is mandatory (please complete the number after JCP/YY/)', 400);
+            }
+            $existingRef = Candidate::findByRef($customRef);
+            if ($existingRef && (int)$existingRef['id'] !== $id) {
+                Response::error("Reference number '{$customRef}' is already taken by candidate {$existingRef['full_name']} (CPR: {$existingRef['cpr_no']})", 409);
+            }
+        }
+
         $updated = Candidate::update($id, $data, $scope);
         Response::json($updated, 200, 'Candidate profile updated successfully');
     }

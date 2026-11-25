@@ -675,11 +675,11 @@ function CandidatesView({ state }) {
                     <div style={{ marginTop: '0.35rem' }}>
                       <button
                         type="button"
-                        className="btn btn-primary btn-sm"
-                        style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', fontWeight: 700, background: '#059669', borderColor: '#059669' }}
-                        onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', fontWeight: 700, color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                        onClick={() => window.AppStore.openModal('EDIT_CANDIDATE', { candidate: row })}
                       >
-                        ✓ Approve Candidate by Tamkeen Now
+                        ✏️ Edit Candidate Details
                       </button>
                     </div>
                   </div>
@@ -984,38 +984,32 @@ function CandidatesView({ state }) {
       sortable: false,
       render: (_, row) => {
         const ren = getCandidateRenewalInfo(row);
-        const isTamkeenApproved = row.approved_by_tamkeen === true || String(row.approved_by_tamkeen || '').toLowerCase() === 'yes';
-        const hasPrimaryActions = !isTamkeenApproved || ren.isAwaitingRenewal || ren.isPlaced || (String(row.status || '').toLowerCase() === 'resigned' && !ren.isAwaitingRenewal);
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '190px', maxWidth: '230px', marginLeft: 'auto' }}>
-            {/* Row 1: Primary Action Buttons */}
-            {hasPrimaryActions && (
-              <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
-                {/* Tamkeen Approve Action Button */}
-                {!isTamkeenApproved && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    title={`Approve ${row.full_name} for Tamkeen Scheme`}
-                    style={{
-                      flex: 1,
-                      fontSize: '0.72rem',
-                      padding: '0.22rem 0.45rem',
-                      fontWeight: 700,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '3px',
-                      whiteSpace: 'nowrap',
-                      background: '#059669',
-                      borderColor: '#059669'
-                    }}
-                    onClick={() => window.AppStore.openModal('TAMKEEN_APPROVAL', { candidate: row })}
-                  >
-                    <span>🏛️</span> Tamkeen Approve
-                  </button>
-                )}
+            {/* Row 1: Primary Action Buttons (Edit + Renewal/Exit) */}
+            <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                title={`Edit ${row.full_name} details`}
+                style={{
+                  flex: 1,
+                  fontSize: '0.72rem',
+                  padding: '0.22rem 0.45rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  whiteSpace: 'nowrap',
+                  color: 'var(--primary)',
+                  borderColor: 'var(--primary)'
+                }}
+                onClick={() => window.AppStore.openModal('EDIT_CANDIDATE', { candidate: row })}
+              >
+                <span>✏️</span> Edit
+              </button>
 
                 {ren.isAwaitingRenewal && (
                   <button
@@ -1082,8 +1076,7 @@ function CandidatesView({ state }) {
                     <span>🔄</span> Renew to Pool
                   </button>
                 )}
-              </div>
-            )}
+            </div>
 
             {/* Row 2: Inspection & Log Buttons */}
             <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>

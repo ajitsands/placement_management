@@ -474,10 +474,26 @@ class Candidate {
                 if (isset($data['education'])) $c['education'] = $data['education'];
                 if (isset($data['date_of_birth'])) $c['date_of_birth'] = !empty($data['date_of_birth']) ? trim($data['date_of_birth']) : null;
                 if (isset($data['registration_date'])) $c['registration_date'] = $data['registration_date'];
+                if (array_key_exists('approved_by_job_center', $data)) {
+                    $jc = (strtolower(trim((string)$data['approved_by_job_center'])) === 'no') ? 'No' : 'Yes';
+                    $c['approved_by_job_center'] = $jc;
+                    $c['job_center_approved_at'] = $jc === 'Yes' ? ($c['job_center_approved_at'] ?? date('Y-m-d H:i:s')) : null;
+                }
+                if (array_key_exists('approved_by_tamkeen', $data)) {
+                    $tmk = (strtolower(trim((string)$data['approved_by_tamkeen'])) === 'yes') ? 'Yes' : 'No';
+                    $c['approved_by_tamkeen'] = $tmk;
+                    if ($tmk === 'No') {
+                        $c['tamkeen_approval_date'] = null;
+                    }
+                }
                 if (array_key_exists('tamkeen_approval_date', $data)) {
                     $tDate = !empty($data['tamkeen_approval_date']) ? trim((string)$data['tamkeen_approval_date']) : null;
                     $c['tamkeen_approval_date'] = $tDate;
-                    $c['approved_by_tamkeen'] = $tDate ? 'Yes' : 'No';
+                    if ($tDate) {
+                        $c['approved_by_tamkeen'] = 'Yes';
+                    } elseif (!array_key_exists('approved_by_tamkeen', $data)) {
+                        $c['approved_by_tamkeen'] = 'No';
+                    }
                 }
                 if (array_key_exists('hot_lists', $data)) {
                     $hl = $data['hot_lists'];
@@ -502,6 +518,7 @@ class Candidate {
                 if (isset($data['employer_cr'])) $c['employer_cr'] = trim($data['employer_cr']);
                 if (isset($data['mol_certified'])) $c['mol_certified'] = $data['mol_certified'];
                 if (isset($data['joining_date'])) $c['joining_date'] = $data['joining_date'];
+                if (isset($data['case_manager_id'])) $c['case_manager_id'] = !empty($data['case_manager_id']) ? (int)$data['case_manager_id'] : null;
                 if (isset($data['case_manager_name'])) $c['case_manager_name'] = trim($data['case_manager_name']);
                 if (isset($data['center'])) $c['center'] = trim($data['center']);
                 if (isset($data['remarks'])) {
@@ -671,6 +688,7 @@ class Candidate {
                 if (isset($data['phone'])) $c['phone'] = !empty($data['phone']) ? trim($data['phone']) : null;
                 if (isset($data['email'])) $c['email'] = !empty($data['email']) ? trim($data['email']) : null;
                 if (isset($data['education'])) $c['education'] = trim($data['education']);
+                if (isset($data['case_manager_id'])) $c['case_manager_id'] = !empty($data['case_manager_id']) ? (int)$data['case_manager_id'] : null;
                 if (isset($data['case_manager_name'])) $c['case_manager_name'] = trim($data['case_manager_name']);
                 if ($remarks) {
                     $c['remarks'] = $remarks;
